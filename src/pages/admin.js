@@ -1,6 +1,6 @@
 import { state, getGlobalMeatTotals } from "../data/demo-data.js";
 import { money, total, received, outstanding } from "../utils/format.js";
-import { getExpenseShares, getFinancialSummary } from "../utils/finance.js";
+import { getExpenseShares, getFinancialSummary, getMemberCostSummary } from "../utils/finance.js";
 const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function renderMeatTable() {
   const totals=getGlobalMeatTotals();
@@ -91,8 +91,8 @@ function renderExpenses() {
   <p class="catalog-note">De volledige factuur wordt als voorschot toegekend aan de betaler. De kost zelf wordt volgens de gekozen verdeelsleutel verdeeld.</p></form>
   <div class="expense-list">${expenseRows || '<p class="catalog-note">Nog geen gemeenschappelijke kosten geregistreerd.</p>'}</div></section>
   <section class="panel"><div class="section-heading"><div><h2>${state.costsFinalized?"Definitieve kostenafrekening per inschrijving":"Voorlopige kostenafrekening per inschrijving"}</h2><p>Voorschotten min het eigen aandeel in alle geregistreerde kosten.</p></div><span class="status neutral">Inclusief betalingen</span></div>
-  <div class="financial-summary-list">${summaries.map(row=>`<div class="financial-summary-row"><div><strong>${esc(row.name)}</strong><small>Voorgeschoten ${money(row.advancedCents/100)} · Eigen aandeel ${money(row.shareCents/100)} · Betaald ${money(row.paidCents/100)} · Nog te betalen ${money(row.remainingCents/100)}</small></div><strong class="${row.balanceCents>=0?"positive":"negative"}">${money(row.balanceCents/100)}</strong></div>`).join("") || '<p class="catalog-note">Voeg eerst inschrijvingen toe.</p>'}</div>
-  <p class="catalog-note">Positief = deze inschrijving heeft meer voorgeschoten dan haar eigen aandeel. Negatief = deze inschrijving moet nog bijdragen. Ontvangen betalingen zijn al in het resterende bedrag verwerkt.</p></section>`;
+  <div class="financial-summary-list">${summaries.map(row=>{const registration=state.registrations.find(item=>item.id===row.id);const members=registration?getMemberCostSummary(registration,state.registrations,state.expenses):[];return `<article class="settlement-family"><div class="financial-summary-row"><div><strong>${esc(row.name)}</strong><small>Eigen kost gezin: ${money(row.shareCents/100)} · Voorgeschoten: ${money(row.advancedCents/100)} · Terugbetaald: ${money(row.paidCents/100)}</small></div><strong class="${row.balanceCents>=0?"positive":"negative"}">${money(Math.abs(row.balanceCents)/100)} ${row.balanceCents>0?"te ontvangen":row.balanceCents<0?"te betalen":"in evenwicht"}</strong></div>${members.length?`<div class="settlement-members"><div class="settlement-members-heading"><span>Individuele kosten</span><span>Eigen aandeel</span></div>${members.map(member=>`<div class="settlement-member-row"><span>${esc(member.name)}</span><strong>${money(member.cents/100)}</strong></div>`).join("")}</div>`:"<p class='catalog-note'>Nog geen individuele leden geregistreerd.</p>"}<div class="settlement-family-footer"><span>Nog te betalen na betalingen</span><strong>${money(row.remainingCents/100)}</strong></div></article>`}).join("") || '<p class="catalog-note">Voeg eerst inschrijvingen toe.</p>'}</div>
+  <p class="catalog-note">De individuele bedragen zijn ieders eigen kostenaandeel. Voorschotten en terugbetalingen worden op gezinsniveau verrekend, omdat aankopen door een inschrijving worden voorgeschoten.</p></section>`;
 }
 
 function renderSettlementPanel() {
