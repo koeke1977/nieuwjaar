@@ -83,8 +83,8 @@ export function getPersistableEnvironmentData() {
   state.environmentData[state.activeEnvironment] = captureEnvironment();
   const snapshot = clonePersisted(state.environmentData);
   for (const environment of ["test", "live"]) {
-    snapshot[environment].catalog = (snapshot[environment].catalog || []).map(product => ({ ...product, image: typeof product.image === "string" && product.image.startsWith("/images/") ? product.image : null }));
-    snapshot[environment].editionArchive = (snapshot[environment].editionArchive || []).map(edition => ({ ...edition, catalog: (edition.catalog || []).map(product => ({ ...product, image: typeof product.image === "string" && product.image.startsWith("/images/") ? product.image : null })) }));
+    snapshot[environment].catalog = (snapshot[environment].catalog || []).map(product => ({ ...product, image: typeof product.image === "string" && (product.image.startsWith("/images/") || product.image.startsWith("/media/")) ? product.image : null }));
+    snapshot[environment].editionArchive = (snapshot[environment].editionArchive || []).map(edition => ({ ...edition, catalog: (edition.catalog || []).map(product => ({ ...product, image: typeof product.image === "string" && (product.image.startsWith("/images/") || product.image.startsWith("/media/")) ? product.image : null })) }));
   }
   return snapshot;
 }
