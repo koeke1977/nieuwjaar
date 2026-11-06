@@ -1,9 +1,14 @@
 export const state = {
   activeConsole: "user", activeSection: "overview", activeRegistrationId: "koen-isabella", editingMember: null, managingRegistrationId: "koen-isabella",
+  // Demo-inschrijving voor de huidige editie; productie start met een lege lijst.
   registrations: [
+    { id:"koen-isabella", name:"Koen & Isabella", adults:2, children:2, members: [] }
+  ],
+  // Historische cijfers van de vorige editie: uitsluitend archief, nooit actief bewerken.
+  previousEditionRegistrations: [
     { id:"olivier-kelly", name:"Olivier & Kelly", adults:2, children:2 },
     { id:"boef-claudia", name:"Boef & Claudia", adults:2, children:2 },
-    { id:"koen-isabella", name:"Koen & Isabella", adults:2, children:2 },
+    { id:"koen-isabella-old", name:"Koen & Isabella", adults:2, children:2 },
     { id:"lorenzo-kim", name:"Lorenzo & Kim", adults:2, children:2 },
     { id:"ben-tina", name:"Ben & Tina", adults:4, children:2 },
     { id:"inge", name:"Inge", adults:1, children:2 },
