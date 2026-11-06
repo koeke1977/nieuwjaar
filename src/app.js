@@ -318,7 +318,7 @@ async function handleImageUpload(event){
 }
 export async function startApp(){
   if (location.pathname.startsWith("/familie/")) { startFamilyPortal(); return; }
-  const isAdminRoute = location.pathname.replace(/\\/+$/, "") === "/beheer";
+  const isAdminRoute = location.pathname === "/beheer" || location.pathname === "/beheer/";
   state.activeConsole = isAdminRoute ? "admin" : "user";
   state.activeSection = "overview";
   document.addEventListener("click",handleClick);document.addEventListener("submit",handleSubmit);document.addEventListener("change",handleImageUpload);
