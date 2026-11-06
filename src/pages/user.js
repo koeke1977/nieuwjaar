@@ -6,21 +6,21 @@ function renderPersonEditor(person) {
   const products = state.catalog.filter(item => item.active);
   return `<div class="person-order-editor"><p>Bestelling voor <strong>${esc(person.name)}</strong></p><div class="person-order-grid">${products.map(product => {
     const count = Number(person.orders[product.id]) || 0;
-    return `<div class="person-order-item"><span>${esc(product.name)}</span><div class="quantity-control"><button type="button" data-action="change-quantity" data-person="${esc(person.name)}" data-product="${esc(product.id)}" data-delta="-1" ${count===0?"disabled":""}>−</button><strong>${count}</strong><button type="button" data-action="change-quantity" data-person="${esc(person.name)}" data-product="${esc(product.id)}" data-delta="1">+</button></div></div>`;
+    return `<div class="person-order-item"><span>${esc(product.name)}</span><div class="quantity-control"><button type="button" data-action="change-quantity" data-person-id="${esc(person.id)}" data-product="${esc(product.id)}" data-delta="-1" ${count===0?"disabled":""}>−</button><strong>${count}</strong><button type="button" data-action="change-quantity" data-person="${esc(person.name)}" data-product="${esc(product.id)}" data-delta="1">+</button></div></div>`;
   }).join("")}</div><button class="button button-small button-outline" data-action="close-order-editor">Gereed</button></div>`;
 }
 function renderMeatPanel(compact = false) {
   const products = state.catalog.filter(item => item.active);
   const totals = getFamilyMeat();
   return `<section class="panel">
-    <div class="section-heading"><div><h2>Onze vleesbestelling</h2><p>Kies per gezinslid hoeveel stuks van elk product gewenst zijn.</p></div><span class="status success">In te vullen</span></div>
+    <div class="section-heading"><div><h2>Onze vleesbestelling</h2><p>Vul per gezinslid de gewenste aantallen in. De totalen worden automatisch berekend.</p></div><span class="status success">In te vullen</span></div>
     <div class="meat-catalog">${products.map(item => {
       const count = totals.find(meat => meat.id === item.id)?.count || 0;
       return `<article class="meat-card"><div class="meat-card-image">${item.image ? `<img src="${item.image}" alt="${esc(item.name)}">` : '<div class="meat-placeholder"><span>♨</span><small>Foto volgt</small></div>'}</div>
         <div class="meat-card-info"><strong>${esc(item.name)}</strong><span>${count} besteld</span></div>
-        <div class="quantity-control quantity-summary"><strong>${count} stuks voor het gezin</strong></div></article>`;
+        <div class="quantity-control quantity-summary"><strong>${count} stuks voor ons gezin</strong></div></article>`;
     }).join("")}</div>
-    <div class="order-list">${family().members.map(person => `<div class="person-order-block"><div class="order-row"><strong>${esc(person.name)}</strong><span>${getPersonMeatTotal(person)} porties</span><button class="button button-small button-outline" data-action="edit-order" data-name="${esc(person.name)}">${state.editingMember===person.name?"Bewerken":"Aanpassen"}</button></div>${state.editingMember===person.name?renderPersonEditor(person):""}</div>`).join("")}</div>
+    <div class="order-list">${family().members.map(person => `<div class="person-order-block"><div class="order-row"><strong>${esc(person.name)}</strong><span>${getPersonMeatTotal(person)} porties</span><button class="button button-small button-outline" data-action="edit-order" data-person-id="${esc(person.id)}">${state.editingMember===person.name?"Bewerken":"Aanpassen"}</button></div>${state.editingMember===person.name?renderPersonEditor(person):""}</div>`).join("")}</div>
     <div class="family-meat"><div class="section-heading"><div><h3>Totaal voor ons gezin</h3><p>Automatisch opgeteld uit de bestellingen van alle gezinsleden.</p></div><strong class="total-number">${total(totals)} porties</strong></div>
     <div class="meat-chips">${totals.filter(item => item.count>0).map(item => `<span>${esc(item.name)}<b>${item.count}</b></span>`).join("") || "<span>Nog geen bestelling</span>"}</div></div>
     ${compact ? '<button class="button button-dark full" data-section="meat">Bestelling bekijken <span>→</span></button>' : ""}</section>`;
