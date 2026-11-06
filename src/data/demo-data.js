@@ -33,8 +33,8 @@ export const state = {
   ],
   catalog: ["Steak","Kip","Saté","Worst","Hamburger","Witte pens","Sparerib","Bolletjes op stok"]
     .map((name, i) => {
-      const id = ["steak","kip","sate","worst","hamburger","witte-pens","spareribs","bolletjes"][i];
-      const images = { steak:"/images/steak.jpg", kip:"/images/kip.jpg", sate:"/images/sate.jpg", worst:"/images/worst.jpg", hamburger:"/images/hamburger.jpg", "witte-pens":"/images/witte-pens.jpg", spareribs:"/images/spareribs.jpg", bolletjes:"/images/bolletjes-op-stok.jpg" };
+      const id = ["steak","kip","sate","worst","hamburger","witte-pens","sparerib","bolletjes"][i];
+      const images = { steak:"/images/steak.jpg", kip:"/images/kip.jpg", sate:"/images/sate.jpg", worst:"/images/worst.jpg", hamburger:"/images/hamburger.jpg", "witte-pens":"/images/witte-pens.jpg", sparerib:"/images/spareribs.jpg", bolletjes:"/images/bolletjes-op-stok.jpg" };
       return { id, name, active: true, image: images[id] };
     })
 };
