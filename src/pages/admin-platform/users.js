@@ -24,8 +24,10 @@ function renderRows(users) {
   if (!users.length) { list.innerHTML = '<p class="catalog-note">Nog geen familieaccounts. Nodig hierboven het eerste gezin uit.</p>'; return; }
   list.innerHTML = users.map(user => {
     const status = user.status === "active" ? "Actief" : user.status === "disabled" ? "Geblokkeerd" : "Uitgenodigd";
-    const links = user.registrations.map(link => '<span>'+escapeHtml(registrations.find(item => item.id === link.registrationId)?.name || link.registrationId)+'</span>').join("");
-    return '<article class="family-user-row"><div class="family-user-main"><strong>'+escapeHtml(user.displayName || user.email)+'</strong><small>'+escapeHtml(user.email)+' · <span class="family-user-status '+(user.status==="disabled"?"disabled":"")+'">'+status+'</span></small><div class="family-user-links">'+(links || '<span>Geen koppeling in deze omgeving</span>')+'</div></div><div class="family-user-actions">'+(user.status==="invited" ? '<button class="button button-small button-outline" data-user-action="resend" data-user-id="'+user.id+'">Opnieuw uitnodigen</button>' : '')+(user.status==="disabled" ? '<button class="button button-small button-outline" data-user-action="activate" data-user-id="'+user.id+'">Deblokkeren</button>' : user.status==="active" ? '<button class="button button-small button-outline" data-user-action="disable" data-user-id="'+user.id+'">Blokkeren</button>' : '')+(user.status==="active" ? '<button class="text-button" data-user-action="sessions" data-user-id="'+user.id+'">Sessies intrekken</button>' : '')+'</div></article>';
+    const links = user.registrations.map(link => '<span class="family-user-link"><span>'+escapeHtml(registrations.find(item => item.id === link.registrationId)?.name || link.registrationId)+'</span><button type="button" data-user-action="unlink" data-user-id="'+user.id+'" data-link-id="'+link.linkId+'" aria-label="Koppeling verwijderen">×</button></span>').join("");
+    const available = registrations.filter(item => !user.registrations.some(link => link.registrationId === item.id));
+    const linkEditor = available.length ? '<form class="family-user-link-form" data-link-user="'+user.id+'"><select name="registrationId" aria-label="Extra inschrijving"><option value="">Extra inschrijving koppelen</option>'+available.map(item => '<option value="'+escapeHtml(item.id)+'">'+escapeHtml(item.name)+'</option>').join("")+'</select><button type="submit">Koppelen</button></form>' : '';
+    return '<article class="family-user-row"><div class="family-user-main"><strong>'+escapeHtml(user.displayName || user.email)+'</strong><small>'+escapeHtml(user.email)+' · <span class="family-user-status '+(user.status==="disabled"?"disabled":"")+'">'+status+'</span></small><div class="family-user-links">'+(links || '<span>Geen koppeling in deze omgeving</span>')+'</div>'+linkEditor+'</div><div class="family-user-actions">'+(user.status==="invited" ? '<button class="button button-small button-outline" data-user-action="resend" data-user-id="'+user.id+'">Opnieuw uitnodigen</button>' : '')+(user.status==="disabled" ? '<button class="button button-small button-outline" data-user-action="activate" data-user-id="'+user.id+'">Deblokkeren</button>' : user.status==="active" ? '<button class="button button-small button-outline" data-user-action="disable" data-user-id="'+user.id+'">Blokkeren</button>' : '')+(user.status==="active" ? '<button class="text-button" data-user-action="sessions" data-user-id="'+user.id+'">Sessies intrekken</button>' : '')+'</div></article>';
   }).join("");
 }
 
@@ -63,16 +65,31 @@ export function initAdminUsersSection() {
     } catch (error) { feedback(error.message, true); }
     finally { button.disabled = false; }
   });
+  root.querySelector("[data-family-users-list]").addEventListener("submit", async event => {
+    const form = event.target.closest("[data-link-user]");
+    if (!form) return;
+    event.preventDefault();
+    const button = form.querySelector("button");
+    button.disabled = true;
+    try {
+      await api("/api/admin/family-users/"+form.dataset.linkUser+"/registrations", {
+        method: "POST", body: JSON.stringify({ environment, registrationId: form.elements.registrationId.value })
+      });
+      feedback("Inschrijving gekoppeld.");
+      await loadUsers();
+    } catch (error) { feedback(error.message, true); button.disabled = false; }
+  });
   root.querySelector("[data-family-users-list]").addEventListener("click", async event => {
     const button = event.target.closest("[data-user-action]");
     if (!button) return;
     const action = button.dataset.userAction, id = button.dataset.userId;
     button.disabled = true;
     try {
+      if (action === "unlink") await api("/api/admin/family-users/"+id+"/registrations?linkId="+encodeURIComponent(button.dataset.linkId), {method:"DELETE"});
       if (action === "resend") await api("/api/admin/family-users/"+id+"/resend", {method:"POST"});
       if (action === "sessions") await api("/api/admin/family-users/"+id+"/sessions", {method:"POST"});
       if (action === "disable" || action === "activate") await api("/api/admin/family-users/"+id, {method:"PATCH",body:JSON.stringify({status:action==="disable"?"disabled":"active"})});
-      feedback(action==="resend" ? "Nieuwe uitnodiging verzonden." : action==="sessions" ? "Alle actieve sessies zijn ingetrokken." : "Accountstatus aangepast.");
+      feedback(action==="resend" ? "Nieuwe uitnodiging verzonden." : action==="sessions" ? "Alle actieve sessies zijn ingetrokken." : action==="unlink" ? "Inschrijvingskoppeling verwijderd." : "Accountstatus aangepast.");
       await loadUsers();
     } catch (error) { feedback(error.message, true); button.disabled = false; }
   });
