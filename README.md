@@ -32,14 +32,12 @@ Personen blijven individueel geregistreerd, zodat kosten die alleen voor volwass
 
 ## Kosten en inkomsten
 
-Elke uitgave krijgt een verdeelsleutel die de organisator kiest, bijvoorbeeld:
-- iedereen (volwassenen en kinderen);
-- alleen volwassenen (18+ volgens de ingestelde deelnemerscategorie);
-- alleen kinderen;
-- per besteld vleesje;
-- eventueel een aangepaste verdeelsleutel.
+Voor de kostenverdeling houden we drie vaste methodes aan:
+- **Gewone kosten:** gelijk verdeeld over alle deelnemers (volwassenen en kinderen).
+- **Alcoholische dranken:** gelijk verdeeld over alle volwassenen; kinderen betalen hier niet aan mee.
+- **Beenhouwer:** verdeeld volgens het aantal bestelde vleesporties per inschrijving.
 
-De verdeling gebeurt op basis van de effectieve aantallen/gewichten en wordt in eurocenten afgerond. Afrondingsverschillen worden verdeeld zodat de som van de toegewezen bedragen altijd exact gelijk is aan het ingevoerde totaal.
+De organisator kiest bij het invoeren van een kost één van deze drie methodes. We voorzien geen vrije of zelf samengestelde verdeelsleutels in de eerste versie. De verdeling gebeurt op basis van de effectieve aantallen en wordt in eurocenten afgerond. Afrondingsverschillen worden verdeeld zodat de som van de toegewezen bedragen altijd exact gelijk is aan het ingevoerde totaal.
 
 Inkomsten worden apart geregistreerd. Uitgaven zijn altijd gemeenschappelijke kosten voor de volledige groep; er is geen toewijzing van een uitgave aan één gezin. Bij een uitgave registreren we alleen welke inschrijving (gezin of alleenstaande) het bedrag heeft voorgeschoten. De verdeelsleutel bepaalt hoe de kost over alle deelnemers wordt verdeeld.
 
@@ -57,9 +55,9 @@ Een uitgave bevat minstens omschrijving, bedrag, betaler/aankoper, verdeelsleute
 
 ## Functionele schermen (eerste versie)
 
-1. **Deelnemersportaal** — eigen persoon/groep bekijken, aantallen volwassenen/kinderen controleren waar nodig, bestellingen beheren en afrekening bekijken.
+1. **Deelnemersportaal** — eigen inschrijving bekijken, gezinsleden en categorieën beheren waar toegestaan, bestellingen beheren en afrekening bekijken.
 2. **Organisatie-dashboard** — totalen, bestellingen, uitgaven, inkomsten en saldo's.
-3. **Personen en groepen** — personen toevoegen, bewerken, archiveren en samenstellen in groepen.
+3. **Personen en gezinnen** — personen en gezinsinschrijvingen beheren.
 4. **Vleesbestellingen** — catalogus en aantallen per persoon, met groepssamenvatting.
 5. **Uitgaven en inkomsten** — bedragen invoeren, betaler/ontvanger registreren en verdeelsleutel kiezen.
 6. **Afrekening** — verschuldigde bedragen en tegoeden per groep of zelfstandige deelnemer.
