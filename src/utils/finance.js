@@ -78,7 +78,9 @@ export function getFinancialSummary(registrations, expenses, payments = []) {
 
 // Verdeel het aandeel van een inschrijving verder over de individuele leden.
 // Eerst per inschrijving verdelen en daarna per lid voorkomt afrondingsverschillen met de afrekening.
-export function getMemberCostSummary(registration, registrations, expenses) {
+export function getMemberCostSummary(registration, registrations = [], expenses = []) {
+  // Een nieuwe editie of een ongeldige actieve selectie heeft nog geen gekoppelde inschrijving.
+  if (!registration) return [];
   const members = registration.members || [];
   const totals = new Map(members.map(member => [member.id, 0]));
   for (const expense of expenses) {
