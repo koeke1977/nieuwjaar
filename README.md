@@ -12,6 +12,39 @@ De eerste frontend-basis staat in de repository:
 
 De huidige schermen gebruiken **demodata**. Er is nog geen databasekoppeling, echte authenticatie of persistente opslag. Betalingsregistratie in deze prototypeversie wijzigt alleen de lokale schermstatus.
 
+## Frontend-structuur
+
+De frontend is opgesplitst in kleine, doelgerichte modules. De HTML-shell blijft in `index.html`; schermopbouw gebeurt in JavaScript-componenten en alle styling staat in afzonderlijke CSS-bestanden.
+
+```text
+src/
+├── main.js                 # Applicatie-entrypoint
+├── app.js                  # Renderen en centrale events
+├── components/
+│   ├── header.js           # Bovenbalk
+│   └── navigation.js       # Navigatie en portaalwisselaar (prototype)
+├── data/
+│   └── demo-data.js        # Tijdelijke voorbeeldgegevens
+├── pages/
+│   ├── user.js             # Deelnemersschermen
+│   └── admin.js            # Beheerschermen
+├── styles/
+│   ├── index.css           # CSS-entrypoint
+│   ├── base.css            # Fonts, tokens en basisregels
+│   ├── components.css      # Component- en layoutstijlen
+│   └── responsive.css      # Tablet, smartphone en print
+└── utils/
+    └── format.js           # Geld- en totalenformattering
+```
+
+Afspraken:
+- `index.html` bevat alleen de documentstructuur en de module-entrypoint.
+- Geen inline CSS of inline JavaScript.
+- JavaScript maakt schermen en gedrag; CSS bepaalt de vormgeving.
+- Voorbeeldgegevens staan apart en worden later vervangen door API-data.
+- API- en databasecommunicatie komt in `services/`; herbruikbare invoervalidatie komt in `utils/`.
+- De portaalwisselaar is uitsluitend een prototypehulpmiddel. Productietoegang wordt server-side gescheiden en beveiligd.
+
 ## Technologie en architectuur
 
 - Frontend: Vite en vanilla JavaScript/CSS.
