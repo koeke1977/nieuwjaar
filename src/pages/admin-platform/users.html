@@ -1,0 +1,19 @@
+<section class="page-heading admin-platform-heading">
+  <p class="eyebrow">PLATFORMBEHEER · IDENTITEITEN</p>
+  <h1>Gebruikers & gezinnen</h1>
+  <p>Nodig gezinnen uit en beheer veilig hun toegang tot inschrijvingen.</p>
+</section>
+<section class="panel family-users-create">
+  <div class="section-heading"><div><h2>Gezin uitnodigen</h2><p>De gebruiker ontvangt een eenmalige activatielink per e-mail.</p></div><span class="status neutral">Nieuwe uitnodiging</span></div>
+  <form id="family-user-create-form" class="family-user-form">
+    <label>Naam contactpersoon<input name="displayName" maxlength="100" autocomplete="name" required></label>
+    <label>E-mailadres<input name="email" type="email" maxlength="254" autocomplete="email" required></label>
+    <label>Inschrijving<select name="registrationId" required><option value="">Kies een inschrijving</option></select></label>
+    <button class="button button-dark" type="submit">Uitnodiging versturen</button>
+  </form>
+  <p class="catalog-note" data-family-users-feedback aria-live="polite">De koppeling wordt gemaakt in de geselecteerde omgeving.</p>
+</section>
+<section class="panel">
+  <div class="section-heading"><div><h2>Accounts</h2><p>Overzicht van de gebruikers en hun toegang tot deze omgeving.</p></div><span class="status neutral" data-family-users-count>0 accounts</span></div>
+  <div class="family-users-list" data-family-users-list><p class="catalog-note">Gebruikers laden…</p></div>
+</section>
