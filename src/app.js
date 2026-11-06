@@ -133,7 +133,12 @@ function handleClick(event) {
   if(action.dataset.action==="edit-registration"){const item=state.registrations.find(row=>row.id===action.dataset.id);if(!item)return;const name=window.prompt("Naam van de inschrijving:",item.name);if(name===null)return;const adults=window.prompt("Aantal volwassenen (18+):",String(item.adults));if(adults===null)return;const children=window.prompt("Aantal kinderen:",String(item.children));if(children===null)return;const adultCount=Number(adults),childCount=Number(children);if(!name.trim()||!Number.isInteger(adultCount)||!Number.isInteger(childCount)||adultCount<0||childCount<0||adultCount+childCount<1){window.alert("Controleer de naam en aantallen. Er moet minstens één deelnemer zijn.");return;}item.name=name.trim();item.adults=adultCount;item.children=childCount;markCostsProvisional();renderApp();}
   if(action.dataset.action==="print")window.print();
   if(action.dataset.action==="toggle-product"){const product=state.catalog.find(item=>item.id===action.dataset.id);if(product)product.active=!product.active;renderApp();}
-  if(action.dataset.action==="remove-image"){const product=state.catalog.find(item=>item.id===action.dataset.id);if(product)product.image=null;renderApp();}
+  if(action.dataset.action==="remove-image"){
+    const product=state.catalog.find(item=>item.id===action.dataset.id);if(!product)return;
+    const oldImage=product.image;product.image=null;renderApp();
+    if(oldImage?.startsWith("/media/"))fetch("/api/admin/product-image",{method:"DELETE",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({image:oldImage})}).catch(error=>console.error("Photo delete failed:",error));
+    return;
+  }
 }
 async function handleSubmit(event){
   if(event.target.id==="admin-login-form"){event.preventDefault();const form=event.target;const button=form.querySelector("button[type=submit]");button.disabled=true;button.textContent="Even controleren…";loginError="";try{const response=await fetch("/api/admin/login",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:form.elements.password.value})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||"Aanmelden is niet gelukt.");adminAuthenticated=true;try{await loadAdminState();statePersistenceReady=true;}catch(loadError){console.error("Admin state load failed:",loadError);}state.activeConsole="admin";state.activeSection="overview";renderApp();}catch(error){loginError=error.message||"Aanmelden is niet gelukt.";renderApp();}return;}
