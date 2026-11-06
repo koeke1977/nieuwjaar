@@ -26,10 +26,15 @@ function renderMeatPanel(compact = false) {
     ${compact ? '<button class="button button-dark full" data-section="meat">Bestelling bekijken <span>→</span></button>' : ""}</section>`;
 }
 function renderBalancePanel(compact = false) {
-  return `<section class="panel"><div class="section-heading"><div><h2>Onze afrekening</h2><p>Een transparant overzicht van voorschotten en kosten.</p></div><span class="status neutral">Voorlopig</span></div>
-    <div class="balance-lines"><div><span>Voorgeschoten door ons gezin</span><strong>${money(family().advanced)}</strong></div><div><span>Ons aandeel in de kosten</span><strong>${money(family().share)}</strong></div></div>
-    <div class="balance-total"><span>Ons saldo</span><strong class="positive">+${money(family().advanced-family().share)}</strong></div>
-    <div class="bring-card"><div><small>BEDRAG MEE TE BRENGEN</small><strong>${money(family().bring)}</strong><p>Dit bedrag is door de admin meegedeeld.</p></div><span class="bring-icon">💶</span></div>
+  const f=family();
+  const balance=f.advanced-f.share;
+  const balanceLabel=balance>0?"Terug te ontvangen":balance<0?"Nog te betalen":"Saldo";
+  const balanceValue=Math.abs(balance);
+  const status=f.paymentStatus==="Betaald"?"success":f.paymentStatus==="Gedeeltelijk betaald"?"warning":"neutral";
+  return `<section class="panel"><div class="section-heading"><div><h2>Onze afrekening</h2><p>Dit overzicht wordt automatisch bijgewerkt met de kosten en betalingen die de admin registreert.</p></div><span class="status ${status}">${esc(f.paymentStatus)}</span></div>
+    <div class="balance-lines"><div><span>Voorgeschoten door ons gezin</span><strong>${money(f.advanced)}</strong></div><div><span>Ons aandeel in de kosten</span><strong>${money(f.share)}</strong></div><div><span>Reeds betaald</span><strong>${money(f.paid)}</strong></div></div>
+    <div class="balance-total"><span>${balanceLabel}</span><strong class="${balance>0?"positive":balance<0?"negative":""}">${money(balanceValue)}</strong></div>
+    <div class="bring-card"><div><small>${f.remaining>0?"NOG MEE TE BRENGEN":"NOG TE BETALEN"}</small><strong>${money(f.remaining)}</strong><p>Op basis van de actuele kosten en geregistreerde betalingen.</p></div><span class="bring-icon">💶</span></div>
     ${compact ? '<button class="button button-outline" data-section="balance">Volledige afrekening <span>→</span></button>' : ""}</section>`;
 }
 function renderUserOverview() {
