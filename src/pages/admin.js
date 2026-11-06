@@ -11,7 +11,7 @@ function renderEnvironmentPanel() {
       <button class="button ${!isTest?"button-dark":"button-outline"}" data-action="switch-environment" data-environment="live" ${!isTest?"disabled":""}>Echte editie</button>
       ${isTest?'<button class="button button-outline danger-text" data-action="reset-test-environment">Testomgeving resetten</button>':""}
     </div>
-    <p class="catalog-note">${isTest?"Je werkt momenteel uitsluitend met testgegevens. De echte editie is apart en start leeg.":"Je werkt in de echte editie. Wijzigingen hier zijn geen tests en mogen meetellen voor de uiteindelijke afrekening."} Gegevens blijven in deze prototypeversie alleen tijdens deze browsersessie bewaard; na vernieuwen wordt de beginstand opnieuw geladen.</p>
+    <p class="catalog-note">${isTest?"Je werkt momenteel uitsluitend met testgegevens. De echte editie is apart en start leeg.":"Je werkt in de echte editie. Wijzigingen hier zijn geen tests en mogen meetellen voor de uiteindelijke afrekening."} Wijzigingen worden automatisch en afzonderlijk voor test en live opgeslagen in de beveiligde Cloudflare-database.</p>
   </section>`;
 }
 function renderMeatTable() {
