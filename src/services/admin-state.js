@@ -2,6 +2,7 @@ import { state } from "../data/demo-data.js";
 import { getPersistableEnvironmentData, restorePersistedEnvironmentData } from "../data/environment-store.js";
 
 let revisions = { test: null, live: null };
+let lastSaved = { test: null, live: null };
 
 export async function loadAdminState() {
   const response = await fetch("/api/admin/state", { credentials: "same-origin" });
@@ -9,6 +10,10 @@ export async function loadAdminState() {
   if (!response.ok) throw new Error(result.error || "De opgeslagen gegevens konden niet worden geladen.");
   restorePersistedEnvironmentData(result.environments);
   revisions = { test: result.revisions?.test ?? null, live: result.revisions?.live ?? null };
+  lastSaved = {
+    test: result.environments?.test ? JSON.stringify(result.environments.test) : null,
+    live: result.environments?.live ? JSON.stringify(result.environments.live) : null
+  };
   return result;
 }
 
@@ -16,6 +21,8 @@ export async function saveAdminState() {
   const environment = state.activeEnvironment;
   if (!["test", "live"].includes(environment)) throw new Error("Ongeldige opslagomgeving.");
   const snapshot = getPersistableEnvironmentData();
+  const serialized = JSON.stringify(snapshot[environment]);
+  if (serialized === lastSaved[environment]) return { saved: true, unchanged: true, revision: revisions[environment] };
   const response = await fetch("/api/admin/state", {
     method: "PUT",
     credentials: "same-origin",
@@ -32,5 +39,6 @@ export async function saveAdminState() {
   }
   if (!response.ok) throw new Error(result.error || "De gegevens konden niet worden opgeslagen.");
   revisions[environment] = result.revision;
+  lastSaved[environment] = serialized;
   return result;
 }
