@@ -5,7 +5,7 @@ import { renderAdminNavigation } from "./components/navigation.js";
 import { renderAdminContent, setFamilyInvites } from "./pages/admin.js";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
-import { switchEnvironment, resetTestEnvironment } from "./data/environment-store.js";
+import { resetTestEnvironment } from "./data/environment-store.js";
 import { archiveCurrentAndStartNewEdition } from "./data/edition-manager.js";
 import { loadAdminState, saveAdminState } from "./services/admin-state.js";
 const markCostsProvisional = () => { state.costsFinalized=false; state.costsFinalizedAt=null; };
