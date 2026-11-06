@@ -180,7 +180,7 @@ function handleSubmit(event){
     markCostsProvisional();
     renderApp();return;
   }
-  if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();const adults=Number(form.elements.adults.value);const children=Number(form.elements.children.value);if(!name||!Number.isInteger(adults)||!Number.isInteger(children)||adults<0||children<0||adults+children<1){window.alert("Vul een naam en minstens één deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults,children,members:[],financial:{advanced:0,share:0,bring:0}});markCostsProvisional();renderApp();return;}
+  if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();if(!name){window.alert("Vul een naam voor het gezin of de deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults:0,children:0,members:[],financial:{advanced:0,share:0,bring:0}});state.activeRegistrationId=id;state.managingRegistrationId=id;markCostsProvisional();renderApp();return;}
   if(event.target.id==="new-edition-form"){
     event.preventDefault();
     const form=event.target;
