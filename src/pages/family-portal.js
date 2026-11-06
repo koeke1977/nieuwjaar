@@ -50,10 +50,15 @@ function handleClick(event) {
   if (action.dataset.action === "edit-order") { state.editingMember = state.editingMember === action.dataset.personId ? null : action.dataset.personId; render(); return; }
   if (action.dataset.action === "close-order-editor") { state.editingMember = null; render(); return; }
   if (action.dataset.action === "change-quantity" || action.dataset.action === "quantity") {
+    event.preventDefault();
     const person = members.find(p => p.id === action.dataset.personId);
     const productId = action.dataset.product;
     const product = state.catalog.find(p => p.id === productId);
-    if (!person || !product || !["-1", "1"].includes(action.dataset.delta)) return;
+    if (!person || !product || !["-1", "1"].includes(action.dataset.delta)) {
+      error = "Deze bestelling kon niet worden aangepast. Herlaad de persoonlijke link en probeer opnieuw.";
+      render();
+      return;
+    }
     person.orders = person.orders || {};
     const current = Number(person.orders[productId]) || 0;
     person.orders[productId] = Math.max(0, Math.min(99, current + Number(action.dataset.delta)));
