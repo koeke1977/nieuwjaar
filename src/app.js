@@ -17,6 +17,38 @@ function handleClick(event) {
   if(sectionButton){state.activeSection=sectionButton.dataset.section;state.editingMember=null;renderApp();return;}
   const action=event.target.closest("[data-action]");
   if(!action)return;
+  if(action.dataset.action==="edit-expense"){
+    const expense=state.expenses.find(item=>item.id===action.dataset.id);
+    if(!expense)return;
+    const description=window.prompt("Omschrijving van de kost:",expense.description);
+    if(description===null)return;
+    const amountRaw=window.prompt("Bedrag in euro:",(expense.amountCents/100).toFixed(2).replace(".",","));
+    if(amountRaw===null)return;
+    const date=window.prompt("Datum (JJJJ-MM-DD):",expense.date);
+    if(date===null)return;
+    const methodRaw=window.prompt("Verdeelsleutel: general = algemeen, adults = 18+, meat = vleesjes:",expense.method);
+    if(methodRaw===null)return;
+    const payerChoices=state.registrations.map(item=>item.id+" = "+item.name).join("\n");
+    const advancedBy=window.prompt("Voorgeschoten door – geef de inschrijvings-ID in:\n"+payerChoices,expense.advancedBy);
+    if(advancedBy===null)return;
+    const amount=Number(amountRaw.replace(",","."));
+    const amountCents=Math.round(amount*100);
+    const method=methodRaw.trim().toLowerCase();
+    if(!description.trim()||!Number.isFinite(amount)||amount<=0||!Number.isInteger(amountCents)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||!["general","adults","meat"].includes(method)||!state.registrations.some(item=>item.id===advancedBy)){
+      window.alert("Controleer de omschrijving, het bedrag, de datum, de verdeelsleutel en de voorschieter.");return;
+    }
+    const updated={...expense,description:description.trim(),amountCents,date,method,advancedBy};
+    try{getExpenseShares(updated,state.registrations);}catch(error){window.alert(error.message);return;}
+    Object.assign(expense,updated);
+    renderApp();return;
+  }
+  if(action.dataset.action==="delete-expense"){
+    const expense=state.expenses.find(item=>item.id===action.dataset.id);
+    if(!expense)return;
+    if(!window.confirm(`Verwijder de kost "${expense.description}" van ${money(expense.amountCents/100)} definitief? De verdeling en saldi worden opnieuw berekend.`))return;
+    state.expenses=state.expenses.filter(item=>item.id!==expense.id);
+    renderApp();return;
+  }
   if(action.dataset.action==="receive"){
     const payment=state.payments[Number(action.dataset.index)];const remaining=Math.max(0,payment.due-payment.paid);
     const raw=window.prompt(`Hoeveel heeft ${payment.household} betaald?\nNog openstaand: ${money(remaining)}`,String(remaining));if(raw===null)return;
