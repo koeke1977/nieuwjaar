@@ -118,20 +118,23 @@ async function handleFamilyApi(request, env, url) {
     const catalog = (data.catalog || []).filter(item => item.active).map(({ id, name, image }) => ({ id, name, image: image || null, active: true }));
     const safeRegistrations = (data.registrations || []).map(item => {
       if (item.id === registration.id) return registration;
-      const sourceMembers = Array.isArray(item.members) && item.members.length
-        ? item.members
-        : [
-            ...Array.from({ length: Math.max(0, Number(item.adults) || 0) }, () => ({ type: "Volwassene", orders: {} })),
-            ...Array.from({ length: Math.max(0, Number(item.children) || 0) }, () => ({ type: "Kind", orders: {} }))
-          ];
-      const meatTotal = sourceMembers.reduce((sum, person) =>
+      const sourceMembers = Array.isArray(item.members) ? item.members : [];
+      const adults = sourceMembers.length
+        ? sourceMembers.filter(person => person.type === "Volwassene").length
+        : Math.max(0, Number(item.adults) || 0);
+      const children = sourceMembers.length
+        ? sourceMembers.filter(person => person.type === "Kind").length
+        : Math.max(0, Number(item.children) || 0);
+      const meat = sourceMembers.reduce((sum, person) =>
         sum + Object.values(person.orders || {}).reduce((memberSum, quantity) => memberSum + Math.max(0, Number(quantity) || 0), 0), 0);
-      const anonymousMembers = sourceMembers.map((person, index) => ({
-        id: `anonymous-${index}`,
-        type: person.type === "Volwassene" ? "Volwassene" : "Kind",
-        orders: index === 0 && meatTotal ? { anonymous: meatTotal } : {}
-      }));
-      return { id: item.id, name: "", adults: Number(item.adults) || 0, children: Number(item.children) || 0, members: anonymousMembers };
+      return {
+        id: item.id,
+        name: "",
+        adults,
+        children,
+        members: [],
+        aggregateCounts: { people: adults + children, adults, children, meat }
+      };
     });
     return json({
       authenticated: true,
