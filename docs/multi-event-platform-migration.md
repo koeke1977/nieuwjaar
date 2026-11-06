@@ -106,3 +106,11 @@ De eerste migratie mag bestaande gegevens nog in `data_json` bewaren. Normalisat
 - Admin- en familieportaal zijn event-aware, niet Nieuwjaar-hardcoded.
 - Backfill is herhaalbaar en heeft rapport/rollback.
 - Testdata is pas verwijderd na live acceptatie en expliciete laatste cleanup.
+
+
+## Voortgang na de eerste implementatiestap
+
+- De SQLite-table-rebuild uit migratie 0008 is nagebootst met foreign keys ingeschakeld: bestaande links blijven behouden, twee verschillende accounts kunnen dezelfde registratie koppelen, een dubbele koppeling voor hetzelfde account wordt geweigerd en `PRAGMA foreign_key_check` geeft geen fouten. Dit is een lokale SQLite-simulatie, geen uitvoering op Cloudflare D1.
+- Het familieportaal gebruikt nu een neutrale evenementfallback in plaats van standaard Nieuwjaar en de introductietekst verwijst naar evenementen in het algemeen.
+- Nieuwe en opnieuw verstuurde accountuitnodigingen gebruiken de evenementnaam uit de gekoppelde editiegegevens in onderwerp en mailinhoud.
+- De huidige `test/live`-labels en legacy API-koppelingen zijn bewust nog niet verwijderd. Eerst moet de nieuwe relationele familie-/editiekoppeling volledig worden gevuld en gecontroleerd; voortijdig verwijderen zou bestaande toegang kunnen breken.
