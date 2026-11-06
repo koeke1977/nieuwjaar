@@ -4,6 +4,7 @@ import { renderConsoleSwitcher, renderUserNavigation, renderAdminNavigation } fr
 import { renderUserContent } from "./pages/user.js";
 import { renderAdminContent } from "./pages/admin.js";
 import { money } from "./utils/format.js";
+import { getExpenseShares } from "./utils/finance.js";
 const makeId = (prefix = "lid") => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 function renderApp() {
   const isAdmin=state.activeConsole==="admin";
@@ -71,6 +72,23 @@ function handleSubmit(event){
     registration.members.push({id:makeId("lid"),name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});
     registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;
     registration.children=registration.members.filter(person=>person.type==="Kind").length;
+    renderApp();return;
+  }
+  if(event.target.id==="add-expense-form"){
+    event.preventDefault();
+    const form=event.target;
+    const description=form.elements.description.value.trim();
+    const amount=Number(form.elements.amount.value);
+    const amountCents=Math.round(amount*100);
+    const date=form.elements.date.value;
+    const method=form.elements.method.value;
+    const advancedBy=form.elements.advancedBy.value;
+    if(!description||!Number.isFinite(amount)||amount<=0||!Number.isInteger(amountCents)||!date||!advancedBy||!["general","adults","meat"].includes(method)){
+      window.alert("Controleer de omschrijving, het bedrag, de datum, de verdeelsleutel en de voorschieter.");return;
+    }
+    const expense={id:makeId("kost"),eventId:state.activeEvent.id,description,amountCents,date,method,advancedBy};
+    try { getExpenseShares(expense,state.registrations); } catch(error){ window.alert(error.message); return; }
+    state.expenses.push(expense);
     renderApp();return;
   }
   if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();const adults=Number(form.elements.adults.value);const children=Number(form.elements.children.value);if(!name||!Number.isInteger(adults)||!Number.isInteger(children)||adults<0||children<0||adults+children<1){window.alert("Vul een naam en minstens één deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults,children,members:[],financial:{advanced:0,share:0,bring:0}});renderApp();return;}
