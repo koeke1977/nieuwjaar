@@ -14,10 +14,21 @@ function renderMembers() {
 function renderMeat() {
   const members=registration.members||[];
   const products=catalog;
-  return `<section class="panel"><div class="section-heading"><div><h2>Vleesbestelling</h2><p>Stel per gezinslid de gewenste aantallen in.</p></div><span class="status success">Bestelling</span></div>
-  <div class="family-meat-catalog">${products.map(p=>{const count=members.reduce((sum,m)=>sum+(Number(m.orders?.[p.id])||0),0);return `<article class="meat-card"><div class="meat-card-image">${p.image?`<img src="${p.image}" alt="${esc(p.name)}">`:'<div class="meat-placeholder"><span>♨</span><small>Foto volgt</small></div>'}</div><div class="meat-card-info"><strong>${esc(p.name)}</strong><span>${count} besteld</span></div></article>`}).join("")}</div>
-  ${members.map((person,index)=>`<div class="family-order-person"><h3>${esc(person.name)}</h3><div class="family-order-grid">${products.map(p=>{const q=Number(person.orders?.[p.id])||0;return `<div class="family-order-item"><span>${esc(p.name)}</span><div class="family-quantity"><button type="button" aria-label="Minder ${esc(p.name)}" data-action="quantity" data-index="${index}" data-product="${esc(p.id)}" data-delta="-1" ${q===0?"disabled":""}>−</button><strong>${q}</strong><button type="button" aria-label="Meer ${esc(p.name)}" data-action="quantity" data-index="${index}" data-product="${esc(p.id)}" data-delta="1">+</button></div></div>`}).join("")}</div></div>`).join("")||'<p class="catalog-note">Voeg eerst gezinsleden toe.</p>'}
-  <div class="family-order-total"><strong>Totaal aantal porties</strong><b>${members.reduce((sum,m)=>sum+Object.values(m.orders||{}).reduce((a,v)=>a+(Number(v)||0),0),0)}</b></div></section>`;
+  const totalPortions=members.reduce((sum,m)=>sum+products.reduce((n,p)=>n+(Number(m.orders?.[p.id])||0),0),0);
+  return `<section class="panel family-meat-panel">
+    <div class="section-heading"><div><h2>Vleesbestelling</h2><p>Kies hieronder per gezinslid wat hij of zij graag eet.</p></div><span class="status success">${totalPortions} porties</span></div>
+    ${members.map((person,index)=>{
+      const personTotal=products.reduce((n,p)=>n+(Number(person.orders?.[p.id])||0),0);
+      return `<article class="family-person-order">
+        <header class="family-person-heading"><span class="person-avatar">${esc((person.name||"?").slice(0,1).toUpperCase())}</span><div><h3>${esc(person.name)}</h3><small>${esc(person.type||"Gezinslid")}</small></div><span class="family-person-count">${personTotal} ${personTotal===1?"portie":"porties"}</span></header>
+        <div class="family-product-list">${products.map(p=>{
+          const q=Number(person.orders?.[p.id])||0;
+          return `<div class="family-product-row"><div class="family-product-thumb">${p.image?`<img src="${p.image}" alt="">`:'<span>♨</span>'}</div><span class="family-product-name">${esc(p.name)}</span><div class="family-quantity" aria-label="Aantal ${esc(p.name)}"><button type="button" aria-label="Minder ${esc(p.name)} voor ${esc(person.name)}" data-action="quantity" data-index="${index}" data-product="${esc(p.id)}" data-delta="-1" ${q===0?"disabled":""}>−</button><strong>${q}</strong><button type="button" aria-label="Meer ${esc(p.name)} voor ${esc(person.name)}" data-action="quantity" data-index="${index}" data-product="${esc(p.id)}" data-delta="1">+</button></div></div>`;
+        }).join("")||'<p class="catalog-note">Er zijn momenteel geen actieve vleesproducten.</p>'}</div>
+      </article>`;
+    }).join("")||'<p class="catalog-note">Voeg eerst gezinsleden toe via het menu Gezin.</p>'}
+    <div class="family-order-total"><strong>Totaal voor jullie gezin</strong><b>${totalPortions} porties</b></div>
+  </section>`;
 }
 function renderOverview() {
  const members=registration.members||[];
