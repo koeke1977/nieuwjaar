@@ -11,20 +11,24 @@ Een webapp om de jaarlijkse nieuwjaarsbijeenkomst te beheren: personen, gezinnen
 - Eigen deployment en configuratie, los van andere projecten.
 - Beoogd adres: `nieuwjaar.datuur.be`.
 
-## Deelnemers: personen én groepen
+## Deelnemers: eenvoudige onboarding
 
-Personen zijn de basis. Een persoon heeft een eigen fiche en een type dat per editie kan worden vastgelegd (volwassene of kind).
+Bij de inschrijving kiest men één van twee opties: **Gezin** of **Alleen**.
 
-Een groep is een bundeling van personen, bijvoorbeeld:
-- een gezin met twee volwassenen en twee kinderen;
-- een vriendengroep;
-- een tijdelijke groep zoals "Jong geweld".
+### Gezin
+- De inschrijver geeft de gezinsnaam op.
+- De inschrijver voegt de gezinsleden toe.
+- Per lid wordt aangeduid of die een volwassene of kind is.
+- De gezinsfiche toont alle leden, hun categorieën, bestellingen en het gezamenlijke saldo.
 
-Iedere persoon kan in een editie zelfstandig deelnemen of lid zijn van één groep. Een groep kan op elk moment worden samengesteld of aangepast. Personen blijven individueel zichtbaar, ook wanneer ze samen in een groep zitten.
+### Alleen
+- De deelnemer vult de eigen naam in.
+- De deelnemer kiest volwassene of kind.
+- De individuele fiche is meteen ook de eigen bestel- en afrekeneenheid.
 
-Voor de afrekening is de groep de standaard rekeneenheid: de kosten van de leden worden op groepsniveau samengebracht. Een persoon zonder groep vormt automatisch een eigen rekeneenheid. Dit maakt het mogelijk om "Jong geweld" later op te splitsen in individuele personen, zonder de optie te verliezen om hen opnieuw samen te groeperen.
+Elke inschrijving is dus één vaste rekeneenheid: een gezin of één individuele deelnemer. Er is geen aparte, vrije groepsbeheerlaag nodig. "Jong geweld" kan als afzonderlijke individuele inschrijvingen worden aangemaakt. Als ze later toch samen moeten worden afgerekend, kan dat via een expliciete beheerfunctie worden bekeken, maar het is geen onderdeel van de standaard onboarding.
 
-Bestellingen worden per persoon geregistreerd en op de groepsfiche samengevat. Een groepslink kan de bestellingen van de leden beheren; een individuele deelnemer zonder groep beheert de eigen bestelling.
+Personen blijven individueel geregistreerd, zodat kosten die alleen voor volwassenen of kinderen gelden correct kunnen worden verdeeld. Bestellingen kunnen per persoon worden ingegeven en worden op de gezinsfiche samengevat. Een gezin beheert de bestelling van alle leden via één gezinslink; een alleenstaande gebruikt de eigen link.
 
 ## Kosten en inkomsten
 
