@@ -320,8 +320,17 @@ async function handleImageUpload(event){
     const response=await fetch("/api/admin/product-image",{method:"POST",credentials:"same-origin",body:form});
     const result=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(result.error||"De foto kon niet worden opgeslagen.");
-    product.image=result.image;renderApp();
-    if(oldImage?.startsWith("/media/"))fetch("/api/admin/product-image",{method:"DELETE",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({image:oldImage})}).catch(error=>console.error("Photo cleanup failed:",error));
+    product.image=result.image;
+    try {
+      // Bewaar de nieuwe R2-verwijzing in D1 vóór de oude foto wordt verwijderd.
+      await flushAdminState();
+    } catch (saveError) {
+      product.image=oldImage;
+      await fetch("/api/admin/product-image",{method:"DELETE",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({image:result.image})}).catch(error=>console.error("New photo cleanup failed:",error));
+      throw new Error(`De foto is geüpload, maar de koppeling kon niet veilig worden opgeslagen. De vorige foto blijft behouden. ${saveError.message || ""}`);
+    }
+    renderApp();
+    if(oldImage?.startsWith("/media/"))fetch("/api/admin/product-image",{method:"DELETE",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({image:oldImage})}).catch(error=>console.error("Old photo cleanup failed:",error));
   }catch(error){window.alert(error.message||"De foto kon niet worden opgeslagen.");}
   finally{input.value="";}
 }
