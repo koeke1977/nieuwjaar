@@ -214,7 +214,7 @@ async function handleSubmit(event){
       window.alert("Controleer alle velden.");return;
     }
     const updated={...expense,description,amountCents,date,method,advancedBy};
-    try{getExpenseShares(updated,state.registrations);}catch(error){window.alert(error.message);return;}
+    try{getExpenseShares(updated,state.registrations,{ strict: true });}catch(error){window.alert(error.message);return;}
     Object.assign(expense,updated);
     markCostsProvisional();
     state.editingExpenseId=null;
