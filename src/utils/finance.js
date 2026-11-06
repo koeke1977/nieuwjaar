@@ -19,13 +19,15 @@ export function getRegistrationCounts(registration) {
 }
 
 // Largest-remainder verdeling: som van shares is altijd exact amountCents.
-export function splitCents(amountCents, weightedRows) {
-  const amount = Math.round(Number(amountCents));
-  const totalWeight = weightedRows.reduce((sum, row) => sum + Math.max(0, Number(row.weight) || 0), 0);
-  if (!Number.isInteger(amount) || amount < 0 || totalWeight <= 0) {
-    throw new Error("Deze verdeelsleutel heeft geen deelnemers of porties om de kost over te verdelen.");
+export function splitCents(amountCents, weightedRows, { strict = false } = {}) {
+  const amount = Number(amountCents);
+  const rows = Array.isArray(weightedRows) ? weightedRows : [];
+  const totalWeight = rows.reduce((sum, row) => sum + Math.max(0, Number(row.weight) || 0), 0);
+  if (!Number.isSafeInteger(amount) || amount < 0 || totalWeight <= 0) {
+    if (strict) throw new Error("Deze verdeelsleutel heeft geen deelnemers of porties om de kost over te verdelen.");
+    return [];
   }
-  const shares = weightedRows.map((row, index) => {
+  const shares = rows.map((row, index) => {
     const exact = amount * Math.max(0, Number(row.weight) || 0) / totalWeight;
     const base = Math.floor(exact);
     return { id: row.id, cents: base, remainder: exact - base, index };
@@ -36,7 +38,11 @@ export function splitCents(amountCents, weightedRows) {
   return shares.map(({ id, cents }) => ({ id, cents }));
 }
 
-export function getExpenseShares(expense, registrations) {
+export function getExpenseShares(expense, registrations, { strict = false } = {}) {
+  if (!expense || !Array.isArray(registrations)) {
+    if (strict) throw new Error("De kost of deelnemerslijst is ongeldig.");
+    return [];
+  }
   const weightedRows = registrations.map(registration => {
     const counts = getRegistrationCounts(registration);
     const weight = expense.method === "general" ? counts.people
@@ -44,7 +50,7 @@ export function getExpenseShares(expense, registrations) {
       : expense.method === "meat" ? counts.meat : 0;
     return { id: registration.id, weight };
   }).filter(row => row.weight > 0);
-  return splitCents(expense.amountCents, weightedRows);
+  return splitCents(expense.amountCents, weightedRows, { strict });
 }
 
 export function getFinancialSummary(registrations, expenses, payments = []) {
@@ -52,15 +58,15 @@ export function getFinancialSummary(registrations, expenses, payments = []) {
     id: registration.id, name: registration.name, advancedCents: 0, shareCents: 0, balanceCents: 0, paidCents: 0
   }));
   const byId = new Map(rows.map(row => [row.id, row]));
-  for (const expense of expenses) {
+  for (const expense of (Array.isArray(expenses) ? expenses : [])) {
     const payer = byId.get(expense.advancedBy);
-    if (payer) payer.advancedCents += expense.amountCents;
+    if (payer) payer.advancedCents += Number(expense.amountCents) || 0;
     for (const share of getExpenseShares(expense, registrations)) {
       const row = byId.get(share.id);
       if (row) row.shareCents += share.cents;
     }
   }
-  for (const payment of payments) {
+  for (const payment of (Array.isArray(payments) ? payments : [])) {
     const row = byId.get(payment.registrationId);
     if (row) row.paidCents += payment.amountCents;
   }
