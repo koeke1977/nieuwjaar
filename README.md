@@ -196,3 +196,44 @@ De **som van alle deelnemerssaldi moet exact € 0,00 zijn**. Betalingen verschu
 ## Nog te beslissen vóór de financiële backend
 
 De concrete verwerking van algemene inkomsten (bijvoorbeeld opbrengsten voor de hele groep) moet nog finaal worden bevestigd: verminderen ze eerst de gezamenlijke kostenpot, of worden ze aan een specifieke inschrijving gecrediteerd? De rest van de drie verdeelsleutels, voorschotten, betalingen en nulafrekening is vastgelegd.
+
+## Beveiligde toegang en WhatsApp-uitnodigingen
+
+De toegangsstructuur is bewust gescheiden:
+- De organisator gebruikt een afzonderlijk adminwachtwoord.
+- Gezinnen krijgen later een persoonlijke, willekeurige uitnodigingslink die via WhatsApp wordt doorgestuurd.
+- Gezinslinks geven nooit toegang tot de adminomgeving.
+- Adminsessies worden server-side bijgehouden en verlopen na 12 uur.
+- Alleen hashes van sessietokens en uitnodigingstokens worden in D1 bewaard.
+
+### Eenmalige Cloudflare-voorbereiding
+
+1. Maak de D1-database aan:
+   ```bash
+   npx wrangler d1 create nieuwjaar-db
+   ```
+2. Kopieer de geretourneerde database-ID naar `database_id` in `wrangler.jsonc`.
+3. Voer de migratie uit:
+   ```bash
+   npx wrangler d1 migrations apply nieuwjaar-db --local
+   npx wrangler d1 migrations apply nieuwjaar-db --remote
+   ```
+4. Maak lokaal een PBKDF2-hash voor het adminwachtwoord:
+   ```bash
+   node scripts/create-admin-password-hash.mjs
+   ```
+   Gebruik een wachtwoord van minstens 14 tekens. Bewaar het hashresultaat als Cloudflare Worker secret:
+   ```bash
+   npx wrangler secret put ADMIN_PASSWORD_HASH
+   ```
+
+Het adminwachtwoord zelf wordt niet in Git, de frontend of D1 opgeslagen. Het script draait lokaal en toont alleen de hash die als secret moet worden ingesteld.
+
+### API-basis
+
+- `GET /api/admin/session`: controleert of de adminsessie geldig is.
+- `POST /api/admin/login`: controleert het wachtwoord en maakt een server-side sessiecookie aan.
+- `POST /api/admin/logout`: trekt de sessie in.
+- Mislukte aanmeldingen worden gelogd en na 10 pogingen binnen 15 minuten tijdelijk geweigerd.
+
+De frontend-login en de uitnodigingsbeheerknoppen worden in de volgende integratiestap op deze API aangesloten. Tot die integratie en de Cloudflare-configuratie afgerond zijn, is de bestaande frontendconsole nog een prototype en mag die niet als productiebeveiliging worden beschouwd.
