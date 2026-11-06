@@ -103,7 +103,7 @@ Elke inschrijving is één rekeneenheid: een gezin of één individuele deelneme
 
 ## Visuele vleescatalogus
 
-De vleescatalogus toont per product een foto naast de productnaam. Deelnemers kunnen daardoor ook op smartphone eenvoudig het juiste vleesproduct herkennen.
+De vleescatalogus toont per product een foto naast de productnaam. Deelnemers kunnen daardoor ook op smartphone eenvoudig het juiste vleesproduct herkennen. De eerste frontend-prototypeversie bevat een catalogusweergave voor deelnemers en productbeheer voor de admin. De admin kan producten toevoegen, activeren/deactiveren en foto's toevoegen, vervangen of wissen. Uploads zijn voorlopig alleen lokaal in het browsergeheugen beschikbaar en verdwijnen bij herladen; dit is nog geen gedeelde of permanente opslag.
 
 - Elk vleesproduct kan een eigen afbeelding hebben.
 - De beheerder kan een afbeelding toevoegen, vervangen of verwijderen.
@@ -113,7 +113,7 @@ De vleescatalogus toont per product een foto naast de productnaam. Deelnemers ku
 - Historische bestellingen blijven gekoppeld aan het oorspronkelijke product; een foto- of cataloguswijziging overschrijft geen oude bestellingen.
 - Afbeeldingen worden centraal opgeslagen (bij voorkeur Cloudflare R2) en via de backend aan de juiste editie/productcatalogus gekoppeld.
 
-Technische aandachtspunten: toegestane afbeeldingsformaten en bestandsgrootte valideren, afbeeldingen optimaliseren voor mobiel en thumbnails gebruiken in de bestellijst. De beheerder krijgt een eenvoudige upload-/vervangactie in het productbeheer.
+Technische aandachtspunten: toegestane afbeeldingsformaten en bestandsgrootte valideren, afbeeldingen optimaliseren voor mobiel en thumbnails gebruiken in de bestellijst. De beheerder krijgt een eenvoudige upload-/vervangactie in het productbeheer. De prototype-upload accepteert JPG, PNG en WebP tot 5 MB. Definitieve validatie, optimalisatie en opslag in R2 worden server-side gebouwd.
 
 ## Kosten en verdeelsleutels
 
