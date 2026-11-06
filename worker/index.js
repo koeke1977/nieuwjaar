@@ -311,7 +311,11 @@ export default {
         });
       }
 
-      if (url.pathname.startsWith("/api/family/")) {\n        return await handleFamilyApi(request, env, url);\n      }\n\n      if (url.pathname.startsWith("/api/admin/")) {
+      if (url.pathname.startsWith("/api/family/")) {
+        return await handleFamilyApi(request, env, url);
+      }
+
+      if (url.pathname.startsWith("/api/admin/")) {
         return await handleAdminApi(request, env, url);
       }
 
