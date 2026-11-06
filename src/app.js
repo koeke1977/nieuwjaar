@@ -3,7 +3,7 @@ import { state, getActiveFamily } from "./data/demo-data.js";
 import { renderHeader } from "./components/header.js";
 import { renderConsoleSwitcher, renderUserNavigation, renderAdminNavigation } from "./components/navigation.js";
 import { renderUserContent } from "./pages/user.js";
-import { renderAdminContent, setFamilyInviteLink } from "./pages/admin.js";
+import { renderAdminContent, setFamilyInvites } from "./pages/admin.js";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
 import { switchEnvironment, resetTestEnvironment } from "./data/environment-store.js";
