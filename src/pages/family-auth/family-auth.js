@@ -3,8 +3,8 @@ import "./family-auth.css";
 
 const root = () => document.querySelector("#app");
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
-const request = async (path, body) => {
-  const response = await fetch(path, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const request = async (path, body, method = "POST") => {
+  const response = await fetch(path, { method, credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Er liep iets mis. Probeer opnieuw.");
   return result;
@@ -38,13 +38,35 @@ export async function startFamilyAuth() {
   };
 
   view.addEventListener("click", async event => {
-    const action = event.target.closest("[data-action]")?.dataset.action;
+    const control = event.target.closest("[data-action]");
+    const action = control?.dataset.action;
     if (action === "show-forgot") show("forgot");
     if (action === "show-login") show("login");
     if (action === "logout") {
       try { await request("/api/family-account/logout", {}); token = ""; show("login"); }
       catch (error) { feedback(error.message); }
     }
+    if (action === "quantity") {
+      const card = control.closest("[data-registration]");
+      const item = (window.__familyRegistrations || []).find(entry => entry.registration.id === card?.dataset.registration);
+      const person = item?.registration.members.find(entry => entry.id === control.dataset.person);
+      const product = control.dataset.product;
+      if (!item || !person || !item.catalog.some(entry => entry.id === product)) return;
+      person.orders = person.orders || {};
+      person.orders[product] = Math.max(0, Math.min(99, (Number(person.orders[product]) || 0) + Number(control.dataset.delta)));
+      await saveRegistration(item);
+    }
+  });
+  view.addEventListener("submit", event => {
+    const form = event.target.closest("[data-add-member]");
+    if (!form) return;
+    event.preventDefault();
+    const item = (window.__familyRegistrations || []).find(entry => entry.registration.id === form.dataset.addMember);
+    const name = form.elements.memberName.value.trim();
+    const type = form.elements.memberType.value;
+    if (!item || !name || !["Volwassene", "Kind"].includes(type)) return;
+    item.registration.members.push({ id: crypto.randomUUID(), name, type, orders: {} });
+    saveRegistration(item);
   });
   view.addEventListener("submit", event => {
     const form = event.target.closest("form[data-form]");
@@ -84,11 +106,30 @@ export async function startFamilyAuth() {
       const members = Array.isArray(registration.members) ? registration.members : [];
       const catalog = Array.isArray(item.catalog) ? item.catalog : [];
       const orders = members.map(person => {
-        const quantities = catalog.map(product => ({ name: product.name, quantity: Number(person.orders?.[product.id]) || 0 })).filter(product => product.quantity > 0);
-        return '<article class="family-account-member"><div><strong>'+escapeHtml(person.name)+'</strong><small>'+escapeHtml(person.type || "Deelnemer")+'</small></div><div class="family-account-orders">'+(quantities.length ? quantities.map(order => '<span>'+escapeHtml(order.name)+' <b>'+order.quantity+'×</b></span>').join("") : '<span>Nog geen vleesbestelling</span>')+'</div></article>';
+        const productControls = catalog.map(product => {
+          const quantity = Number(person.orders?.[product.id]) || 0;
+          return '<div class="family-account-product"><span>'+escapeHtml(product.name)+'</span><div><button type="button" data-action="quantity" data-person="'+escapeHtml(person.id)+'" data-product="'+escapeHtml(product.id)+'" data-delta="-1" aria-label="Minder">−</button><b>'+quantity+'</b><button type="button" data-action="quantity" data-person="'+escapeHtml(person.id)+'" data-product="'+escapeHtml(product.id)+'" data-delta="1" aria-label="Meer">+</button></div></div>';
+        }).join("");
+        return '<article class="family-account-member"><div class="family-account-person"><strong>'+escapeHtml(person.name)+'</strong><small>'+escapeHtml(person.type || "Deelnemer")+'</small></div><div class="family-account-products">'+(productControls || '<span>Geen actieve producten.</span>')+'</div></article>';
       }).join("");
-      return '<section class="family-account-registration"><div class="family-account-registration-heading"><div><p class="family-auth-eyebrow">'+escapeHtml(item.event || "Nieuwjaar")+' · '+(item.edition==="test"?"TESTEDITIE":"LIVE-EDITIE")+'</p><h2>'+escapeHtml(registration.name || "Jullie inschrijving")+'</h2></div><span>'+members.length+' deelnemers</span></div><div class="family-account-members">'+(orders || '<p class="family-auth-notice">Er zijn nog geen individuele deelnemers toegevoegd aan deze inschrijving.</p>')+'</div></section>';
+      return '<section class="family-account-registration" data-registration="'+escapeHtml(registration.id)+'"><div class="family-account-registration-heading"><div><p class="family-auth-eyebrow">'+escapeHtml(item.event || "Nieuwjaar")+' · '+(item.edition==="test"?"TESTEDITIE":"LIVE-EDITIE")+'</p><h2>'+escapeHtml(registration.name || "Jullie inschrijving")+'</h2></div><span>'+members.length+' deelnemers</span></div><div class="family-account-members">'+(orders || '<p class="family-auth-notice">Er zijn nog geen individuele deelnemers toegevoegd aan deze inschrijving.</p>')+'</div><form class="family-account-add" data-add-member="'+escapeHtml(registration.id)+'"><input name="memberName" aria-label="Naam gezinslid" placeholder="Naam gezinslid" maxlength="80" required><select name="memberType" aria-label="Categorie"><option value="Volwassene">Volwassene</option><option value="Kind">Kind</option></select><button type="submit">Persoon toevoegen</button></form></section>';
     }).join("");
+  }
+  async function saveRegistration(item) {
+    feedback("");
+    try {
+      const result = await request("/api/family-account/registration", {
+        edition: item.edition, registrationId: item.registration.id,
+        revision: item.revision, members: item.registration.members
+      }, "PUT");
+      item.revision = result.revision;
+      item.registration = result.registration;
+      renderRegistrations(window.__familyRegistrations || []);
+      feedback("De wijzigingen zijn bewaard.", "success");
+    } catch (error) {
+      feedback(error.message || "Opslaan is niet gelukt.");
+      if (error.message?.includes("gewijzigd")) await loadAccount();
+    }
   }
   async function loadAccount() {
     const response = await fetch("/api/family-account/session", { credentials: "same-origin" });
@@ -96,7 +137,8 @@ export async function startFamilyAuth() {
     if (!response.ok || !result.authenticated) { show("login"); return; }
     view.querySelector("[data-account-heading]").textContent = result.user?.displayName ? "Welkom, " + result.user.displayName + "." : "Welkom.";
     view.querySelector("[data-account-email]").textContent = result.user?.email || "";
-    renderRegistrations(result.registrations || []);
+    window.__familyRegistrations = result.registrations || [];
+    renderRegistrations(window.__familyRegistrations);
     show("account");
   }
 
