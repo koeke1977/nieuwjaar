@@ -6,6 +6,28 @@ function json(data, status = 200, headers = {}) {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
 
+
+async function sendGraphMail(env, recipient, subject, html) {
+  const tenantId = env.O365_TENANT_ID, clientId = env.O365_CLIENT_ID;
+  const clientSecret = env.O365_CLIENT_SECRET, fromEmail = env.O365_FROM_EMAIL;
+  if (![tenantId, clientId, clientSecret, fromEmail].every(value => typeof value === "string" && value.trim())) {
+    throw new Error("Microsoft 365-mailinstellingen ontbreken in de Worker-secrets.");
+  }
+  const tokenResponse = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`, {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, scope: "https://graph.microsoft.com/.default", grant_type: "client_credentials" })
+  });
+  if (!tokenResponse.ok) throw new Error(`Microsoft 365-aanmelding mislukt (HTTP ${tokenResponse.status}). Controleer de app-credentials.`);
+  const tokenData = await tokenResponse.json();
+  if (!tokenData.access_token) throw new Error("Microsoft 365 gaf geen toegangstoken terug.");
+  const sendResponse = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${tokenData.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ message: { subject, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: recipient } }] }, saveToSentItems: true })
+  });
+  if (!sendResponse.ok) throw new Error(`Microsoft Graph heeft de e-mail geweigerd (HTTP ${sendResponse.status}). Controleer de mailboxmachtiging.`);
+}
+
 function base64Url(bytes) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -209,6 +231,25 @@ async function handleFamilyApi(request, env, url) {
 
 async function handleAdminApi(request, env, url) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
+
+
+  if (url.pathname === "/api/admin/mail-test" && request.method === "POST") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const session = await adminSession(request, env);
+    if (!session) return json({ error: "Niet aangemeld." }, 401);
+    const body = await request.json().catch(() => null);
+    const recipient = typeof body?.recipient === "string" ? body.recipient.trim() : "";
+    if (recipient.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return json({ error: "Vul een geldig e-mailadres in." }, 400);
+    const safeRecipient = recipient.replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+    const html = `<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Nieuwjaar – mailtest geslaagd</h2><p>Deze test bevestigt dat de Nieuwjaar-app e-mail kan versturen via Microsoft 365.</p><p>Verzonden vanuit <strong>${env.O365_FROM_EMAIL || "de ingestelde mailbox"}</strong>.</p><p>Ontvanger: ${safeRecipient}</p></div>`;
+    try {
+      await sendGraphMail(env, recipient, "[Nieuwjaar] Test e-mailverbinding", html);
+      return json({ sent: true });
+    } catch (error) {
+      console.error("Microsoft Graph mail test failed:", error.message);
+      return json({ error: error.message || "De testmail kon niet worden verzonden." }, 502);
+    }
+  }
 
   if (url.pathname === "/api/admin/login" && request.method === "POST") {
     if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
