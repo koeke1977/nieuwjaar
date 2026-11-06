@@ -3,7 +3,7 @@ import { state } from "./demo-data.js";
 const clone = value => JSON.parse(JSON.stringify(value));
 
 function makeEditionId(name) {
-  const slug = name.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const slug = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   return `${slug || "editie"}-${Date.now().toString(36)}`;
 }
 
