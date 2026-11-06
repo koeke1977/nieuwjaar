@@ -45,12 +45,8 @@ function handleClick(event) {
     const index=Number(action.dataset.index);
     const member=members[index];
     if(!registration||!member)return;
-    if(action.dataset.action==="edit-own-member"){
-      const name=window.prompt("Naam van het gezinslid:",member.name);if(name===null)return;
-      const type=window.prompt("Type (Volwassene of Kind):",member.type);if(type===null)return;
-      if(!name.trim()||!["Volwassene","Kind"].includes(type)){window.alert("Vul een naam in en kies Volwassene of Kind.");return;}
-      member.name=name.trim();member.type=type;
-    } else {
+    if(action.dataset.action==="edit-own-member"){state.editingOwnMemberIndex=index;renderApp();return;}
+    if(action.dataset.action==="delete-own-member"){
       if(members.length<=1){window.alert("Een inschrijving moet minstens één deelnemer bevatten.");return;}
       if(!window.confirm(`Verwijder ${member.name} uit jullie inschrijving?`))return;
       members.splice(index,1);
@@ -60,7 +56,9 @@ function handleClick(event) {
     renderApp();return;
   }
   if(action.dataset.action==="manage-members"){state.managingRegistrationId=action.dataset.id;renderApp();return;}
-  if(action.dataset.action==="edit-member"){const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);const member=registration?.members?.[Number(action.dataset.index)];if(!member)return;const name=window.prompt("Naam van het gezinslid:",member.name);if(name===null)return;const type=window.prompt("Type (Volwassene of Kind):",member.type);if(type===null)return;if(!name.trim()||!["Volwassene","Kind"].includes(type)){window.alert("Vul een naam in en kies Volwassene of Kind.");return;}member.name=name.trim();member.type=type;registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
+  if(action.dataset.action==="edit-member"){state.editingAdminMemberIndex=Number(action.dataset.index);renderApp();return;}
+  if(action.dataset.action==="cancel-edit-admin-member"){state.editingAdminMemberIndex=null;renderApp();return;}
+  if(action.dataset.action==="cancel-edit-own-member"){state.editingOwnMemberIndex=null;renderApp();return;}
   if(action.dataset.action==="delete-member"){const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration?.members)return;const index=Number(action.dataset.index);if(!window.confirm(`Verwijder ${registration.members[index]?.name || 'dit lid'} uit deze inschrijving?`))return;registration.members.splice(index,1);registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
   if(action.dataset.action==="edit-registration"){const item=state.registrations.find(row=>row.id===action.dataset.id);if(!item)return;const name=window.prompt("Naam van de inschrijving:",item.name);if(name===null)return;const adults=window.prompt("Aantal volwassenen (18+):",String(item.adults));if(adults===null)return;const children=window.prompt("Aantal kinderen:",String(item.children));if(children===null)return;const adultCount=Number(adults),childCount=Number(children);if(!name.trim()||!Number.isInteger(adultCount)||!Number.isInteger(childCount)||adultCount<0||childCount<0||adultCount+childCount<1){window.alert("Controleer de naam en aantallen. Er moet minstens één deelnemer zijn.");return;}item.name=name.trim();item.adults=adultCount;item.children=childCount;renderApp();}
   if(action.dataset.action==="print")window.print();
@@ -81,6 +79,24 @@ function handleSubmit(event){
     registration.members.push({id:makeId("lid"),name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});
     registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;
     registration.children=registration.members.filter(person=>person.type==="Kind").length;
+    renderApp();return;
+  }
+  if(event.target.id==="edit-own-member-form" || event.target.id==="edit-admin-member-form"){
+    event.preventDefault();
+    const isOwn=event.target.id==="edit-own-member-form";
+    const registration=state.registrations.find(item=>item.id===(isOwn?state.activeRegistrationId:state.managingRegistrationId));
+    const index=Number(event.target.dataset.index);
+    const member=registration?.members?.[index];
+    const form=event.target;
+    const name=form.elements.memberName.value.trim();
+    const type=form.elements.memberType.value;
+    if(!registration||!member||!name||!["Volwassene","Kind"].includes(type)){window.alert("Vul een geldige naam in en kies Volwassene of Kind.");return;}
+    member.name=name;
+    member.type=type;
+    registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;
+    registration.children=registration.members.filter(person=>person.type==="Kind").length;
+    if(isOwn)state.editingOwnMemberIndex=null;else state.editingAdminMemberIndex=null;
+    // Kosten, individuele aandelen en openstaande saldi worden bij elke render opnieuw uit de actuele ledenlijst berekend.
     renderApp();return;
   }
   if(event.target.id==="edit-expense-form"){
