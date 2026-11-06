@@ -1,3 +1,4 @@
+import { startFamilyPortal } from "./pages/family-portal.js";
 import { state, getActiveFamily } from "./data/demo-data.js";
 import { renderHeader } from "./components/header.js";
 import { renderConsoleSwitcher, renderUserNavigation, renderAdminNavigation } from "./components/navigation.js";
@@ -235,6 +236,7 @@ function handleImageUpload(event){
   const reader=new FileReader();reader.onload=()=>{product.image=reader.result;renderApp();};reader.readAsDataURL(file);
 }
 export async function startApp(){
+  if (location.pathname.startsWith("/familie/")) { startFamilyPortal(); return; }
   document.addEventListener("click",handleClick);document.addEventListener("submit",handleSubmit);document.addEventListener("change",handleImageUpload);
   try{const response=await fetch("/api/admin/session",{credentials:"same-origin"});const session=await response.json();adminAuthenticated=Boolean(session.authenticated);}catch{adminAuthenticated=false;}
   if(adminAuthenticated){try{await loadAdminState();statePersistenceReady=true;}catch(error){persistenceError=true;console.error("Admin state load failed:",error);}}
