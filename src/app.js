@@ -4,7 +4,7 @@ import { renderConsoleSwitcher, renderUserNavigation, renderAdminNavigation } fr
 import { renderUserContent } from "./pages/user.js";
 import { renderAdminContent } from "./pages/admin.js";
 import { money } from "./utils/format.js";
-import { getExpenseShares } from "./utils/finance.js";
+import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
 const makeId = (prefix = "lid") => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 function renderApp() {
   const isAdmin=state.activeConsole==="admin";
@@ -113,6 +113,11 @@ function handleSubmit(event){
     const method=form.elements.method.value;
     if(!state.registrations.some(item=>item.id===registrationId)||!Number.isFinite(amount)||amount<=0||!Number.isInteger(amountCents)||!date||!["cash","bank"].includes(method)){
       window.alert("Controleer de inschrijving, het bedrag, de datum en de betaalwijze.");return;
+    }
+    const financial=getFinancialSummary(state.registrations,state.expenses,state.payments);
+    const balance=financial.find(row=>row.id===registrationId);
+    if(!balance||amountCents>balance.remainingCents){
+      window.alert(`Het bedrag is hoger dan het openstaande saldo van ${money((balance?.remainingCents||0)/100)}.`);return;
     }
     state.payments.push({id:makeId("betaling"),eventId:state.activeEvent.id,registrationId,amountCents,date,method});
     renderApp();return;
