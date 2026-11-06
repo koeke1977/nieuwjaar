@@ -55,3 +55,24 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
 /* Deelnemersbeheer */
 .registration-list{display:flex;flex-direction:column}.registration-row{display:flex;align-items:center;gap:14px;padding:12px 2px;border-bottom:1px solid #eff1f3}.registration-name{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.registration-name strong{font-size:12px}.registration-name small{font-size:10px;color:var(--muted)}.registration-total{min-width:25px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}.registration-form-grid{display:grid;grid-template-columns:minmax(180px,1fr) 95px 95px auto;gap:9px}.registration-form-grid input{min-width:0;border:1px solid #dfe4e9;border-radius:9px;padding:10px 12px;font:inherit;font-size:12px}
 @media(max-width:650px){.registration-form-grid{grid-template-columns:1fr 1fr}.registration-form-grid input:first-child{grid-column:1/-1}.registration-form-grid button{grid-column:1/-1}.registration-row{gap:8px}.registration-row .button{padding:7px 8px}}
+
+
+/* Admin: bestellingen uitgesplitst per gezin en persoon */
+.order-family-block{padding:16px 0;border-top:1px solid var(--line)}
+.order-family-block:first-child{border-top:0}
+.order-family-block .section-heading{margin-bottom:10px}
+.order-detail-table-wrap{overflow-x:auto}
+.order-detail-table{width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap}
+.order-detail-table th,.order-detail-table td{padding:9px 10px;border-bottom:1px solid #eff1f3;text-align:center}
+.order-detail-table th:first-child,.order-detail-table td:first-child{text-align:left;position:sticky;left:0;background:#fff}
+.order-detail-table th:nth-child(2),.order-detail-table td:nth-child(2){text-align:left}
+.order-detail-table th{font-size:10px;color:var(--muted);font-weight:700;background:#f8f9fa}
+.order-detail-table td strong{font-size:11px}
+@media print{
+  .order-details-panel{break-before:page;box-shadow:none;border:0;padding:0}
+  .order-family-block{break-inside:avoid}
+  .order-detail-table-wrap{overflow:visible}
+  .order-detail-table{font-size:9pt;white-space:normal}
+  .order-detail-table th,.order-detail-table td{padding:6px 4px}
+  .order-detail-table th:first-child,.order-detail-table td:first-child{position:static}
+}
