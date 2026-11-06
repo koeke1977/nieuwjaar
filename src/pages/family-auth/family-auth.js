@@ -2,6 +2,7 @@ import template from "./family-auth.html?raw";
 import "./family-auth.css";
 
 const root = () => document.querySelector("#app");
+const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const request = async (path, body) => {
   const response = await fetch(path, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const result = await response.json().catch(() => ({}));
@@ -71,12 +72,31 @@ export async function startFamilyAuth() {
     });
   });
 
+
+  function renderRegistrations(items) {
+    const target = view.querySelector("[data-account-registrations]");
+    if (!items.length) {
+      target.innerHTML = '<div class="family-auth-notice">Je account is actief, maar er is nog geen inschrijving aan gekoppeld. Neem contact op met de organisatie als je dit niet verwacht.</div>';
+      return;
+    }
+    target.innerHTML = items.map(item => {
+      const registration = item.registration || {};
+      const members = Array.isArray(registration.members) ? registration.members : [];
+      const catalog = Array.isArray(item.catalog) ? item.catalog : [];
+      const orders = members.map(person => {
+        const quantities = catalog.map(product => ({ name: product.name, quantity: Number(person.orders?.[product.id]) || 0 })).filter(product => product.quantity > 0);
+        return '<article class="family-account-member"><div><strong>'+escapeHtml(person.name)+'</strong><small>'+escapeHtml(person.type || "Deelnemer")+'</small></div><div class="family-account-orders">'+(quantities.length ? quantities.map(order => '<span>'+escapeHtml(order.name)+' <b>'+order.quantity+'×</b></span>').join("") : '<span>Nog geen vleesbestelling</span>')+'</div></article>';
+      }).join("");
+      return '<section class="family-account-registration"><div class="family-account-registration-heading"><div><p class="family-auth-eyebrow">'+escapeHtml(item.event || "Nieuwjaar")+' · '+(item.edition==="test"?"TESTEDITIE":"LIVE-EDITIE")+'</p><h2>'+escapeHtml(registration.name || "Jullie inschrijving")+'</h2></div><span>'+members.length+' deelnemers</span></div><div class="family-account-members">'+(orders || '<p class="family-auth-notice">Er zijn nog geen individuele deelnemers toegevoegd aan deze inschrijving.</p>')+'</div></section>';
+    }).join("");
+  }
   async function loadAccount() {
     const response = await fetch("/api/family-account/session", { credentials: "same-origin" });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.authenticated) { show("login"); return; }
     view.querySelector("[data-account-heading]").textContent = result.user?.displayName ? "Welkom, " + result.user.displayName + "." : "Welkom.";
     view.querySelector("[data-account-email]").textContent = result.user?.email || "";
+    renderRegistrations(result.registrations || []);
     show("account");
   }
 
