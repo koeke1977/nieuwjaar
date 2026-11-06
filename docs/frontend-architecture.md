@@ -27,4 +27,4 @@ De frontend blijft onderhoudbaar door verantwoordelijkheden duidelijk te scheide
 
 ## Volgende stap
 
-De volgende functionele module is onboarding: keuze Gezin/Alleen, leden toevoegen en per persoon de categorie volwassene/kind instellen. Eerst wordt die flow als testbare UI uitgewerkt; daarna volgt persistente opslag en server-side toegangscontrole.
+De eerstvolgende functionele stap is de onboarding: keuze Gezin/Alleen, leden toevoegen en per persoon de categorie volwassene/kind instellen. De registratie is in de frontend inmiddels de gedeelde bron voor het deelnemersportaal en beheer. Daarna volgen persistente opslag en server-side toegangscontrole.
