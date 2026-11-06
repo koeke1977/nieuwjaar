@@ -65,7 +65,7 @@ function handleClick(event) {
   if(action.dataset.action==="cancel-edit-admin-member"){state.editingAdminMemberIndex=null;renderApp();return;}
   if(action.dataset.action==="cancel-edit-own-member"){state.editingOwnMemberIndex=null;renderApp();return;}
   if(action.dataset.action==="delete-member"){const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration?.members)return;const index=Number(action.dataset.index);if(!window.confirm(`Verwijder ${registration.members[index]?.name || 'dit lid'} uit deze inschrijving?`))return;registration.members.splice(index,1);markCostsProvisional();registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
-  if(action.dataset.action==="edit-registration"){const item=state.registrations.find(row=>row.id===action.dataset.id);if(!item)return;const name=window.prompt("Naam van de inschrijving:",item.name);if(name===null)return;const adults=window.prompt("Aantal volwassenen (18+):",String(item.adults));if(adults===null)return;const children=window.prompt("Aantal kinderen:",String(item.children));if(children===null)return;const adultCount=Number(adults),childCount=Number(children);if(!name.trim()||!Number.isInteger(adultCount)||!Number.isInteger(childCount)||adultCount<0||childCount<0||adultCount+childCount<1){window.alert("Controleer de naam en aantallen. Er moet minstens één deelnemer zijn.");return;}item.name=name.trim();item.adults=adultCount;item.children=childCount;renderApp();}
+  if(action.dataset.action==="edit-registration"){const item=state.registrations.find(row=>row.id===action.dataset.id);if(!item)return;const name=window.prompt("Naam van de inschrijving:",item.name);if(name===null)return;const adults=window.prompt("Aantal volwassenen (18+):",String(item.adults));if(adults===null)return;const children=window.prompt("Aantal kinderen:",String(item.children));if(children===null)return;const adultCount=Number(adults),childCount=Number(children);if(!name.trim()||!Number.isInteger(adultCount)||!Number.isInteger(childCount)||adultCount<0||childCount<0||adultCount+childCount<1){window.alert("Controleer de naam en aantallen. Er moet minstens één deelnemer zijn.");return;}item.name=name.trim();item.adults=adultCount;item.children=childCount;markCostsProvisional();renderApp();}
   if(action.dataset.action==="print")window.print();
   if(action.dataset.action==="toggle-product"){const product=state.catalog.find(item=>item.id===action.dataset.id);if(product)product.active=!product.active;renderApp();}
   if(action.dataset.action==="remove-image"){const product=state.catalog.find(item=>item.id===action.dataset.id);if(product)product.image=null;renderApp();}
@@ -82,6 +82,7 @@ function handleSubmit(event){
     if(!name||!["Volwassene","Kind"].includes(type))return;
     registration.members=registration.members||[];
     registration.members.push({id:makeId("lid"),name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});
+    markCostsProvisional();
     registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;
     registration.children=registration.members.filter(person=>person.type==="Kind").length;
     renderApp();return;
@@ -98,6 +99,7 @@ function handleSubmit(event){
     if(!registration||!member||!name||!["Volwassene","Kind"].includes(type)){window.alert("Vul een geldige naam in en kies Volwassene of Kind.");return;}
     member.name=name;
     member.type=type;
+    markCostsProvisional();
     registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;
     registration.children=registration.members.filter(person=>person.type==="Kind").length;
     if(isOwn)state.editingOwnMemberIndex=null;else state.editingAdminMemberIndex=null;
