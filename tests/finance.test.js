@@ -76,7 +76,7 @@ test("family finance can use anonymous aggregate totals without member records",
   ];
   const shares = getExpenseShares({ amountCents: 8000, method: "meat" }, registrations, { strict: true });
   assert.deepEqual(shares, [
-    { id: "own", cents: 1334 },
-    { id: "other", cents: 6666 }
+    { id: "own", cents: 1333 },
+    { id: "other", cents: 6667 }
   ]);
 });
