@@ -16,7 +16,7 @@ export async function startFamilyAuth() {
   const activation = path.match(/^\/familie\/activeren\/([^/]+)\/?$/);
   const reset = path.match(/^\/familie\/wachtwoord-reset\/([^/]+)\/?$/);
   let token = activation?.[1] || reset?.[1] || "";
-  let currentPanel = activation ? "activate" : reset ? "reset" : "login";
+  let currentPanel = activation ? "activate" : reset ? "reset" : path === "/familie/wachtwoord-vergeten" ? "forgot" : "login";
   const show = (name) => {
     currentPanel = name;
     view.querySelectorAll("[data-panel]").forEach(panel => { panel.hidden = panel.dataset.panel !== name; });
@@ -80,7 +80,7 @@ export async function startFamilyAuth() {
     show("account");
   }
 
-  if (!activation && !reset) {
+  if (!activation && !reset && currentPanel !== "forgot") {
     try { await loadAccount(); } catch { show("login"); }
   } else {
     show(currentPanel);
