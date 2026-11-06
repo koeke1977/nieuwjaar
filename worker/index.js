@@ -116,7 +116,7 @@ async function handleFamilyApi(request, env, url) {
     const registration = (data.registrations || []).find(item => item.id === session.registration_id);
     if (!registration) return json({ error: "Deze inschrijving bestaat niet meer." }, 404);
     const catalog = (data.catalog || []).filter(item => item.active).map(({ id, name, image }) => ({ id, name, image: image || null, active: true }));
-    const safeRegistrations = (data.registrations || []).map(item => {
+    const safeRegistrations = (data.registrations || []).map((item, index) => {
       if (item.id === registration.id) return registration;
       const sourceMembers = Array.isArray(item.members) ? item.members : [];
       const adults = sourceMembers.length
@@ -128,7 +128,7 @@ async function handleFamilyApi(request, env, url) {
       const meat = sourceMembers.reduce((sum, person) =>
         sum + Object.values(person.orders || {}).reduce((memberSum, quantity) => memberSum + Math.max(0, Number(quantity) || 0), 0), 0);
       return {
-        id: item.id,
+        id: `anonymous-registration-${index}`,
         name: "",
         adults,
         children,
