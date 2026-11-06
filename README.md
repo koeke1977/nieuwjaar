@@ -35,7 +35,7 @@ Personen blijven individueel geregistreerd, zodat kosten die alleen voor volwass
 Voor de kostenverdeling houden we drie vaste methodes aan:
 - **Gewone kosten:** gelijk verdeeld over alle deelnemers (volwassenen en kinderen).
 - **Alcoholische dranken:** gelijk verdeeld over alle volwassenen; kinderen betalen hier niet aan mee.
-- **Beenhouwer:** verdeeld volgens het aantal bestelde vleesporties per inschrijving.
+- **Beenhouwer:** verdeeld volgens het aantal vleesporties dat iedere persoon individueel bestelt. Het gezinsaandeel is de optelsom van de aandelen van de gezinsleden.
 
 De organisator kiest bij het invoeren van een kost één van deze drie methodes. We voorzien geen vrije of zelf samengestelde verdeelsleutels in de eerste versie. De verdeling gebeurt op basis van de effectieve aantallen en wordt in eurocenten afgerond. Afrondingsverschillen worden verdeeld zodat de som van de toegewezen bedragen altijd exact gelijk is aan het ingevoerde totaal.
 
@@ -67,7 +67,7 @@ Een uitgave bevat minstens omschrijving, bedrag, betaler/aankoper, verdeelsleute
 
 - Alle geldbedragen worden intern in eurocenten opgeslagen.
 - De som van alle kostenverdelingen moet exact overeenkomen met de kost.
-- Vlees wordt verdeeld op basis van het effectieve aantal porties, niet op een afgeronde prijs per portie.
+- De beenhouwerkost wordt verdeeld op basis van het effectieve aantal vleesporties dat iedere persoon bestelt, niet op basis van het aantal personen of een afgeronde prijs per portie. Het gezinsaandeel is de som van de individuele ledenaandelen.
 - De categorie volwassene/kind is expliciet per editie vastgelegd; de app leidt dit niet stilzwijgend af uit een geboortedatum.
 - Wijzigingen aan afgesloten edities worden beperkt en gelogd.
 
