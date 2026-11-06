@@ -49,12 +49,16 @@ function handleClick(event) {
   }
   if (action.dataset.action === "edit-order") { state.editingMember = state.editingMember === action.dataset.personId ? null : action.dataset.personId; render(); return; }
   if (action.dataset.action === "close-order-editor") { state.editingMember = null; render(); return; }
-  if (action.dataset.action === "change-quantity") {
+  if (action.dataset.action === "change-quantity" || action.dataset.action === "quantity") {
     const person = members.find(p => p.id === action.dataset.personId);
-    if (!person) return;
-    const id = action.dataset.product; person.orders = person.orders || {};
-    person.orders[id] = Math.max(0, Math.min(99, (Number(person.orders[id]) || 0) + Number(action.dataset.delta)));
+    const productId = action.dataset.product;
+    const product = state.catalog.find(p => p.id === productId);
+    if (!person || !product || !["-1", "1"].includes(action.dataset.delta)) return;
+    person.orders = person.orders || {};
+    const current = Number(person.orders[productId]) || 0;
+    person.orders[productId] = Math.max(0, Math.min(99, current + Number(action.dataset.delta)));
     saveRegistration();
+    return;
   }
 }
 function handleSubmit(event) {
@@ -88,7 +92,7 @@ async function load(token) {
     state.managingRegistrationId = data.registration.id; state.catalog = data.catalog || []; state.expenses = data.expenses || [];
     state.payments = data.payments || []; state.costsFinalized = Boolean(data.costsFinalized); state.activeEvent = data.edition || state.activeEvent;
     state.activeConsole = "user"; state.activeSection = "overview";
-    if (!bound) { document.addEventListener("click", handleClick); document.addEventListener("submit", handleSubmit); bound = true; }
+    if (!bound) { document.addEventListener("click", handleClick, true); document.addEventListener("submit", handleSubmit, true); bound = true; }
     notice = "Jullie persoonlijke inschrijving is geladen."; render();
   } catch (e) {
     document.querySelector("#app").innerHTML = `<main class="admin-login-shell"><section class="admin-login-card"><h1>Geen toegang</h1><p>${String(e.message || "Deze persoonlijke link is niet geldig.")}</p></section></main>`;
