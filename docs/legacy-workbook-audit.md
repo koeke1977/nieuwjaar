@@ -225,3 +225,18 @@ De betaler/voorschieter en de verdeling van de kost zijn dus twee aparte gegeven
 ## 11. Vorig vleesgamma als standaard startpunt
 
 Omdat het waarschijnlijk is dat het vleesaanbod grotendeels hetzelfde blijft, stelt de app bij het aanmaken van een nieuwe editie standaard het gamma van de vorige editie voor als kopie. De beheerder kan producten toevoegen, wijzigen, uitschakelen of herschikken vóór de bestellingen opengaan. De catalogus van de vorige editie blijft ongewijzigd.
+
+
+## 12. Definitieve vaste kostenverdeling
+
+De nieuwe app gebruikt drie vaste verdeelmethodes. De organisator kiest bij iedere uitgave welke methode van toepassing is:
+
+1. **Gewone kosten — iedereen:** het bedrag wordt gelijk verdeeld over alle deelnemers, volwassenen én kinderen.
+2. **Alcoholische dranken — volwassenen:** het bedrag wordt gelijk verdeeld over alle volwassenen. Kinderen dragen hier niets aan bij.
+3. **Beenhouwer — vleesporties:** het bedrag wordt verdeeld volgens het aantal bestelde vleesporties per inschrijving.
+
+Voorbeeld: een gezin bestaat uit papa, mama en twee kinderen. Een gewone kost telt vier personen mee. Een alcoholkost telt alleen papa en mama mee. De kinderen worden voor die alcoholkost volledig buiten beschouwing gelaten.
+
+Voorbeeld voorschot: Ben koopt voor €500 alcoholische dranken. Hij boekt de €500 als voorgeschoten door zijn eigen gezin. De €500 wordt verdeeld over alle volwassenen van alle gezinnen en alleenstaande deelnemers. Het gezin van Ben krijgt het volledige voorschot van €500 in de afrekening gecrediteerd, maar draagt zelf ook het volwassenenaandeel in de drankkost.
+
+De organisator hoeft dus geen vrije verdeelsleutels of gewichten te configureren. De categorie van een deelnemer (volwassene/kind) en de bestelde vleesporties bepalen automatisch de verdeelbasis.
