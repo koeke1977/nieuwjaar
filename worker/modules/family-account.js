@@ -2,7 +2,7 @@ const encoder = new TextEncoder();
 const FAMILY_ACCOUNT_COOKIE = "ny_family_account";
 const FAMILY_ACCOUNT_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-async function hashPassword(password) {
+async function hashPassword(password, base64Url) {
   try {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iterations = 100000;
@@ -232,7 +232,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       "SELECT i.id, i.user_id FROM family_user_invites i JOIN family_users u ON u.id = i.user_id WHERE i.token_hash = ? AND i.used_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > ? AND u.status = 'invited'"
     ).bind(await sha256(token), now).first();
     if (!invite) return json({ error: "Deze activatielink is ongeldig of verlopen." }, 400);
-    const passwordHash = await hashPassword(password);
+    const passwordHash = await hashPassword(password, base64Url);
     const updated = await env.DB.prepare(
       "UPDATE family_user_invites SET used_at = ? WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL AND expires_at > ? RETURNING user_id"
     ).bind(now, invite.id, now).first();
