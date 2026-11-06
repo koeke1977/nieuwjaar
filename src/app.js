@@ -26,11 +26,11 @@ function handleClick(event) {
     state.expenses=state.expenses.filter(item=>item.id!==expense.id);
     renderApp();return;
   }
-  if(action.dataset.action==="receive"){
-    const payment=state.payments[Number(action.dataset.index)];const remaining=Math.max(0,payment.due-payment.paid);
-    const raw=window.prompt(`Hoeveel heeft ${payment.household} betaald?\nNog openstaand: ${money(remaining)}`,String(remaining));if(raw===null)return;
-    const amount=Number(raw.replace(",","."));if(!Number.isFinite(amount)||amount<=0){window.alert("Geef een geldig bedrag in.");return;}
-    payment.paid=Math.round((payment.paid+amount)*100)/100;payment.method="Cash";renderApp();
+  if(action.dataset.action==="delete-payment"){
+    const payment=state.payments.find(item=>item.id===action.dataset.id);
+    if(!payment)return;
+    if(!window.confirm("Deze betaling verwijderen? Het openstaande saldo wordt opnieuw berekend."))return;
+    state.payments=state.payments.filter(item=>item.id!==payment.id);renderApp();return;
   }
   if(action.dataset.action==="edit-order"){state.editingMember=state.editingMember===action.dataset.personId?null:action.dataset.personId;renderApp();}
   if(action.dataset.action==="close-order-editor"){state.editingMember=null;renderApp();}
@@ -101,6 +101,20 @@ function handleSubmit(event){
     try{getExpenseShares(updated,state.registrations);}catch(error){window.alert(error.message);return;}
     Object.assign(expense,updated);
     state.editingExpenseId=null;
+    renderApp();return;
+  }
+  if(event.target.id==="add-payment-form"){
+    event.preventDefault();
+    const form=event.target;
+    const registrationId=form.elements.registrationId.value;
+    const amount=Number(form.elements.amount.value);
+    const amountCents=Math.round(amount*100);
+    const date=form.elements.date.value;
+    const method=form.elements.method.value;
+    if(!state.registrations.some(item=>item.id===registrationId)||!Number.isFinite(amount)||amount<=0||!Number.isInteger(amountCents)||!date||!["cash","bank"].includes(method)){
+      window.alert("Controleer de inschrijving, het bedrag, de datum en de betaalwijze.");return;
+    }
+    state.payments.push({id:makeId("betaling"),eventId:state.activeEvent.id,registrationId,amountCents,date,method});
     renderApp();return;
   }
   if(event.target.id==="add-expense-form"){
