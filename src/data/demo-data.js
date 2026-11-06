@@ -35,10 +35,10 @@ export const state = {
 export const family = {
   name: "Familie Thomaes-Beckers",
   members: [
-    { name: "Koen", type: "Volwassene", orders: { steak: 1, kip: 1, sate: 1 } },
-    { name: "Isabella", type: "Volwassene", orders: { steak: 1, sate: 1 } },
-    { name: "Emma", type: "Kind", orders: { steak: 1, kip: 1, worst: 1 } },
-    { name: "Lisa", type: "Kind", orders: { steak: 1, kip: 1, worst: 2 } }
+    { id: "koen", name: "Koen", type: "Volwassene", orders: { steak: 1, kip: 1, sate: 1 } },
+    { id: "isabella", name: "Isabella", type: "Volwassene", orders: { steak: 1, sate: 1 } },
+    { id: "emma", name: "Emma", type: "Kind", orders: { steak: 1, kip: 1, worst: 1 } },
+    { id: "lisa", name: "Lisa", type: "Kind", orders: { steak: 1, kip: 1, worst: 2 } }
   ],
   advanced: 250, share: 185, bring: 185
 };
@@ -56,8 +56,8 @@ export function getActiveFamily() {
 
 // Alleen bestellingen uit actieve inschrijvingen tellen mee in de huidige editie.
 // Historische aantallen staan apart in previousEditionMeats en worden nooit opgeteld.
-export function getFamilyMeat() {
-  const activeMembers = state.registrations.flatMap(registration => registration.members || []);
+export function getFamilyMeat(registration = getActiveRegistration()) {
+  const activeMembers = registration?.members || [];
   return state.catalog.map(product => ({
     id: product.id,
     name: product.name,
@@ -65,8 +65,12 @@ export function getFamilyMeat() {
   }));
 }
 export function getGlobalMeatTotals() {
-  return getFamilyMeat().map(item => ({ name: item.name, count: item.count }));
+  const activeMembers = state.registrations.flatMap(registration => registration.members || []);
+  return state.catalog.map(product => ({
+    name: product.name,
+    count: activeMembers.reduce((sum, person) => sum + (Number(person.orders?.[product.id]) || 0), 0)
+  }));
 }
 export function getPersonMeatTotal(person) {
-  return Object.values(person.orders).reduce((sum, count) => sum + (Number(count) || 0), 0);
+  return Object.values(person.orders || {}).reduce((sum, count) => sum + (Number(count) || 0), 0);
 }
