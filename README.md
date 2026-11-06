@@ -4,13 +4,14 @@ Webapp voor de jaarlijkse nieuwjaarsbijeenkomst: inschrijvingen, individuele vle
 
 ## Projectstatus
 
-De eerste frontend-basis staat in de repository:
+De applicatie heeft nu een beveiligde admin-login en de eerste persistente gegevenslaag:
 - Deelnemersportaal met gezinsoverzicht, vleesbestelling, gezinstotalen per vleessoort en afrekening.
 - Admin Console met globaal dashboard, BBQ-overzicht, betalingslijst en eerste registratie van ontvangen bedragen.
 - Responsive layout voor desktop, tablet en smartphone.
-- Cloudflare Worker-entrypoint en Vite-buildconfiguratie.
+- Cloudflare Worker met admin-authenticatie, sessiebeheer en beveiligde API voor persistente gegevens.
+- Cloudflare D1-opslag met afzonderlijke snapshots voor test- en liveomgeving.
 
-De huidige schermen gebruiken **demodata**. Er is nog geen databasekoppeling, echte authenticatie of persistente opslag. Betalingsregistratie in deze prototypeversie wijzigt alleen de lokale schermstatus.
+De adminomgeving laadt en bewaart editiegegevens automatisch via de Worker in Cloudflare D1. De testomgeving start met voorbeeldgegevens; de liveomgeving start afzonderlijk en leeg. Deelnemersauthenticatie, persoonlijke gezinslinks en het deelnemersportaal op basis van gedeelde databasegegevens moeten nog worden gebouwd. Productfoto’s worden voorlopig niet permanent opgeslagen.
 
 ## Frontend-structuur
 
@@ -24,7 +25,10 @@ src/
 │   ├── header.js           # Bovenbalk
 │   └── navigation.js       # Navigatie en portaalwisselaar (prototype)
 ├── data/
-│   └── demo-data.js        # Tijdelijke voorbeeldgegevens
+│   ├── demo-data.js        # Begin- en voorbeeldgegevens
+│   └── environment-store.js # Gescheiden test- en livegegevens
+├── services/
+│   └── admin-state.js      # Beveiligde API voor laden en opslaan
 ├── pages/
 │   ├── user.js             # Deelnemersschermen
 │   └── admin.js            # Beheerschermen
