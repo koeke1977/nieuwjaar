@@ -61,3 +61,22 @@ test("financial summary does not crash on a legacy expense with no eligible meat
 test("member summary returns an empty list without an active registration", () => {
   assert.deepEqual(getMemberCostSummary(null, [], []), []);
 });
+
+test("family finance can use anonymous aggregate totals without member records", () => {
+  const registrations = [
+    {
+      id: "own",
+      members: [{ id: "own-1", type: "Volwassene", orders: { steak: 1 } }]
+    },
+    {
+      id: "other",
+      members: [],
+      aggregateCounts: { people: 3, adults: 2, children: 1, meat: 5 }
+    }
+  ];
+  const shares = getExpenseShares({ amountCents: 8000, method: "meat" }, registrations, { strict: true });
+  assert.deepEqual(shares, [
+    { id: "own", cents: 1334 },
+    { id: "other", cents: 6666 }
+  ]);
+});
