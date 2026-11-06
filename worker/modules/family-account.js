@@ -129,6 +129,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     if (!registration) return json({ error: "Deze inschrijving bestaat niet meer." }, 404);
     const catalog = (data.catalog || []).filter(item => item.active);
     const catalogIds = new Set(catalog.map(item => item.id));
+    const memberIds = new Set();
     const members = [];
     for (const person of body.members) {
       if (!person || typeof person.id !== "string" || !person.id || person.id.length > 100 ||
@@ -136,9 +137,11 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
           !["Volwassene", "Kind"].includes(person.type)) {
         return json({ error: "Controleer de namen en categorieën van alle gezinsleden." }, 400);
       }
-      const orders = {};
+      if (memberIds.has(person.id)) return json({ error: "Een gezinslid komt meer dan één keer voor." }, 400);
+      memberIds.add(person.id);
+      const orders = { ...(person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {}) };
       for (const productId of catalogIds) {
-        const quantity = Number(person.orders?.[productId] ?? 0);
+        const quantity = Number(orders[productId] ?? 0);
         if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) {
           return json({ error: "Ongeldig aantal in de vleesbestelling." }, 400);
         }
@@ -171,8 +174,8 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     const token = typeof body?.token === "string" ? body.token : "";
     const password = typeof body?.password === "string" ? body.password : "";
     const displayName = typeof body?.displayName === "string" ? body.displayName.trim().slice(0, 100) : "";
-    if (!/^[A-Za-z0-9_-]{40,60}$/.test(token) || password.length < 12 || password.length > 1024) {
-      return json({ error: "De activatielink of het gekozen wachtwoord is ongeldig. Gebruik minstens 12 tekens." }, 400);
+    if (!/^[A-Za-z0-9_-]{40,60}$/.test(token) || password.length < 12 || password.length > 1024 || !displayName) {
+      return json({ error: "De activatielink, naam of het gekozen wachtwoord is ongeldig. Gebruik minstens 12 tekens." }, 400);
     }
     const invite = await env.DB.prepare(
       "SELECT i.id, i.user_id FROM family_user_invites i JOIN family_users u ON u.id = i.user_id WHERE i.token_hash = ? AND i.used_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > ? AND u.status = 'invited'"
