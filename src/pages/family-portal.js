@@ -1,5 +1,7 @@
 const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const makeId = () => "lid-" + crypto.randomUUID();
+const PRODUCT_IMAGE_PATHS = { "spareribs":"/images/spareribs.jpg", "steak":"/images/steak.jpg", "witte-pens":"/images/witte-pens.jpg", "worst":"/images/worst.jpg", "hamburger":"/images/hamburger.jpg", "sate":"/images/sate.jpg", "bolletjes":"/images/bolletjes-op-stok.jpg", "kip":"/images/kip.jpg" };
+
 let registration = null, catalog = [], saving = false, notice = "", error = "", activeSection = "overview", editingIndex = null;
 
 function nav() {
@@ -23,7 +25,7 @@ function renderMeat() {
         <header class="family-person-heading"><span class="person-avatar">${esc((person.name||"?").slice(0,1).toUpperCase())}</span><div><h3>${esc(person.name)}</h3><small>${esc(person.type||"Gezinslid")}</small></div><span class="family-person-count">${personTotal} ${personTotal===1?"portie":"porties"}</span></header>
         <div class="family-product-list">${products.map(p=>{
           const q=Number(person.orders?.[p.id])||0;
-          return `<div class="family-product-row"><div class="family-product-thumb">${p.image?`<img src="${p.image}" alt="">`:'<span>♨</span>'}</div><span class="family-product-name">${esc(p.name)}</span><div class="family-quantity" aria-label="Aantal ${esc(p.name)}"><button type="button" aria-label="Minder ${esc(p.name)} voor ${esc(person.name)}" data-action="quantity" data-index="${index}" data-product="${esc(p.id)}" data-delta="-1" ${q===0?"disabled":""}>−</button><strong>${q}</strong><button type="button" aria-label="Meer ${esc(p.name)} voor ${esc(person.name)}" data-action="quantity" data-index="${index}" data-product="${esc(p.id)}" data-delta="1">+</button></div></div>`;
+          return `<div class="family-product-row"><div class="family-product-thumb">${(p.image||PRODUCT_IMAGE_PATHS[p.id])?`<img src="${p.image||PRODUCT_IMAGE_PATHS[p.id]}" alt="">`:'<span>♨</span>'}</div><span class="family-product-name">${esc(p.name)}</span><div class="family-quantity" aria-label="Aantal ${esc(p.name)}"><button type="button" aria-label="Minder ${esc(p.name)} voor ${esc(person.name)}" data-action="quantity" data-index="${index}" data-product="${esc(p.id)}" data-delta="-1" ${q===0?"disabled":""}>−</button><strong>${q}</strong><button type="button" aria-label="Meer ${esc(p.name)} voor ${esc(person.name)}" data-action="quantity" data-index="${index}" data-product="${esc(p.id)}" data-delta="1">+</button></div></div>`;
         }).join("")||'<p class="catalog-note">Er zijn momenteel geen actieve vleesproducten.</p>'}</div>
       </article>`;
     }).join("")||'<p class="catalog-note">Voeg eerst gezinsleden toe via het menu Gezin.</p>'}
