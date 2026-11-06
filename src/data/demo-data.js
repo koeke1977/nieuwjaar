@@ -1,5 +1,5 @@
 export const state = {
-  activeConsole: "user", activeSection: "overview", editingMember: null,
+  activeConsole: "user", activeSection: "overview", activeRegistrationId: "koen-isabella", editingMember: null,
   registrations: [
     { id:"olivier-kelly", name:"Olivier & Kelly", adults:2, children:2 },
     { id:"boef-claudia", name:"Boef & Claudia", adults:2, children:2 },
@@ -38,13 +38,24 @@ export const family = {
   advanced: 250, share: 185, bring: 185
 };
 
+// De bekende voorbeeldleden zijn gekoppeld aan dezelfde registratie die de admin beheert.
+state.registrations.find(item => item.id === "koen-isabella").members = family.members;
+state.registrations.find(item => item.id === "koen-isabella").financial = { advanced: family.advanced, share: family.share, bring: family.bring };
+export function getActiveRegistration() {
+  return state.registrations.find(item => item.id === state.activeRegistrationId) || state.registrations[0];
+}
+export function getActiveFamily() {
+  const registration = getActiveRegistration();
+  return { name: registration.name, members: registration.members || [], advanced: registration.financial?.advanced || 0, share: registration.financial?.share || 0, bring: registration.financial?.bring || 0 };
+}
+
 // Bestaande groepsaantallen bevatten de huidige voorbeeldfamilie. Alleen het verschil
 // met de oorspronkelijke familieaantallen wordt op de globale totalen toegepast.
 const initialFamilyCounts = { steak: 4, kip: 3, sate: 2, worst: 3 };
 export function getFamilyMeat() {
   return state.catalog.map(product => ({
     id: product.id, name: product.name,
-    count: family.members.reduce((sum, person) => sum + (Number(person.orders[product.id]) || 0), 0)
+    count: (getActiveFamily().members || []).reduce((sum, person) => sum + (Number(person.orders[product.id]) || 0), 0)
   }));
 }
 export function getGlobalMeatTotals() {
