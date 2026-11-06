@@ -76,3 +76,20 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
   .order-detail-table th,.order-detail-table td{padding:6px 4px}
   .order-detail-table th:first-child,.order-detail-table td:first-child{position:static}
 }
+
+
+/* Gemeenschappelijke kosten en verdeelde voorschotten */
+.expense-form-grid{display:grid;grid-template-columns:1.3fr .7fr .8fr 1.2fr 1.2fr auto;gap:9px}
+.expense-form-grid input,.expense-form-grid select{min-width:0;border:1px solid #dfe4e9;border-radius:9px;padding:10px 9px;font:inherit;font-size:11px;background:#fff}
+.expense-list,.financial-summary-list{display:flex;flex-direction:column}
+.expense-row,.financial-summary-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:13px 0;border-bottom:1px solid #eff1f3;align-items:center}
+.expense-main,.financial-summary-row>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.expense-main strong,.financial-summary-row strong{font-size:12px}
+.expense-main small,.financial-summary-row small{font-size:10px;color:var(--muted)}
+.expense-shares{grid-column:1/-1;font-size:10px;color:var(--muted)}
+.expense-shares summary{cursor:pointer;width:max-content}
+.expense-shares>div{display:flex;flex-direction:column;gap:6px;padding:9px;background:#f7f8fa;border-radius:8px;margin-top:7px}
+.expense-shares span{display:flex;justify-content:space-between;gap:12px}
+.negative{color:#b44b45}
+@media(max-width:900px){.expense-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.expense-form-grid button{grid-column:1/-1}}
+@media(max-width:520px){.expense-form-grid{grid-template-columns:1fr}}
