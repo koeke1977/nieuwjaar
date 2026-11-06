@@ -17,7 +17,7 @@ async function hashPassword(password, base64Url) {
   }
 }
 
-async function verifyFamilyPassword(password, stored) {
+async function verifyFamilyPassword(password, stored, base64Url, fromBase64Url) {
   const [scheme, iterationsText, saltText, expected] = String(stored || "").split("$");
   const iterations = Number(iterationsText);
   if (scheme !== "pbkdf2" || !Number.isInteger(iterations) || iterations < 100000 || iterations > 100000 || !saltText || !expected) return false;
@@ -107,7 +107,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     const limiter = await familyLoginLimit(env, email, ip, sha256, now);
     if (limiter.blocked) return json({ error: "Te veel aanmeldpogingen. Probeer over 15 minuten opnieuw." }, 429);
     const user = await env.DB.prepare("SELECT id, password_hash, status FROM family_users WHERE email = ?").bind(email).first();
-    const valid = user?.status === "active" && user.password_hash ? await verifyFamilyPassword(password, user.password_hash) : false;
+    const valid = user?.status === "active" && user.password_hash ? await verifyFamilyPassword(password, user.password_hash, base64Url, fromBase64Url) : false;
     if (!valid) {
       await limiter.recordFailure();
       return json({ error: "E-mailadres of wachtwoord is niet correct." }, 401);
