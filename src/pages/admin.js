@@ -7,13 +7,13 @@ const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&
 function renderEnvironmentPanel() {
   const isTest = state.activeEnvironment === "test";
   return `<section class="panel environment-panel">
-    <div class="section-heading"><div><h2>Omgeving beheren</h2><p>Test veilig met gezinnen, bestellingen, kosten en betalingen zonder de echte editie te wijzigen.</p></div><span class="status ${isTest?"warning":"success"}">${isTest?"TEST":"ECHTE EDITIE"}</span></div>
+    <div class="section-heading"><div><h2>Omgeving</h2><p>Test en live zijn via aparte URL's bereikbaar en gebruiken volledig gescheiden gegevens en foto's.</p></div><span class="status ${isTest?"warning":"success"}">${isTest?"TEST":"LIVE"}</span></div>
     <div class="environment-switch">
-      <button class="button ${isTest?"button-dark":"button-outline"}" data-action="switch-environment" data-environment="test" ${isTest?"disabled":""}>Testomgeving</button>
-      <button class="button ${!isTest?"button-dark":"button-outline"}" data-action="switch-environment" data-environment="live" ${!isTest?"disabled":""}>Echte editie</button>
+      <button class="button ${isTest?"button-dark":"button-outline"}" data-action="switch-environment" data-environment="test" ${isTest?"disabled":""}>Testomgeving · /test</button>
+      <button class="button ${!isTest?"button-dark":"button-outline"}" data-action="switch-environment" data-environment="live" ${!isTest?"disabled":""}>Liveomgeving · /beheer</button>
       ${isTest?'<button class="button button-outline danger-text" data-action="reset-test-environment">Testomgeving resetten</button>':""}
     </div>
-    <p class="catalog-note">${isTest?"Je werkt momenteel uitsluitend met testgegevens. De echte editie is apart en start leeg.":"Je werkt in de echte editie. Wijzigingen hier zijn geen tests en mogen meetellen voor de uiteindelijke afrekening."} Wijzigingen worden automatisch en afzonderlijk voor test en live opgeslagen in de beveiligde Cloudflare-database.</p>
+    <p class="catalog-note">${isTest?"Je werkt uitsluitend met testgegevens en testfoto's.":"Je werkt in de echte liveomgeving. Wijzigingen hebben rechtstreeks invloed op de echte editie."} De omgeving wordt bepaald door de URL.</p>
   </section>`;
 }
 function renderMeatTable() {
