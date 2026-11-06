@@ -14,5 +14,5 @@ export const renderUserNavigation = activeSection => renderNavigation([
 ], activeSection);
 export const renderAdminNavigation = activeSection => renderNavigation([
   ["overview","▦","Dashboard"],["registrations","♧","Deelnemers"],["catalog","▧","Vleescatalogus"],["meat","♨","BBQ-overzicht"],
-  ["payments","€","Betalingen"],["expenses","＋","Kosten & inkomsten"],["settlement","◎","Eindafrekening"]
+  ["payments","€","Betalingen"],["expenses","＋","Kosten & voorschotten"],["settlement","◎","Eindafrekening"],["editions","◷","Edities"]
 ], activeSection);
