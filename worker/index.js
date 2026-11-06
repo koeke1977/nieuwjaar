@@ -109,24 +109,44 @@ async function handleFamilyApi(request, env, url) {
     if (!session) return json({ authenticated: false }, 200, {
       "Set-Cookie": "ny_family=; HttpOnly; Secure; SameSite=Strict; Path=/api/family; Max-Age=0"
     });
-    const row = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(session.edition_id).first();
+    const row = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(session.edition_id).first();
     if (!row) return json({ error: "De editie is niet beschikbaar." }, 404);
     let data;
     try { data = JSON.parse(row.data_json); } catch { return json({ error: "De inschrijving kon niet worden gelezen." }, 500); }
     const registration = (data.registrations || []).find(item => item.id === session.registration_id);
     if (!registration) return json({ error: "Deze inschrijving bestaat niet meer." }, 404);
+    const catalog = (data.catalog || []).filter(item => item.active).map(({ id, name, image }) => ({ id, name, image: image || null, active: true }));
+    const safeRegistrations = (data.registrations || []).map(item => {
+      if (item.id === registration.id) return registration;
+      const sourceMembers = Array.isArray(item.members) && item.members.length
+        ? item.members
+        : [
+            ...Array.from({ length: Math.max(0, Number(item.adults) || 0) }, () => ({ type: "Volwassene", orders: {} })),
+            ...Array.from({ length: Math.max(0, Number(item.children) || 0) }, () => ({ type: "Kind", orders: {} }))
+          ];
+      const meatTotal = sourceMembers.reduce((sum, person) =>
+        sum + Object.values(person.orders || {}).reduce((memberSum, quantity) => memberSum + Math.max(0, Number(quantity) || 0), 0), 0);
+      const anonymousMembers = sourceMembers.map((person, index) => ({
+        id: `anonymous-${index}`,
+        type: person.type === "Volwassene" ? "Volwassene" : "Kind",
+        orders: index === 0 && meatTotal ? { anonymous: meatTotal } : {}
+      }));
+      return { id: item.id, name: "", adults: Number(item.adults) || 0, children: Number(item.children) || 0, members: anonymousMembers };
+    });
     return json({
       authenticated: true,
       edition: data.activeEvent,
       registration,
-      registrations: (data.registrations || []).map(item => item.id === registration.id ? item : ({
-        id: item.id, name: "", adults: item.adults, children: item.children,
-        members: (item.members || []).map(person => ({ id: person.id, type: person.type, orders: person.orders || {} }))
+      registrations: safeRegistrations,
+      expenses: (data.expenses || []).map(expense => ({
+        amountCents: expense.amountCents,
+        method: expense.method,
+        advancedBy: expense.advancedBy === registration.id ? registration.id : null
       })),
-      expenses: data.expenses || [],
-      payments: data.payments || [],
-      catalog: (data.catalog || []).filter(item => item.active).map(({ id, name, image }) => ({ id, name, image: image || null, active: true })),
-      costsFinalized: Boolean(data.costsFinalized)
+      payments: (data.payments || []).filter(payment => payment.registrationId === registration.id),
+      catalog,
+      costsFinalized: Boolean(data.costsFinalized),
+      revision: row.updated_at
     });
   }
   if (url.pathname === "/api/family/registration" && request.method === "PUT") {
@@ -139,9 +159,10 @@ async function handleFamilyApi(request, env, url) {
     ).bind(await sha256(token), now, now).first();
     if (!session) return json({ error: "Deze gezinslink is niet langer geldig." }, 401);
     const body = await request.json().catch(() => null);
-    if (!Array.isArray(body?.members) || body.members.length > 30) return json({ error: "Ongeldige ledenlijst." }, 400);
-    const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(session.edition_id).first();
+    if (!Array.isArray(body?.members) || body.members.length > 30 || !Number.isSafeInteger(body.revision)) return json({ error: "Ongeldige ledenlijst of verouderde versie." }, 400);
+    const stateRow = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(session.edition_id).first();
     if (!stateRow) return json({ error: "De editie is niet beschikbaar." }, 404);
+    if (stateRow.updated_at !== body.revision) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de persoonlijke link en probeer opnieuw." }, 409);
     let data;
     try { data = JSON.parse(stateRow.data_json); } catch { return json({ error: "De editiegegevens zijn ongeldig." }, 500); }
     const registration = (data.registrations || []).find(item => item.id === session.registration_id);
@@ -166,9 +187,11 @@ async function handleFamilyApi(request, env, url) {
     registration.children = members.filter(person => person.type === "Kind").length;
     data.costsFinalized = false;
     data.costsFinalizedAt = null;
-    await env.DB.prepare("UPDATE app_state SET data_json = ?, updated_at = ? WHERE environment = ?")
-      .bind(JSON.stringify(data), now, session.edition_id).run();
-    return json({ saved: true, registration });
+    const update = await env.DB.prepare("UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ?")
+      .bind(JSON.stringify(data), now, session.edition_id, body.revision).run();
+    if (!update.meta?.changes) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de persoonlijke link en probeer opnieuw." }, 409);
+    const updatedRow = await env.DB.prepare("SELECT updated_at FROM app_state WHERE environment = ?").bind(session.edition_id).first();
+    return json({ saved: true, registration, revision: updatedRow.updated_at });
   }
 
   if (url.pathname === "/api/family/logout" && request.method === "POST") {
@@ -320,16 +343,17 @@ async function handleAdminApi(request, env, url) {
   if (url.pathname === "/api/admin/state" && request.method === "GET") {
     const session = await adminSession(request, env);
     if (!session) return json({ error: "Niet aangemeld." }, 401);
-    const rows = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state")
-      .all();
+    const rows = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state").all();
     const environments = { test: null, live: null };
+    const revisions = { test: null, live: null };
     for (const row of rows.results || []) {
       if (row.environment === "test" || row.environment === "live") {
+        revisions[row.environment] = row.updated_at;
         try { environments[row.environment] = JSON.parse(row.data_json); }
         catch (error) { console.error("Invalid stored app state:", row.environment, error); }
       }
     }
-    return json({ environments, updatedAt: rows.results?.reduce((latest, row) => Math.max(latest, row.updated_at || 0), 0) || null });
+    return json({ environments, revisions });
   }
 
   if (url.pathname === "/api/admin/state" && request.method === "PUT") {
@@ -337,28 +361,26 @@ async function handleAdminApi(request, env, url) {
     const session = await adminSession(request, env);
     if (!session) return json({ error: "Niet aangemeld." }, 401);
     const body = await request.json().catch(() => null);
-    const environments = body?.environments;
-    if (!environments || typeof environments !== "object" || Array.isArray(environments)) {
-      return json({ error: "Ongeldige gegevensstructuur." }, 400);
+    const environment = body?.environment;
+    const data = body?.data;
+    const revision = body?.revision;
+    if (!["test", "live"].includes(environment) || !data || typeof data !== "object" || Array.isArray(data) ||
+        !data.activeEvent || typeof data.activeEvent !== "object" ||
+        !Array.isArray(data.registrations) || !Array.isArray(data.expenses) ||
+        !Array.isArray(data.payments) || !Array.isArray(data.catalog) ||
+        !Array.isArray(data.editionArchive) ||
+        !(revision === null || Number.isSafeInteger(revision))) {
+      return json({ error: "Ongeldige gegevensstructuur of opslagversie." }, 400);
     }
-    const statements = [];
-    for (const environment of ["test", "live"]) {
-      const data = environments[environment];
-      if (!data || typeof data !== "object" || Array.isArray(data) ||
-          !data.activeEvent || typeof data.activeEvent !== "object" ||
-          !Array.isArray(data.registrations) || !Array.isArray(data.expenses) ||
-          !Array.isArray(data.payments) || !Array.isArray(data.catalog) ||
-          !Array.isArray(data.editionArchive)) {
-        return json({ error: `Ongeldige gegevens voor omgeving ${environment}.` }, 400);
-      }
-      const serialized = JSON.stringify(data);
-      if (serialized.length > 1_500_000) return json({ error: "De gegevens zijn te groot om op te slaan." }, 413);
-      statements.push(env.DB.prepare(
-        "INSERT INTO app_state (environment, data_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(environment) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at"
-      ).bind(environment, serialized, Math.floor(Date.now() / 1000)));
-    }
-    await env.DB.batch(statements);
-    return json({ saved: true, updatedAt: Math.floor(Date.now() / 1000) });
+    const serialized = JSON.stringify(data);
+    if (serialized.length > 1_500_000) return json({ error: "De gegevens zijn te groot om op te slaan." }, 413);
+    const now = Math.floor(Date.now() / 1000);
+    const result = await env.DB.prepare(
+      "INSERT INTO app_state (environment, data_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(environment) DO UPDATE SET data_json = excluded.data_json, updated_at = MAX(app_state.updated_at + 1, excluded.updated_at) WHERE app_state.updated_at = ?"
+    ).bind(environment, serialized, now, revision).run();
+    if (!result.meta?.changes) return json({ error: "Deze editie is intussen gewijzigd. De lokale wijzigingen zijn niet opgeslagen. Herlaad de admin om conflicten te vermijden." }, 409);
+    const saved = await env.DB.prepare("SELECT updated_at FROM app_state WHERE environment = ?").bind(environment).first();
+    return json({ saved: true, environment, revision: saved.updated_at });
   }
 
   if (url.pathname === "/api/admin/session" && request.method === "GET") {
