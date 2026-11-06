@@ -213,3 +213,22 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
 .family-invite-result{display:flex;gap:8px;align-items:center;padding:8px 12px 12px 42px}
 .family-invite-result input{flex:1;min-width:0;border:1px solid #dfe4e9;border-radius:8px;padding:8px 10px;font:inherit;font-size:11px;background:#f8f9fa}
 @media(max-width:650px){.family-add-grid{grid-template-columns:1fr}.family-order-grid{grid-template-columns:1fr}.family-invite-result{padding-left:0;flex-direction:column;align-items:stretch}.family-invite-result button{width:100%}.family-portal-header h1{font-size:25px}}
+
+
+/* Gezinsportaal: navigatie en compacte bestellingsbediening */
+.family-nav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 18px;padding:5px;background:#e9edf1;border-radius:12px}
+.family-nav button{display:flex;align-items:center;gap:8px;border:0;background:transparent;color:#657181;padding:10px 15px;border-radius:9px;font:600 12px Manrope,sans-serif;cursor:pointer}
+.family-nav button span{font-size:16px}.family-nav button.active{background:#fff;color:#172638;box-shadow:0 1px 4px #18263812}
+.family-portal-shell .content{gap:16px}.family-edit-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%}.family-edit-form input{flex:1;min-width:130px}
+.family-meat-catalog{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0 18px}
+.family-meat-catalog .meat-card-image{height:120px}
+.family-order-item{padding:8px 0}
+.family-quantity{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:3px;border:1px solid #e3e8ed;border-radius:10px;background:#f8fafb;flex:0 0 auto}
+.family-quantity button{display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:7px;background:#fff;color:#18324b;font-size:19px;line-height:1;box-shadow:0 1px 3px #17263818;cursor:pointer}
+.family-quantity button:last-child{background:#1d344d;color:#fff}
+.family-quantity button:disabled{opacity:.3;cursor:not-allowed}
+.family-quantity strong{min-width:24px;text-align:center;font:700 13px Manrope,sans-serif;font-variant-numeric:tabular-nums}
+.family-order-item>span{flex:1;min-width:0}
+.family-order-total{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:14px 16px;background:#f6f8fa;border-radius:11px;font-size:13px}
+.family-order-total b{font:800 20px Manrope,sans-serif;color:#1d344d}
+@media(max-width:650px){.family-meat-catalog{grid-template-columns:repeat(2,minmax(0,1fr))}.family-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.family-nav button{justify-content:center}.family-edit-form{align-items:stretch}.family-edit-form input{flex-basis:100%}}
