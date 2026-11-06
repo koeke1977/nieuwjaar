@@ -273,9 +273,12 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     }
     const reset = await env.DB.prepare("SELECT id, user_id FROM family_password_resets WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?").bind(await sha256(token), now).first();
     if (!reset) return json({ error: "Deze resetlink is ongeldig of verlopen." }, 400);
+    // Hash eerst: als Web Crypto faalt, blijft de resetlink bruikbaar.
+    // Geef base64Url expliciet mee; hashPassword verwacht die encoder ook bij reset.
+    const passwordHash = await hashPassword(password, base64Url);
     const consumed = await env.DB.prepare("UPDATE family_password_resets SET used_at = ? WHERE id = ? AND used_at IS NULL AND expires_at > ? RETURNING user_id").bind(now, reset.id, now).first();
     if (!consumed) return json({ error: "Deze resetlink is al gebruikt of verlopen." }, 400);
-    await env.DB.prepare("UPDATE family_users SET password_hash = ?, updated_at = ? WHERE id = ? AND status = 'active'").bind(await hashPassword(password), now, reset.user_id).run();
+    await env.DB.prepare("UPDATE family_users SET password_hash = ?, updated_at = ? WHERE id = ? AND status = 'active'").bind(passwordHash, now, reset.user_id).run();
     await env.DB.prepare("UPDATE family_user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL").bind(now, reset.user_id).run();
     return json({ reset: true }, 200, { "Set-Cookie": familyAccountCookie("", 0) });
   }
