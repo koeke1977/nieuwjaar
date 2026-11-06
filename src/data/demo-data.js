@@ -24,7 +24,7 @@ export const state = {
     { household: "Inge", due: 95, paid: 0, method: "—" },
     { household: "Familie Olivier-Kelly", due: 165, paid: 165, method: "Overschrijving" }
   ],
-  meats: [
+  previousEditionMeats: [
     { name: "Steak", count: 28 }, { name: "Kip", count: 14 }, { name: "Saté", count: 8 },
     { name: "Worst", count: 15 }, { name: "Hamburger", count: 5 }, { name: "Witte pens", count: 6 },
     { name: "Sparerib", count: 18 }, { name: "Bolletjes op stok", count: 13 }
@@ -54,23 +54,18 @@ export function getActiveFamily() {
   return { name: registration.name, members: registration.members || [], advanced: registration.financial?.advanced || 0, share: registration.financial?.share || 0, bring: registration.financial?.bring || 0 };
 }
 
-// Bestaande groepsaantallen bevatten de huidige voorbeeldfamilie. Alleen het verschil
-// met de oorspronkelijke familieaantallen wordt op de globale totalen toegepast.
-const initialFamilyCounts = { steak: 4, kip: 3, sate: 2, worst: 3 };
+// Alleen bestellingen uit actieve inschrijvingen tellen mee in de huidige editie.
+// Historische aantallen staan apart in previousEditionMeats en worden nooit opgeteld.
 export function getFamilyMeat() {
+  const activeMembers = state.registrations.flatMap(registration => registration.members || []);
   return state.catalog.map(product => ({
-    id: product.id, name: product.name,
-    count: (getActiveFamily().members || []).reduce((sum, person) => sum + (Number(person.orders[product.id]) || 0), 0)
+    id: product.id,
+    name: product.name,
+    count: activeMembers.reduce((sum, person) => sum + (Number(person.orders?.[product.id]) || 0), 0)
   }));
 }
 export function getGlobalMeatTotals() {
-  const familyTotals = getFamilyMeat();
-  return state.catalog.map(product => {
-    const original = state.meats.find(item => item.name === product.name)?.count || 0;
-    const baseline = initialFamilyCounts[product.id] || 0;
-    const current = familyTotals.find(item => item.id === product.id)?.count || 0;
-    return { name: product.name, count: Math.max(0, original + current - baseline) };
-  });
+  return getFamilyMeat().map(item => ({ name: item.name, count: item.count }));
 }
 export function getPersonMeatTotal(person) {
   return Object.values(person.orders).reduce((sum, count) => sum + (Number(count) || 0), 0);
