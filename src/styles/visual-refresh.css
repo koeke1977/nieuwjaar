@@ -154,7 +154,11 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(216,177,93,.
 footer { padding: 34px; }
 @media(max-width:800px) {
   .shell { margin: 22px auto 36px; padding: 0 18px; }
-  .workspace { gap: 16px; }
+  /* Laat de mobiele workspace over de volledige breedte lopen.
+     Deze regel staat na responsive.css en moet de desktopkolommen overschrijven. */
+  .workspace { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .side-nav { position: static; flex-direction: row; min-width: 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+  .side-nav button { flex: 0 0 auto; white-space: nowrap; }
   .side-nav { gap: 4px; }
   .side-nav button { border-radius: 9px; }
   .welcome { min-height: 150px; }
