@@ -190,10 +190,9 @@ async function handleFamilyApi(request, env, url) {
     registration.children = members.filter(person => person.type === "Kind").length;
     data.costsFinalized = false;
     data.costsFinalizedAt = null;
-    const update = await env.DB.prepare("UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ?")
-      .bind(JSON.stringify(data), now, session.edition_id, body.revision).run();
-    if (!update.meta?.changes) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de persoonlijke link en probeer opnieuw." }, 409);
-    const updatedRow = await env.DB.prepare("SELECT updated_at FROM app_state WHERE environment = ?").bind(session.edition_id).first();
+    const updatedRow = await env.DB.prepare("UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ? RETURNING updated_at")
+      .bind(JSON.stringify(data), now, session.edition_id, body.revision).first();
+    if (!updatedRow) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de persoonlijke link en probeer opnieuw." }, 409);
     return json({ saved: true, registration, revision: updatedRow.updated_at });
   }
 
@@ -378,11 +377,10 @@ async function handleAdminApi(request, env, url) {
     const serialized = JSON.stringify(data);
     if (serialized.length > 1_500_000) return json({ error: "De gegevens zijn te groot om op te slaan." }, 413);
     const now = Math.floor(Date.now() / 1000);
-    const result = await env.DB.prepare(
-      "INSERT INTO app_state (environment, data_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(environment) DO UPDATE SET data_json = excluded.data_json, updated_at = MAX(app_state.updated_at + 1, excluded.updated_at) WHERE app_state.updated_at = ?"
-    ).bind(environment, serialized, now, revision).run();
-    if (!result.meta?.changes) return json({ error: "Deze editie is intussen gewijzigd. De lokale wijzigingen zijn niet opgeslagen. Herlaad de admin om conflicten te vermijden." }, 409);
-    const saved = await env.DB.prepare("SELECT updated_at FROM app_state WHERE environment = ?").bind(environment).first();
+    const saved = await env.DB.prepare(
+      "INSERT INTO app_state (environment, data_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(environment) DO UPDATE SET data_json = excluded.data_json, updated_at = MAX(app_state.updated_at + 1, excluded.updated_at) WHERE app_state.updated_at = ? RETURNING updated_at"
+    ).bind(environment, serialized, now, revision).first();
+    if (!saved) return json({ error: "Deze editie is intussen gewijzigd. De lokale wijzigingen zijn niet opgeslagen. Herlaad de admin om conflicten te vermijden." }, 409);
     return json({ saved: true, environment, revision: saved.updated_at });
   }
 
