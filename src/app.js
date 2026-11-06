@@ -7,16 +7,36 @@ import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
 import { switchEnvironment, resetTestEnvironment } from "./data/environment-store.js";
 import { archiveCurrentAndStartNewEdition } from "./data/edition-manager.js";
+import { loadAdminState, saveAdminState } from "./services/admin-state.js";
 const markCostsProvisional = () => { state.costsFinalized=false; state.costsFinalizedAt=null; };
 const makeId = (prefix = "lid") => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 let adminAuthenticated = false;
 let loginError = "";
+let statePersistenceReady = false;
+let persistenceTimer = null;
+let persistenceInFlight = false;
+let persistenceAgain = false;
+function scheduleAdminStateSave() {
+  if (!adminAuthenticated || !statePersistenceReady) return;
+  clearTimeout(persistenceTimer);
+  persistenceTimer = setTimeout(async () => {
+    if (persistenceInFlight) { persistenceAgain = true; return; }
+    persistenceInFlight = true;
+    try { await saveAdminState(); }
+    catch (error) { console.error("Admin state save failed:", error); }
+    finally {
+      persistenceInFlight = false;
+      if (persistenceAgain) { persistenceAgain = false; scheduleAdminStateSave(); }
+    }
+  }, 500);
+}
 function renderAdminLogin() { return `<main class="admin-login-shell"><section class="admin-login-card"><p class="eyebrow">NIEUWJAAR · ORGANISATIE</p><h1>Admin aanmelden</h1><p>Deze omgeving is uitsluitend toegankelijk voor de organisator.</p><form id="admin-login-form"><label for="admin-password">Adminwachtwoord</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required>${loginError ? `<p class="admin-login-error" role="alert">${loginError}</p>` : ""}<button class="button button-dark full" type="submit">Aanmelden</button></form><a class="admin-login-back" href="/">Terug naar deelnemersportaal</a></section></main>`; }
 function renderApp() {
   if (state.activeConsole === "admin" && !adminAuthenticated) { document.querySelector("#app").innerHTML=renderAdminLogin(); return; }
   const isAdmin=state.activeConsole==="admin";
   const environmentNotice=state.activeEnvironment==="test"?'<div class="environment-notice">TESTOMGEVING · Wijzigingen zijn alleen testgegevens en staan los van de echte editie.</div>':"";
   document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${isAdmin?'<div class="admin-session-bar"><span>Beveiligde admin-sessie</span><button class="text-button" data-action="admin-logout">Uitloggen</button></div>':""}${environmentNotice}${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
+  if (state.activeConsole === "admin") scheduleAdminStateSave();
 }
 function handleClick(event) {
   const consoleButton=event.target.closest("[data-console]");
@@ -215,5 +235,6 @@ function handleImageUpload(event){
 export async function startApp(){
   document.addEventListener("click",handleClick);document.addEventListener("submit",handleSubmit);document.addEventListener("change",handleImageUpload);
   try{const response=await fetch("/api/admin/session",{credentials:"same-origin"});const session=await response.json();adminAuthenticated=Boolean(session.authenticated);}catch{adminAuthenticated=false;}
+  if(adminAuthenticated){try{await loadAdminState();statePersistenceReady=true;}catch(error){console.error("Admin state load failed:",error);}}
   renderApp();
 }
