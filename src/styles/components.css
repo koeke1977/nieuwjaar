@@ -177,3 +177,16 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
 .edition-archive-lines>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #edf0f2;font-size:11px}
 .edition-archive-lines b{white-space:nowrap}
 @media(max-width:560px){.edition-create-form button{width:100%}.edition-archive-card>summary{align-items:flex-start;flex-direction:column}.edition-archive-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Admin authentication */
+.admin-login-shell{min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--surface,#f5f6f7)}
+.admin-login-card{width:min(100%,420px);padding:36px;background:#fff;border:1px solid #e8eaed;border-radius:20px;box-shadow:0 18px 50px rgba(20,30,45,.08)}
+.admin-login-card h1{margin:8px 0;font-size:30px}
+.admin-login-card>p:not(.eyebrow){color:var(--muted);line-height:1.5;margin:0 0 24px}
+.admin-login-card form{display:grid;gap:12px}
+.admin-login-card input{width:100%;min-height:46px;padding:10px 12px;border:1px solid #d9dde2;border-radius:10px;font:inherit}
+.admin-login-card input:focus{outline:2px solid #9db8e8;outline-offset:1px}
+.admin-login-card .admin-login-error{margin:0;color:#b42318;font-size:13px}
+.admin-login-back{display:block;margin-top:20px;text-align:center;color:var(--muted);font-size:13px}
+.admin-session-bar{display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:8px 0;color:var(--muted);font-size:12px}
