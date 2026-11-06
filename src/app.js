@@ -1,4 +1,4 @@
-import { state, family } from "./data/demo-data.js";
+import { state, getActiveFamily } from "./data/demo-data.js";
 import { renderHeader } from "./components/header.js";
 import { renderConsoleSwitcher, renderUserNavigation, renderAdminNavigation } from "./components/navigation.js";
 import { renderUserContent } from "./pages/user.js";
@@ -24,7 +24,7 @@ function handleClick(event) {
   if(action.dataset.action==="edit-order"){state.editingMember=state.editingMember===action.dataset.name?null:action.dataset.name;renderApp();}
   if(action.dataset.action==="close-order-editor"){state.editingMember=null;renderApp();}
   if(action.dataset.action==="change-quantity"){
-    const person=family.members.find(item=>item.name===action.dataset.person);
+    const person=getActiveFamily().members.find(item=>item.name===action.dataset.person);
     const product=state.catalog.find(item=>item.id===action.dataset.product);
     if(person&&product){const current=Number(person.orders[product.id])||0;person.orders[product.id]=Math.max(0,current+Number(action.dataset.delta));renderApp();}
   }
@@ -34,12 +34,12 @@ function handleClick(event) {
   if(action.dataset.action==="remove-image"){const product=state.catalog.find(item=>item.id===action.dataset.id);if(product)product.image=null;renderApp();}
 }
 function handleSubmit(event){
-  if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();const adults=Number(form.elements.adults.value);const children=Number(form.elements.children.value);if(!name||!Number.isInteger(adults)||!Number.isInteger(children)||adults<0||children<0||adults+children<1){window.alert("Vul een naam en minstens één deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults,children});renderApp();return;}
+  if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();const adults=Number(form.elements.adults.value);const children=Number(form.elements.children.value);if(!name||!Number.isInteger(adults)||!Number.isInteger(children)||adults<0||children<0||adults+children<1){window.alert("Vul een naam en minstens één deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults,children,members:[],financial:{advanced:0,share:0,bring:0}});renderApp();return;}
   if(event.target.id!=="add-product-form")return;event.preventDefault();
   const name=event.target.elements.productName.value.trim();if(!name)return;
   if(state.catalog.some(item=>item.name.toLowerCase()===name.toLowerCase())){window.alert("Dit product bestaat al in de catalogus.");return;}
   const id=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);
-  state.catalog.push({id,name,active:true,image:null});family.members.forEach(person=>{person.orders[id]=0;});renderApp();
+  state.catalog.push({id,name,active:true,image:null});state.registrations.forEach(registration=>(registration.members||[]).forEach(person=>{person.orders[id]=0;}));renderApp();
 }
 function handleImageUpload(event){
   const input=event.target;if(!input.matches("[data-upload-image]"))return;const file=input.files?.[0];if(!file)return;
