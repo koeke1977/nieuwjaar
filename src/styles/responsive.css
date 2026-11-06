@@ -1,0 +1,38 @@
+@media(max-width:800px){
+  .shell{margin:18px auto;padding:0 15px}
+  .workspace{grid-template-columns:1fr;gap:14px}
+  .side-nav{position:static;flex-direction:row;overflow:auto;background:#fff;border:1px solid var(--line);padding:5px;border-radius:12px}
+  .side-nav button{white-space:nowrap;padding:9px 11px}
+  .side-nav button span{display:none}
+  .admin-grid{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .welcome{padding:23px}
+  .welcome h1{font-size:22px}
+  .welcome-icon{font-size:32px}
+  .panel{padding:18px}
+  .payment-row{align-items:flex-start;flex-direction:column}
+  .payment-right{width:100%;justify-content:space-between}
+}
+@media(max-width:480px){
+  .topbar{height:65px;padding:0 16px}
+  .edition-pill{display:none}
+  .shell{padding:0 11px}
+  .console-switch{width:100%}
+  .console-switch button{flex:1;padding:10px 8px;font-size:11px}
+  .welcome{border-radius:14px}
+  .welcome h1{font-size:20px}
+  .stat-card{padding:14px}
+  .stat-card strong{font-size:19px}
+  .section-heading{align-items:flex-start}
+  .order-row{grid-template-columns:1fr auto auto;gap:7px}
+  .button-small{padding:7px 8px}
+  .bring-card strong{font-size:22px}
+}
+@media print{
+  .topbar,.console-switch,.side-nav,footer,.button{display:none!important}
+  .shell{max-width:none;margin:0;padding:0}
+  .workspace{display:block}
+  .content{display:block}
+  .panel{box-shadow:none;border:0}
+  .page-heading{margin-bottom:15px}
+}
