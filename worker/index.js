@@ -1,5 +1,6 @@
 import { handleFamilyAccountApi } from "./modules/family-account.js";
 import { handleAdminFamilyUsers } from "./modules/admin-family-users.js";
+import { handleAdminEvents } from "./modules/admin-events.js";
 const SESSION_COOKIE = "ny_admin";
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
 const encoder = new TextEncoder();
@@ -265,6 +266,10 @@ async function handleFamilyApi(request, env, url) {
 
 async function handleAdminApi(request, env, url) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
+
+  if (url.pathname === "/api/admin/events" || url.pathname.startsWith("/api/admin/events/")) {
+    return handleAdminEvents(request, env, url, { json, sameOrigin, adminSession });
+  }
 
   if (url.pathname.startsWith("/api/admin/family-users")) {
     return handleAdminFamilyUsers(request, env, url, { json, sameOrigin, adminSession, sha256, base64Url, sendGraphMail });
