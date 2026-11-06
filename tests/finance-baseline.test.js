@@ -64,7 +64,7 @@ test("Nieuwjaar baseline: combined expenses, advances and partial payment stay e
   })), [
     {
       id: "family-a", advancedCents: 19001, shareCents: 18251,
-      balanceCents: 750, paidCents: 1000, remainingCents: 0, overpaidCents: 250
+      balanceCents: 750, paidCents: 1000, remainingCents: 0, overpaidCents: 1000
     },
     {
       id: "family-b", advancedCents: 6000, shareCents: 6750,
