@@ -76,3 +76,20 @@ export function resetTestEnvironment() {
 export function getEnvironmentLabel() {
   return state.activeEnvironment === "test" ? "Testomgeving" : "Echte editie";
 }
+
+const clonePersisted = value => JSON.parse(JSON.stringify(value));
+
+export function getPersistableEnvironmentData() {
+  state.environmentData[state.activeEnvironment] = captureEnvironment();
+  return clonePersisted(state.environmentData);
+}
+
+export function restorePersistedEnvironmentData(environments) {
+  if (!environments || typeof environments !== "object") return;
+  for (const environment of ["test", "live"]) {
+    const data = environments[environment];
+    if (!data || typeof data !== "object") continue;
+    state.environmentData[environment] = clonePersisted(data);
+  }
+  applyEnvironment(state.environmentData[state.activeEnvironment] || initialTestData);
+}
