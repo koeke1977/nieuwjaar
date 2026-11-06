@@ -6,6 +6,7 @@ import { renderAdminContent } from "./pages/admin.js";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
 import { switchEnvironment, resetTestEnvironment } from "./data/environment-store.js";
+import { archiveCurrentAndStartNewEdition } from "./data/edition-manager.js";
 const markCostsProvisional = () => { state.costsFinalized=false; state.costsFinalizedAt=null; };
 const makeId = (prefix = "lid") => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 function renderApp() {
@@ -180,6 +181,18 @@ function handleSubmit(event){
     renderApp();return;
   }
   if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();const adults=Number(form.elements.adults.value);const children=Number(form.elements.children.value);if(!name||!Number.isInteger(adults)||!Number.isInteger(children)||adults<0||children<0||adults+children<1){window.alert("Vul een naam en minstens één deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults,children,members:[],financial:{advanced:0,share:0,bring:0}});markCostsProvisional();renderApp();return;}
+  if(event.target.id==="new-edition-form"){
+    event.preventDefault();
+    const form=event.target;
+    const name=form.elements.editionName.value.trim();
+    const copyCatalog=form.elements.copyCatalog.checked;
+    if(!name){window.alert("Geef de nieuwe editie een naam.");return;}
+    const confirmed=window.confirm(`De huidige editie "${state.activeEvent.name}" wordt afgesloten en volledig gearchiveerd. Daarna start "${name}" met lege inschrijvingen, kosten en betalingen. Doorgaan?`);
+    if(!confirmed)return;
+    try{archiveCurrentAndStartNewEdition(name,copyCatalog);renderApp();}
+    catch(error){window.alert(error.message);}
+    return;
+  }
   if(event.target.id!=="add-product-form")return;event.preventDefault();
   const name=event.target.elements.productName.value.trim();if(!name)return;
   if(state.catalog.some(item=>item.name.toLowerCase()===name.toLowerCase())){window.alert("Dit product bestaat al in de catalogus.");return;}
