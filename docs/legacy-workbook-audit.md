@@ -240,3 +240,12 @@ Voorbeeld: een gezin bestaat uit papa, mama en twee kinderen. Een gewone kost te
 Voorbeeld voorschot: Ben koopt voor €500 alcoholische dranken. Hij boekt de €500 als voorgeschoten door zijn eigen gezin. De €500 wordt verdeeld over alle volwassenen van alle gezinnen en alleenstaande deelnemers. Het gezin van Ben krijgt het volledige voorschot van €500 in de afrekening gecrediteerd, maar draagt zelf ook het volwassenenaandeel in de drankkost.
 
 De organisator hoeft dus geen vrije verdeelsleutels of gewichten te configureren. De categorie van een deelnemer (volwassene/kind) en de bestelde vleesporties bepalen automatisch de verdeelbasis.
+
+
+## 13. Precisering: beenhouwerkost per persoon
+
+De beenhouwerkost wordt verdeeld op basis van de vleesporties die **iedere individuele persoon** bestelt. Niet op basis van het aantal personen en ook niet louter op basis van één totaal aantal per gezin.
+
+De bestelling wordt dus per persoon ingevoerd. De berekening bepaalt het aandeel van elke persoon volgens diens eigen aantal bestelde vleesporties. Het aandeel van een gezin is de som van de aandelen van de gezinsleden.
+
+Voorbeeld: in een gezin bestelt papa 3 vleesjes, mama 2 en een kind 1. Het gezin telt voor de beenhouwerkost 6 vleesporties. Een alleenstaande die 4 vleesjes bestelt, draagt 4 porties bij. De totale factuur wordt over alle individuele bestelde porties verdeeld; de groepsfiche toont daarna de som voor het gezin.
