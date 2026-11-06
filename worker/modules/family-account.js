@@ -36,6 +36,43 @@ async function createFamilyAccountSession(env, userId, now, sha256, base64Url) {
   return token;
 }
 
+async function familyLoginLimit(env, email, ip, sha256, now) {
+  const emailKey = await sha256("family-email:" + email);
+  const ipKey = await sha256("family-ip:" + ip);
+  const pairKey = await sha256("family-pair:" + email + "|" + ip);
+  const rows = await env.DB.prepare(
+    "SELECT scope_hash, attempts, window_started FROM family_login_limits WHERE scope_hash IN (?, ?, ?)"
+  ).bind(emailKey, ipKey, pairKey).all();
+  const limits = new Map((rows.results || []).map(row => [row.scope_hash, row]));
+  const checks = [
+    { key: emailKey, max: 30 },
+    { key: ipKey, max: 100 },
+    { key: pairKey, max: 10 }
+  ];
+  return {
+    blocked: checks.some(check => {
+      const row = limits.get(check.key);
+      return row && now - row.window_started < 15 * 60 && row.attempts >= check.max;
+    }),
+    recordFailure: async () => {
+      for (const check of checks) {
+        const row = limits.get(check.key);
+        if (!row || now - row.window_started >= 15 * 60) {
+          await env.DB.prepare("INSERT INTO family_login_limits (scope_hash, attempts, window_started) VALUES (?, 1, ?) ON CONFLICT(scope_hash) DO UPDATE SET attempts = 1, window_started = excluded.window_started")
+            .bind(check.key, now).run();
+        } else {
+          await env.DB.prepare("UPDATE family_login_limits SET attempts = attempts + 1 WHERE scope_hash = ?")
+            .bind(check.key).run();
+        }
+      }
+    },
+    clearPair: async () => {
+      await env.DB.prepare("DELETE FROM family_login_limits WHERE scope_hash IN (?, ?)")
+        .bind(emailKey, pairKey).run();
+    }
+  };
+}
+
 async function familyAccountSession(request, env, cookieValue, sha256) {
   const token = cookieValue(request, FAMILY_ACCOUNT_COOKIE);
   if (!token) return null;
@@ -59,9 +96,16 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !password || password.length > 1024) {
       return json({ error: "Vul een geldig e-mailadres en wachtwoord in." }, 400);
     }
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const limiter = await familyLoginLimit(env, email, ip, sha256, now);
+    if (limiter.blocked) return json({ error: "Te veel aanmeldpogingen. Probeer over 15 minuten opnieuw." }, 429);
     const user = await env.DB.prepare("SELECT id, password_hash, status FROM family_users WHERE email = ?").bind(email).first();
     const valid = user?.status === "active" && user.password_hash ? await verifyFamilyPassword(password, user.password_hash) : false;
-    if (!valid) return json({ error: "E-mailadres of wachtwoord is niet correct." }, 401);
+    if (!valid) {
+      await limiter.recordFailure();
+      return json({ error: "E-mailadres of wachtwoord is niet correct." }, 401);
+    }
+    await limiter.clearPair();
     const token = await createFamilyAccountSession(env, user.id, now, sha256, base64Url);
     await env.DB.prepare("UPDATE family_users SET last_login_at = ?, updated_at = ? WHERE id = ?").bind(now, now, user.id).run();
     return json({ authenticated: true }, 200, { "Set-Cookie": familyAccountCookie(token, FAMILY_ACCOUNT_TTL_SECONDS) });
