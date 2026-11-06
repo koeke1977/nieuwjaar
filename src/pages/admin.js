@@ -41,14 +41,15 @@ function renderMemberManager(registration) {
   <form class="catalog-add-form" id="add-member-form"><label>Persoon toevoegen</label><div class="member-add-grid"><input name="memberName" maxlength="80" placeholder="Naam van de persoon" required><select name="memberType"><option value="Volwassene">Volwassene (18+)</option><option value="Kind">Kind</option></select><button class="button button-dark" type="submit">+ Lid toevoegen</button></div></form></section>`;
 }
 function renderFamilyInviteHistory() {
-  const rows = familyInvites.map(invite => {
+  const currentEnvironmentInvites = familyInvites.filter(invite => invite.edition_id === state.activeEnvironment);
+  const rows = currentEnvironmentInvites.map(invite => {
     const registration = state.registrations.find(item => item.id === invite.registration_id);
     const active = !invite.revoked_at;
     const url = invite.token_value ? 'https://nieuwjaar.datuur.be/familie/' + encodeURIComponent(invite.token_value) : '';
     const created = invite.created_at ? new Date(invite.created_at * 1000).toLocaleDateString('nl-BE') : 'onbekend';
     return '<article class="registration-row"><div class="registration-name"><strong>' + esc(registration?.name || invite.registration_id) + '</strong><small>' + (invite.edition_id === 'test' ? 'Testomgeving' : 'Live editie') + ' · ' + created + '</small></div><span class="status ' + (active ? 'success' : 'neutral') + '">' + (active ? (url ? 'Actief' : 'Actief · oude link') : 'Ingetrokken') + '</span>' + (active && url ? '<button class="button button-small button-outline" data-action="copy-family-invite-url" data-url="' + esc(url) + '">Kopiëren</button>' : active ? '<span class="catalog-note">Maak een nieuwe link om opnieuw te kunnen kopiëren.</span>' : '') + '</article>' + (active && url ? '<div class="family-invite-result"><input readonly value="' + esc(url) + '" aria-label="Persoonlijke gezinslink"></div>' : '');
   }).join('');
-  return '<section class="panel"><div class="section-heading"><div><h2>Bestaande gezinslinks</h2><p>Overzicht van alle persoonlijke links voor test en live.</p></div><span class="status neutral">' + familyInvites.length + ' links</span></div>' + (rows ? '<div class="registration-list">' + rows + '</div>' : '<p class="catalog-note">Er zijn nog geen gezinslinks aangemaakt.</p>') + '</section>';
+  return '<section class="panel"><div class="section-heading"><div><h2>Bestaande gezinslinks</h2><p>Overzicht van de persoonlijke links voor de geselecteerde omgeving.</p></div><span class="status neutral">' + familyInvites.length + ' links</span></div>' + (rows ? '<div class="registration-list">' + rows + '</div>' : '<p class="catalog-note">Er zijn nog geen gezinslinks aangemaakt.</p>') + '</section>';
 }
 function renderRegistrations() {
   const people=state.registrations.reduce((sum,item)=>sum+item.adults+item.children,0);
