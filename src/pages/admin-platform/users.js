@@ -83,6 +83,7 @@ export function initAdminUsersSection() {
     const button = event.target.closest("[data-user-action]");
     if (!button) return;
     const action = button.dataset.userAction, id = button.dataset.userId;
+    if (action === "unlink" && !window.confirm("Deze inschrijvingskoppeling verwijderen? De inschrijving zelf blijft behouden.")) return;
     button.disabled = true;
     try {
       if (action === "unlink") await api("/api/admin/family-users/"+id+"/registrations?linkId="+encodeURIComponent(button.dataset.linkId), {method:"DELETE"});
