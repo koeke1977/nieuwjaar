@@ -1,5 +1,5 @@
 export const state = {
-  activeConsole: "user", activeSection: "overview",
+  activeConsole: "user", activeSection: "overview", editingMember: null,
   payments: [
     { household: "Familie Thomaes-Beckers", due: 185, paid: 185, method: "Cash" },
     { household: "Familie Ben-Tina", due: 240, paid: 200, method: "Cash" },
@@ -17,9 +17,32 @@ export const state = {
 export const family = {
   name: "Familie Thomaes-Beckers",
   members: [
-    { name: "Koen", type: "Volwassene", order: 3 }, { name: "Isabella", type: "Volwassene", order: 2 },
-    { name: "Emma", type: "Kind", order: 4 }, { name: "Lisa", type: "Kind", order: 3 }
+    { name: "Koen", type: "Volwassene", orders: { steak: 1, kip: 1, sate: 1 } },
+    { name: "Isabella", type: "Volwassene", orders: { steak: 1, sate: 1 } },
+    { name: "Emma", type: "Kind", orders: { steak: 1, kip: 1, worst: 1 } },
+    { name: "Lisa", type: "Kind", orders: { steak: 1, kip: 1, worst: 2 } }
   ],
-  meat: [{ name: "Steak", count: 4 }, { name: "Kip", count: 3 }, { name: "Saté", count: 2 }, { name: "Worst", count: 3 }],
   advanced: 250, share: 185, bring: 185
 };
+
+// Bestaande groepsaantallen bevatten de huidige voorbeeldfamilie. Alleen het verschil
+// met de oorspronkelijke familieaantallen wordt op de globale totalen toegepast.
+const initialFamilyCounts = { steak: 4, kip: 3, sate: 2, worst: 3 };
+export function getFamilyMeat() {
+  return state.catalog.map(product => ({
+    id: product.id, name: product.name,
+    count: family.members.reduce((sum, person) => sum + (Number(person.orders[product.id]) || 0), 0)
+  }));
+}
+export function getGlobalMeatTotals() {
+  const familyTotals = getFamilyMeat();
+  return state.catalog.map(product => {
+    const original = state.meats.find(item => item.name === product.name)?.count || 0;
+    const baseline = initialFamilyCounts[product.id] || 0;
+    const current = familyTotals.find(item => item.id === product.id)?.count || 0;
+    return { name: product.name, count: Math.max(0, original + current - baseline) };
+  });
+}
+export function getPersonMeatTotal(person) {
+  return Object.values(person.orders).reduce((sum, count) => sum + (Number(count) || 0), 0);
+}
