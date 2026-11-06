@@ -47,9 +47,9 @@ export function getExpenseShares(expense, registrations) {
   return splitCents(expense.amountCents, weightedRows);
 }
 
-export function getFinancialSummary(registrations, expenses) {
+export function getFinancialSummary(registrations, expenses, payments = []) {
   const rows = registrations.map(registration => ({
-    id: registration.id, name: registration.name, advancedCents: 0, shareCents: 0, balanceCents: 0
+    id: registration.id, name: registration.name, advancedCents: 0, shareCents: 0, balanceCents: 0, paidCents: 0
   }));
   const byId = new Map(rows.map(row => [row.id, row]));
   for (const expense of expenses) {
@@ -60,6 +60,18 @@ export function getFinancialSummary(registrations, expenses) {
       if (row) row.shareCents += share.cents;
     }
   }
-  rows.forEach(row => { row.balanceCents = row.advancedCents - row.shareCents; });
+  for (const payment of payments) {
+    const row = byId.get(payment.registrationId);
+    if (row) row.paidCents += payment.amountCents;
+  }
+  rows.forEach(row => {
+    row.balanceCents = row.advancedCents - row.shareCents;
+    row.amountDueCents = Math.max(0, -row.balanceCents);
+    row.paidCents = row.paidCents || 0;
+    row.remainingCents = Math.max(0, row.amountDueCents - row.paidCents);
+    row.overpaidCents = Math.max(0, row.paidCents - row.amountDueCents);
+    row.paymentStatus = row.remainingCents === 0 ? (row.amountDueCents === 0 ? "Geen bedrag verschuldigd" : "Betaald")
+      : row.paidCents > 0 ? "Gedeeltelijk betaald" : "Openstaand";
+  });
   return rows;
 }
