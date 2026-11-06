@@ -95,7 +95,7 @@ function renderCatalogManager() {
   ${item.image ? `<button class="text-button" data-action="remove-image" data-id="${esc(item.id)}">Foto wissen</button>` : ""}
   <button class="text-button" data-action="toggle-product" data-id="${esc(item.id)}">${item.active ? "Deactiveren" : "Activeren"}</button></div></article>`).join("")}</div>
   <form class="catalog-add-form" id="add-product-form"><label for="new-product-name">Nieuw vleesproduct</label><div><input id="new-product-name" name="productName" type="text" maxlength="60" placeholder="Bijvoorbeeld: Kippenbrochette" required><button class="button button-dark" type="submit">+ Product toevoegen</button></div></form>
-  <p class="catalog-note">Prototype: foto's en bestellingen worden tijdelijk in deze browser bewaard. Permanente opslag en synchronisatie volgen met Cloudflare R2 en D1.</p></section>`;
+  <p class="catalog-note">Catalogus, bestellingen en overige editiegegevens worden automatisch in Cloudflare D1 opgeslagen. Productfoto’s volgen later via Cloudflare R2.</p></section>`;
 }
 function renderPaymentRows() {
   const summaries=getFinancialSummary(state.registrations,state.expenses,state.payments);
