@@ -65,6 +65,7 @@ export async function startFamilyAuth() {
     const name = form.elements.memberName.value.trim();
     const type = form.elements.memberType.value;
     if (!item || !name || !["Volwassene", "Kind"].includes(type)) return;
+    item.registration.members = item.registration.members || [];
     item.registration.members.push({ id: crypto.randomUUID(), name, type, orders: {} });
     saveRegistration(item);
   });
@@ -116,6 +117,8 @@ export async function startFamilyAuth() {
     }).join("");
   }
   async function saveRegistration(item) {
+    if (item.saving) return;
+    item.saving = true;
     feedback("");
     try {
       const result = await request("/api/family-account/registration", {
@@ -129,6 +132,8 @@ export async function startFamilyAuth() {
     } catch (error) {
       feedback(error.message || "Opslaan is niet gelukt.");
       if (error.message?.includes("gewijzigd")) await loadAccount();
+    } finally {
+      item.saving = false;
     }
   }
   async function loadAccount() {
