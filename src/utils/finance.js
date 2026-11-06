@@ -75,3 +75,27 @@ export function getFinancialSummary(registrations, expenses, payments = []) {
   });
   return rows;
 }
+
+// Verdeel het aandeel van een inschrijving verder over de individuele leden.
+// Eerst per inschrijving verdelen en daarna per lid voorkomt afrondingsverschillen met de afrekening.
+export function getMemberCostSummary(registration, registrations, expenses) {
+  const members = registration.members || [];
+  const totals = new Map(members.map(member => [member.id, 0]));
+  for (const expense of expenses) {
+    const registrationShares = getExpenseShares(expense, registrations);
+    const registrationShare = registrationShares.find(share => share.id === registration.id)?.cents || 0;
+    if (!registrationShare || !members.length) continue;
+    const weightedMembers = members.map(member => {
+      const meat = Object.values(member.orders || {}).reduce((sum, qty) => sum + Math.max(0, Number(qty) || 0), 0);
+      const weight = expense.method === "general" ? 1
+        : expense.method === "adults" ? (member.type === "Volwassene" ? 1 : 0)
+        : expense.method === "meat" ? meat : 0;
+      return { id: member.id, weight };
+    }).filter(row => row.weight > 0);
+    if (!weightedMembers.length) continue;
+    for (const share of splitCents(registrationShare, weightedMembers)) {
+      totals.set(share.id, (totals.get(share.id) || 0) + share.cents);
+    }
+  }
+  return members.map(member => ({ id: member.id, name: member.name, cents: totals.get(member.id) || 0 }));
+}
