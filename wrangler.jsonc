@@ -6,13 +6,14 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "nieuwjaar-db",
-      "database_id": "VUL_HIER_DE_CLOUDFLARE_D1_DATABASE_ID_IN",
+      "database_id": "02bc8410-117b-4c12-be0b-3fabcf429588",
       "migrations_dir": "migrations"
     }
   ]
