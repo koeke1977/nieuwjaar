@@ -4,7 +4,7 @@ const FAMILY_ACCOUNT_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 async function hashPassword(password) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iterations = 310000;
+  const iterations = 100000;
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
   return "pbkdf2$" + iterations + "$" + base64Url(salt) + "$" + base64Url(new Uint8Array(bits));
@@ -13,7 +13,7 @@ async function hashPassword(password) {
 async function verifyFamilyPassword(password, stored) {
   const [scheme, iterationsText, saltText, expected] = String(stored || "").split("$");
   const iterations = Number(iterationsText);
-  if (scheme !== "pbkdf2" || !Number.isInteger(iterations) || iterations < 100000 || iterations > 1000000 || !saltText || !expected) return false;
+  if (scheme !== "pbkdf2" || !Number.isInteger(iterations) || iterations < 100000 || iterations > 100000 || !saltText || !expected) return false;
   let salt;
   try { salt = fromBase64Url(saltText); } catch { return false; }
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
