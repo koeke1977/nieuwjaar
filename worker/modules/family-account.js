@@ -46,15 +46,13 @@ async function createFamilyAccountSession(env, userId, now, sha256, base64Url) {
 async function familyLoginLimit(env, email, ip, sha256, now) {
   const emailKey = await sha256("family-email:" + email);
   const ipKey = await sha256("family-ip:" + ip);
-  const pairKey = await sha256("family-pair:" + email + "|" + ip);
   const rows = await env.DB.prepare(
-    "SELECT scope_hash, attempts, window_started FROM family_login_limits WHERE scope_hash IN (?, ?, ?)"
-  ).bind(emailKey, ipKey, pairKey).all();
+    "SELECT scope_hash, attempts, window_started FROM family_login_limits WHERE scope_hash IN (?, ?)"
+  ).bind(emailKey, ipKey).all();
   const limits = new Map((rows.results || []).map(row => [row.scope_hash, row]));
   const checks = [
     { key: emailKey, max: 30 },
-    { key: ipKey, max: 100 },
-    { key: pairKey, max: 10 }
+    { key: ipKey, max: 100 }
   ];
   return {
     blocked: checks.some(check => {
@@ -73,9 +71,9 @@ async function familyLoginLimit(env, email, ip, sha256, now) {
         }
       }
     },
-    clearPair: async () => {
-      await env.DB.prepare("DELETE FROM family_login_limits WHERE scope_hash IN (?, ?)")
-        .bind(emailKey, pairKey).run();
+    clearEmail: async () => {
+      await env.DB.prepare("DELETE FROM family_login_limits WHERE scope_hash = ?")
+        .bind(emailKey).run();
     }
   };
 }
@@ -112,7 +110,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       await limiter.recordFailure();
       return json({ error: "E-mailadres of wachtwoord is niet correct." }, 401);
     }
-    await limiter.clearPair();
+    await limiter.clearEmail();
     const token = await createFamilyAccountSession(env, user.id, now, sha256, base64Url);
     await env.DB.prepare("UPDATE family_users SET last_login_at = ?, updated_at = ? WHERE id = ?").bind(now, now, user.id).run();
     return json({ authenticated: true }, 200, { "Set-Cookie": familyAccountCookie(token, FAMILY_ACCOUNT_TTL_SECONDS) });
@@ -280,6 +278,11 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     if (!consumed) return json({ error: "Deze resetlink is al gebruikt of verlopen." }, 400);
     await env.DB.prepare("UPDATE family_users SET password_hash = ?, updated_at = ? WHERE id = ? AND status = 'active'").bind(passwordHash, now, reset.user_id).run();
     await env.DB.prepare("UPDATE family_user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL").bind(now, reset.user_id).run();
+    const resetUser = await env.DB.prepare("SELECT email FROM family_users WHERE id = ?").bind(reset.user_id).first();
+    if (resetUser?.email) {
+      const emailKey = await sha256("family-email:" + resetUser.email.trim().toLowerCase());
+      await env.DB.prepare("DELETE FROM family_login_limits WHERE scope_hash = ?").bind(emailKey).run();
+    }
     return json({ reset: true }, 200, { "Set-Cookie": familyAccountCookie("", 0) });
   }
 
