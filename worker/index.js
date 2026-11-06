@@ -221,11 +221,20 @@ async function handleAdminApi(request, env, url) {
   if (url.pathname === "/api/admin/family-invites" && request.method === "GET") {
     const session = await adminSession(request, env);
     if (!session) return json({ error: "Niet aangemeld." }, 401);
-    const rows = await env.DB.prepare(
-      "SELECT id, edition_id, registration_id, token_value, created_at, expires_at, revoked_at, last_used_at FROM family_invites ORDER BY created_at DESC"
-    ).all();
-    const invites = await Promise.all((rows.results || []).map(async row => ({ ...row, token_value: await decryptInviteToken(row.token_value, env) })));
-    return json({ invites });
+    let rows;
+    let hasTokenColumn = true;
+    try {
+      rows = await env.DB.prepare(
+        "SELECT id, edition_id, registration_id, token_value, created_at, expires_at, revoked_at, last_used_at FROM family_invites ORDER BY created_at DESC"
+      ).all();
+    } catch {
+      hasTokenColumn = false;
+      rows = await env.DB.prepare(
+        "SELECT id, edition_id, registration_id, created_at, expires_at, revoked_at, last_used_at FROM family_invites ORDER BY created_at DESC"
+      ).all();
+    }
+    const invites = await Promise.all((rows.results || []).map(async row => ({ ...row, token_value: hasTokenColumn ? await decryptInviteToken(row.token_value, env) : "" })));
+    return json({ invites, migrationRequired: !hasTokenColumn });
   }
 
   if (url.pathname === "/api/admin/family-invites" && request.method === "POST") {
