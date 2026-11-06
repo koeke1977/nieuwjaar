@@ -31,7 +31,24 @@ async function sendGraphMail(env, recipient, subject, html) {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, scope: "https://graph.microsoft.com/.default", grant_type: "client_credentials" })
   });
-  if (!tokenResponse.ok) throw new Error(`Microsoft 365-aanmelding mislukt (HTTP ${tokenResponse.status}). Controleer de app-credentials.`);
+  if (!tokenResponse.ok) {
+    let authError = null;
+    try { authError = await tokenResponse.json(); } catch { /* Microsoft-response was geen JSON. */ }
+    const errorCode = typeof authError?.error === "string" ? authError.error : "unknown_error";
+    const description = typeof authError?.error_description === "string"
+      ? authError.error_description.replace(/[\\r\\n]+/g, " ").slice(0, 700)
+      : "Microsoft gaf geen foutomschrijving terug.";
+    const correlationId = typeof authError?.correlation_id === "string" ? authError.correlation_id : "";
+    const traceId = typeof authError?.trace_id === "string" ? authError.trace_id : "";
+    console.error("Microsoft OAuth token request failed:", {
+      status: tokenResponse.status,
+      error: errorCode,
+      description,
+      correlationId,
+      traceId
+    });
+    throw new Error(`Microsoft 365-aanmelding mislukt (HTTP ${tokenResponse.status}, ${errorCode}): ${description}`);
+  }
   const tokenData = await tokenResponse.json();
   if (!tokenData.access_token) throw new Error("Microsoft 365 gaf geen toegangstoken terug.");
   const sendResponse = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`, {
