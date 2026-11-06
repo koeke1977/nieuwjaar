@@ -93,3 +93,5 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
 .negative{color:#b44b45}
 @media(max-width:900px){.expense-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.expense-form-grid button{grid-column:1/-1}}
 @media(max-width:520px){.expense-form-grid{grid-template-columns:1fr}}
+
+.expense-actions{display:flex;align-items:center;gap:10px;margin-top:5px}.danger-text{color:#b44b45}
