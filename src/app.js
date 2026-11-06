@@ -48,25 +48,6 @@ function handleClick(event) {
     registration.children=members.filter(person=>person.type==="Kind").length;
     renderApp();return;
   }
-  if(action.dataset.action==="edit-own-member"||action.dataset.action==="delete-own-member"){
-    const registration=state.registrations.find(item=>item.id===state.activeRegistrationId);
-    const members=registration?.members||[];
-    const index=Number(action.dataset.index), member=members[index];
-    if(!registration||!member)return;
-    if(action.dataset.action==="edit-own-member"){
-      const name=window.prompt("Naam van het gezinslid:",member.name);if(name===null)return;
-      const type=window.prompt("Type (Volwassene of Kind):",member.type);if(type===null)return;
-      if(!name.trim()||!["Volwassene","Kind"].includes(type)){window.alert("Vul een naam in en kies Volwassene of Kind.");return;}
-      member.name=name.trim();member.type=type;
-    }else{
-      if(members.length<=1){window.alert("Een inschrijving moet minstens één deelnemer bevatten.");return;}
-      if(!window.confirm(`Verwijder ${member.name} uit jullie inschrijving?`))return;
-      members.splice(index,1);
-    }
-    registration.adults=members.filter(person=>person.type==="Volwassene").length;
-    registration.children=members.filter(person=>person.type==="Kind").length;
-    renderApp();return;
-  }
   if(action.dataset.action==="manage-members"){state.managingRegistrationId=action.dataset.id;renderApp();return;}
   if(action.dataset.action==="edit-member"){const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);const member=registration?.members?.[Number(action.dataset.index)];if(!member)return;const name=window.prompt("Naam van het gezinslid:",member.name);if(name===null)return;const type=window.prompt("Type (Volwassene of Kind):",member.type);if(type===null)return;if(!name.trim()||!["Volwassene","Kind"].includes(type)){window.alert("Vul een naam in en kies Volwassene of Kind.");return;}member.name=name.trim();member.type=type;registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
   if(action.dataset.action==="delete-member"){const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration?.members)return;const index=Number(action.dataset.index);if(!window.confirm(`Verwijder ${registration.members[index]?.name || 'dit lid'} uit deze inschrijving?`))return;registration.members.splice(index,1);registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
