@@ -1,5 +1,13 @@
 // Financiële domeinlogica. Alle bedragen worden in gehele eurocenten verwerkt.
 export function getRegistrationCounts(registration) {
+  if (registration.aggregateCounts) {
+    return {
+      people: Math.max(0, Number(registration.aggregateCounts.people) || 0),
+      adults: Math.max(0, Number(registration.aggregateCounts.adults) || 0),
+      children: Math.max(0, Number(registration.aggregateCounts.children) || 0),
+      meat: Math.max(0, Number(registration.aggregateCounts.meat) || 0)
+    };
+  }
   const members = registration.members || [];
   if (members.length) {
     return {
