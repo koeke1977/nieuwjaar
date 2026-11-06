@@ -101,6 +101,20 @@ Elke inschrijving is één rekeneenheid: een gezin of één individuele deelneme
 - De admin ziet de globale totalen per vleessoort als BBQ-lijst, geschikt om op de avond zelf te raadplegen of af te drukken.
 - Producten met historische bestellingen worden niet hard verwijderd.
 
+## Visuele vleescatalogus
+
+De vleescatalogus toont per product een foto naast de productnaam. Deelnemers kunnen daardoor ook op smartphone eenvoudig het juiste vleesproduct herkennen.
+
+- Elk vleesproduct kan een eigen afbeelding hebben.
+- De beheerder kan een afbeelding toevoegen, vervangen of verwijderen.
+- De beheerder kan producten toevoegen, hernoemen, deactiveren en herschikken; nieuwe producten kunnen dus ook een foto krijgen.
+- Producten zonder afbeelding krijgen een neutrale standaardafbeelding.
+- Deelnemers zien alleen de actieve producten van de lopende editie.
+- Historische bestellingen blijven gekoppeld aan het oorspronkelijke product; een foto- of cataloguswijziging overschrijft geen oude bestellingen.
+- Afbeeldingen worden centraal opgeslagen (bij voorkeur Cloudflare R2) en via de backend aan de juiste editie/productcatalogus gekoppeld.
+
+Technische aandachtspunten: toegestane afbeeldingsformaten en bestandsgrootte valideren, afbeeldingen optimaliseren voor mobiel en thumbnails gebruiken in de bestellijst. De beheerder krijgt een eenvoudige upload-/vervangactie in het productbeheer.
+
 ## Kosten en verdeelsleutels
 
 **Alle uitgaven zijn altijd gemeenschappelijke kosten voor de volledige groep.** De admin kiest bij iedere uitgave één van drie vaste verdeelsleutels:
