@@ -5,6 +5,20 @@ function renderMeatTable() {
   const totals=getGlobalMeatTotals();
   return `<table class="meat-print-table"><thead><tr><th>Vleesproduct</th><th>Aantal</th></tr></thead><tbody>${totals.map(item => `<tr><td>${esc(item.name)}</td><td>${item.count}</td></tr>`).join("")}</tbody><tfoot><tr><th>Totaal aantal porties</th><th>${total(totals)}</th></tr></tfoot></table>`;
 }
+function renderOrderDetails() {
+  return state.registrations.map(registration => {
+    const members = registration.members || [];
+    const familyTotal = state.catalog.reduce((sum, product) =>
+      sum + members.reduce((memberSum, person) => memberSum + (Number(person.orders?.[product.id]) || 0), 0), 0);
+    return `<section class="order-family-block">
+      <div class="section-heading"><div><h3>${esc(registration.name)}</h3><p>${members.length} deelnemers · bestellingen per persoon</p></div><strong class="total-number">${familyTotal} porties</strong></div>
+      ${members.length ? `<div class="order-detail-table-wrap"><table class="order-detail-table"><thead><tr><th>Persoon</th><th>Categorie</th>${state.catalog.map(product => `<th>${esc(product.name)}</th>`).join("")}<th>Totaal</th></tr></thead><tbody>${members.map(person => {
+        const quantities = state.catalog.map(product => Number(person.orders?.[product.id]) || 0);
+        return `<tr><td><strong>${esc(person.name)}</strong></td><td>${esc(person.type || "—")}</td>${quantities.map(count => `<td>${count || "–"}</td>`).join("")}<td><strong>${quantities.reduce((sum,count)=>sum+count,0)}</strong></td></tr>`;
+      }).join("")}</tbody></table></div>` : '<p class="catalog-note">Nog geen individuele leden of bestellingen ingevoerd.</p>'}
+    </section>`;
+  }).join("") || '<p class="catalog-note">Er zijn nog geen inschrijvingen voor deze editie.</p>';
+}
 function renderMemberManager(registration) {
   const members=registration.members||[];
   return `<section class="panel member-manager"><div class="section-heading"><div><h2>Leden van ${esc(registration.name)}</h2><p>Leg per persoon de naam en categorie vast. Bestellingen blijven per persoon bewaard.</p></div><span class="status neutral">${members.length} namen</span></div>
@@ -54,7 +68,7 @@ function renderAdminOverview() {
 export function renderAdminContent(activeSection) {
   if (activeSection==="registrations") return renderRegistrations();
   if (activeSection==="catalog") return renderCatalogManager();
-  if (activeSection==="meat") return `<section class="page-heading"><p class="eyebrow">KEUKEN & BBQ</p><h1>BBQ-totaaloverzicht</h1><p>De actuele aantallen per vleessoort, klaar voor de slager of de grill.</p></section><section class="panel meat-overview-panel"><div class="section-heading"><div><h2>Bestelling per vleessoort</h2><p>Alle producten uit de catalogus, inclusief producten zonder bestelling.</p></div><span class="status success">Actuele bestelling</span></div>${renderMeatTable()}<button class="button button-outline" data-action="print">BBQ-lijst afdrukken</button></section>`;
+  if (activeSection==="meat") return `<section class="page-heading"><p class="eyebrow">KEUKEN & BBQ</p><h1>BBQ-totaaloverzicht</h1><p>De globale aantallen voor de slager én de individuele bestellingen per gezin.</p></section><section class="panel meat-overview-panel"><div class="section-heading"><div><h2>Bestelling per vleessoort</h2><p>Alle actieve inschrijvingen samen, inclusief producten zonder bestelling.</p></div><span class="status success">Actuele bestelling</span></div>${renderMeatTable()}<button class="button button-outline" data-action="print">BBQ-lijst afdrukken</button></section><section class="panel order-details-panel"><div class="section-heading"><div><h2>Wie bestelde wat?</h2><p>Detailoverzicht per gezin en per individuele deelnemer.</p></div><button class="button button-outline" data-action="print">Detail afdrukken</button></div>${renderOrderDetails()}</section>`;
   if (activeSection==="payments") return `<section class="page-heading"><p class="eyebrow">KASSA</p><h1>Betalingen ontvangen</h1><p>Registreer cash, overschrijvingen en gedeeltelijke betalingen.</p></section><section class="stats-grid"><article class="stat-card"><strong>${money(received(state.payments))}</strong><small>Ontvangen</small></article><article class="stat-card"><strong>${money(outstanding(state.payments))}</strong><small>Nog te ontvangen</small></article></section><section class="panel"><div class="section-heading"><h2>Betalingslijst</h2><span class="status neutral">${state.payments.length} inschrijvingen</span></div><div class="payment-list">${renderPaymentRows()}</div></section>`;
   if (activeSection==="expenses") return `<section class="page-heading"><p class="eyebrow">BOEKHOUDING</p><h1>Kosten & inkomsten</h1><p>Alle kosten zijn gemeenschappelijk. De admin kiest per uitgave de verdeelsleutel.</p></section><section class="panel"><h2>Vaste verdeelsleutels</h2><div class="rule-list"><div><b>Algemene kost</b><span>Iedereen – volwassenen en kinderen</span></div><div><b>18+ kost</b><span>Alle volwassenen</span></div><div><b>Vleesjeskost</b><span>Volgens individueel bestelde vleesporties</span></div></div><p class="muted">Het invoerscherm voor kosten en inkomsten volgt in de volgende bouwstap.</p></section>`;
   if (activeSection==="settlement") return `<section class="page-heading"><p class="eyebrow">AFREKENING</p><h1>Definitieve eindafrekening</h1><p>Alle voorschotten, kosten, inkomsten en ontvangen betalingen in evenwicht.</p></section>${renderSettlementPanel()}`;
