@@ -3,6 +3,7 @@ import { getFinancialSummary } from "../utils/finance.js";
 export const state = {
   activeEvent: { id: "nieuwjaar-2026-2027", name: "Nieuwjaar 2026–2027", status: "active" },
   expenses: [],
+  editionArchive: [],
   costsFinalized: false,
   costsFinalizedAt: null,
   activeConsole: "user", activeSection: "overview", activeRegistrationId: "koen-isabella", editingMember: null, managingRegistrationId: "koen-isabella",
