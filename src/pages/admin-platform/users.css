@@ -16,3 +16,10 @@
 .family-user-status.disabled{color:#a34b43}
 .family-user-feedback-error{color:#a34b43}
 @media(max-width:650px){.family-user-form{grid-template-columns:1fr}.family-user-row{grid-template-columns:1fr}.family-user-actions{justify-content:flex-start}}
+.family-user-link{display:inline-flex;align-items:center;gap:4px;padding:0!important;background:#f5f1e9}
+.family-user-link button{width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#e8e0d2;color:#65553b;font-size:15px;line-height:1;cursor:pointer}
+.family-user-link-form{display:flex;gap:7px;align-items:center;margin-top:7px;max-width:390px}
+.family-user-link-form select{min-width:0;flex:1;min-height:34px;padding:6px 9px;border:1px solid var(--line,#e8e4dd);border-radius:8px;background:#fff;color:var(--ink,#292720);font:inherit;font-size:12px}
+.family-user-link-form button{min-height:34px;padding:6px 10px;border:1px solid var(--line,#e8e4dd);border-radius:8px;background:#fff;color:var(--ink,#292720);font:inherit;font-size:12px;font-weight:700}
+.family-user-link-form button:disabled{opacity:.5}
+@media(max-width:420px){.family-user-link-form{align-items:stretch}.family-user-link-form select{width:100%}}
