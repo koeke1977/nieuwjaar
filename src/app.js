@@ -76,6 +76,11 @@ function handleClick(event) {
     if(input?.value){navigator.clipboard?.writeText(input.value).then(()=>window.alert("Gezinslink gekopieerd.")).catch(()=>{input.select();window.alert("Selecteer en kopieer de gezinslink.");});}
     return;
   }
+  if(action.dataset.action==="copy-family-invite-url"){
+    const url=action.dataset.url||"";
+    if(url)navigator.clipboard?.writeText(url).then(()=>window.alert("Gezinslink gekopieerd.")).catch(()=>window.alert("Kopiëren is niet gelukt; selecteer de link in het overzicht."));
+    return;
+  }
   if(action.dataset.action==="revoke-family-invite"){
     if(!window.confirm("Deze persoonlijke gezinslink intrekken? De link en bestaande sessies verliezen onmiddellijk toegang."))return;
     (async()=>{try{

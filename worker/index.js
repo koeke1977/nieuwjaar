@@ -125,7 +125,7 @@ async function handleFamilyApi(request, env, url) {
       })),
       expenses: data.expenses || [],
       payments: data.payments || [],
-      catalog: (data.catalog || []).filter(item => item.active).map(({ id, name, image }) => ({ id, name, image: image || null })),
+      catalog: (data.catalog || []).filter(item => item.active).map(({ id, name, image }) => ({ id, name, image: image || null, active: true })),
       costsFinalized: Boolean(data.costsFinalized)
     });
   }
