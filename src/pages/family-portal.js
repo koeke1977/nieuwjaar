@@ -95,8 +95,11 @@ function handleSubmit(event) {
 async function load(token) {
   document.querySelector("#app").innerHTML = '<main class="admin-login-shell"><section class="admin-login-card"><h1>Welkom</h1><p>We laden jullie persoonlijke inschrijving…</p></section></main>';
   try {
-    const login = await fetch("/api/family/session", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
-    const loginData = await login.json().catch(() => ({})); if (!login.ok) throw new Error(loginData.error || "Deze persoonlijke link is niet geldig.");
+    if (token) {
+      const login = await fetch("/api/family/session", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+      const loginData = await login.json().catch(() => ({}));
+      if (!login.ok) throw new Error(loginData.error || "Deze persoonlijke link is niet geldig.");
+    }
     const response = await fetch("/api/family/session", { credentials: "same-origin" });
     const data = await response.json().catch(() => ({})); if (!response.ok || !data.authenticated) throw new Error(data.error || "Aanmelden is niet gelukt.");
     state.registrations = data.registrations || [data.registration]; state.activeRegistrationId = data.registration.id;
@@ -113,6 +116,5 @@ async function load(token) {
 }
 export function startFamilyPortal() {
   const token = location.pathname.split("/").filter(Boolean)[1] || "";
-  if (!token) { document.querySelector("#app").innerHTML = '<main class="admin-login-shell"><section class="admin-login-card"><h1>Persoonlijke link ontbreekt</h1></section></main>'; return; }
   load(token);
 }
