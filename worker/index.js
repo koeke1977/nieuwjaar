@@ -60,6 +60,25 @@ async function adminSession(request, env) {
   return row || null;
 }
 
+async function encryptInviteToken(token, env) {
+  const keyBytes = await crypto.subtle.digest("SHA-256", encoder.encode(env.ADMIN_PASSWORD_HASH || ""));
+  const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(token));
+  return `${base64Url(iv)}.${base64Url(new Uint8Array(encrypted))}`;
+}
+
+async function decryptInviteToken(value, env) {
+  if (!value || !env.ADMIN_PASSWORD_HASH) return "";
+  try {
+    const [ivPart, dataPart] = value.split(".");
+    const keyBytes = await crypto.subtle.digest("SHA-256", encoder.encode(env.ADMIN_PASSWORD_HASH));
+    const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromBase64Url(ivPart) }, key, fromBase64Url(dataPart));
+    return new TextDecoder().decode(plain);
+  } catch { return ""; }
+}
+
 async function handleFamilyApi(request, env, url) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
   if (url.pathname === "/api/family/session" && request.method === "POST") {
@@ -203,9 +222,10 @@ async function handleAdminApi(request, env, url) {
     const session = await adminSession(request, env);
     if (!session) return json({ error: "Niet aangemeld." }, 401);
     const rows = await env.DB.prepare(
-      "SELECT id, edition_id, registration_id, created_at, expires_at, revoked_at, last_used_at FROM family_invites ORDER BY created_at DESC"
+      "SELECT id, edition_id, registration_id, token_value, created_at, expires_at, revoked_at, last_used_at FROM family_invites ORDER BY created_at DESC"
     ).all();
-    return json({ invites: rows.results || [] });
+    const invites = await Promise.all((rows.results || []).map(async row => ({ ...row, token_value: await decryptInviteToken(row.token_value, env) })));
+    return json({ invites });
   }
 
   if (url.pathname === "/api/admin/family-invites" && request.method === "POST") {
@@ -225,16 +245,17 @@ async function handleAdminApi(request, env, url) {
     const registration = (appState.registrations || []).find(item => item.id === registrationId);
     if (!registration) return json({ error: "Deze inschrijving bestaat niet in de gekozen editie." }, 404);
     const now = Math.floor(Date.now() / 1000);
+    const existing = await env.DB.prepare("SELECT id, edition_id, registration_id, token_value, created_at FROM family_invites WHERE edition_id = ? AND registration_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC LIMIT 1").bind(edition, registrationId, now).first();
+    if (existing?.token_value) {
+      const existingToken = await decryptInviteToken(existing.token_value, env);
+      if (existingToken) return json({ invite: { id: existing.id, edition_id: edition, registration_id: registrationId, created_at: existing.created_at }, url: `https://nieuwjaar.datuur.be/familie/${existingToken}`, reused: true });
+    }
+    if (existing) await env.DB.prepare("UPDATE family_invites SET revoked_at = ? WHERE id = ?").bind(now, existing.id).run();
     const inviteId = crypto.randomUUID();
     const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
-    await env.DB.prepare("UPDATE family_invites SET revoked_at = ? WHERE edition_id = ? AND registration_id = ? AND revoked_at IS NULL")
-      .bind(now, edition, registrationId).run();
-    await env.DB.prepare("INSERT INTO family_invites (id, edition_id, registration_id, token_hash, created_at) VALUES (?, ?, ?, ?, ?)")
-      .bind(inviteId, edition, registrationId, await sha256(token), now).run();
-    return json({
-      invite: { id: inviteId, edition_id: edition, registration_id: registrationId, created_at: now },
-      url: `https://nieuwjaar.datuur.be/familie/${token}`
-    }, 201);
+    const protectedToken = await encryptInviteToken(token, env);
+    await env.DB.prepare("INSERT INTO family_invites (id, edition_id, registration_id, token_hash, token_value, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(inviteId, edition, registrationId, await sha256(token), protectedToken, now).run();
+    return json({ invite: { id: inviteId, edition_id: edition, registration_id: registrationId, created_at: now }, url: `https://nieuwjaar.datuur.be/familie/${token}` }, 201);
   }
 
   if (url.pathname.startsWith("/api/admin/family-invites/") && request.method === "DELETE") {

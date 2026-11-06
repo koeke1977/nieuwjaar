@@ -69,6 +69,16 @@ function handleClick(event) {
     if(input?.value){navigator.clipboard?.writeText(input.value).then(()=>window.alert("Gezinslink gekopieerd.")).catch(()=>{input.select();window.alert("Selecteer en kopieer de gezinslink.");});}
     return;
   }
+  if(action.dataset.action==="revoke-family-invite"){
+    if(!window.confirm("Deze persoonlijke gezinslink intrekken? De link en bestaande sessies verliezen onmiddellijk toegang."))return;
+    (async()=>{try{
+      const response=await fetch(`/api/admin/family-invites/${encodeURIComponent(action.dataset.id)}`,{method:"DELETE",credentials:"same-origin"});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||"Intrekken is niet gelukt.");
+      await loadFamilyInvites();renderApp();
+    }catch(error){window.alert(error.message||"Intrekken is niet gelukt.");}})();
+    return;
+  }
   if(action.dataset.action==="admin-logout"){fetch("/api/admin/logout",{method:"POST",credentials:"same-origin"}).finally(()=>{adminAuthenticated=false;state.activeConsole="user";state.activeSection="overview";renderApp();});return;}
   if(action.dataset.action==="switch-environment"){
     const target=action.dataset.environment;
