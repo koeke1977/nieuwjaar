@@ -63,7 +63,7 @@ function renderPaymentRows() {
 
 function renderExpenses() {
   const methodLabels = { general: "Algemene kost", adults: "18+ kost", meat: "Vleesjeskost" };
-  const summaries = getFinancialSummary(state.registrations, state.expenses);
+  const summaries = getFinancialSummary(state.registrations, state.expenses, state.payments);
   const expenseRows = state.expenses.map(expense => {
     const payer = state.registrations.find(item => item.id === expense.advancedBy);
     const shares = getExpenseShares(expense, state.registrations);
@@ -89,9 +89,9 @@ function renderExpenses() {
   <div class="expense-form-grid"><input id="expense-description" name="description" maxlength="120" placeholder="Omschrijving, bv. Beenhouwer" required><input name="amount" type="number" min="0.01" step="0.01" placeholder="Bedrag (€)" required><input name="date" type="date" value="${new Date().toISOString().slice(0,10)}" required><select name="method" aria-label="Verdeelsleutel"><option value="general">Algemene kost – iedereen</option><option value="adults">18+ kost – volwassenen</option><option value="meat">Vleesjeskost – per portie</option></select><select name="advancedBy" aria-label="Voorgeschoten door" required><option value="">Wie schoot voor?</option>${state.registrations.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join("")}</select><button class="button button-dark" type="submit">+ Kost toevoegen</button></div>
   <p class="catalog-note">De volledige factuur wordt als voorschot toegekend aan de betaler. De kost zelf wordt volgens de gekozen verdeelsleutel verdeeld.</p></form>
   <div class="expense-list">${expenseRows || '<p class="catalog-note">Nog geen gemeenschappelijke kosten geregistreerd.</p>'}</div></section>
-  <section class="panel"><div class="section-heading"><div><h2>Voorlopige kostenafrekening per inschrijving</h2><p>Voorschotten min het eigen aandeel in alle geregistreerde kosten.</p></div><span class="status neutral">Exclusief betalingen</span></div>
-  <div class="financial-summary-list">${summaries.map(row=>`<div class="financial-summary-row"><div><strong>${esc(row.name)}</strong><small>Voorgeschoten ${money(row.advancedCents/100)} · Eigen aandeel ${money(row.shareCents/100)}</small></div><strong class="${row.balanceCents>=0?"positive":"negative"}">${money(row.balanceCents/100)}</strong></div>`).join("") || '<p class="catalog-note">Voeg eerst inschrijvingen toe.</p>'}</div>
-  <p class="catalog-note">Positief = deze inschrijving heeft meer voorgeschoten dan haar eigen aandeel. Negatief = deze inschrijving moet nog bijdragen. Ontvangen betalingen worden later apart verrekend.</p></section>`;
+  <section class="panel"><div class="section-heading"><div><h2>Voorlopige kostenafrekening per inschrijving</h2><p>Voorschotten min het eigen aandeel in alle geregistreerde kosten.</p></div><span class="status neutral">Inclusief betalingen</span></div>
+  <div class="financial-summary-list">${summaries.map(row=>`<div class="financial-summary-row"><div><strong>${esc(row.name)}</strong><small>Voorgeschoten ${money(row.advancedCents/100)} · Eigen aandeel ${money(row.shareCents/100)} · Betaald ${money(row.paidCents/100)} · Nog te betalen ${money(row.remainingCents/100)}</small></div><strong class="${row.balanceCents>=0?"positive":"negative"}">${money(row.balanceCents/100)}</strong></div>`).join("") || '<p class="catalog-note">Voeg eerst inschrijvingen toe.</p>'}</div>
+  <p class="catalog-note">Positief = deze inschrijving heeft meer voorgeschoten dan haar eigen aandeel. Negatief = deze inschrijving moet nog bijdragen. Ontvangen betalingen zijn al in het resterende bedrag verwerkt.</p></section>`;
 }
 
 function renderSettlementPanel() {
