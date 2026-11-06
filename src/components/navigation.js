@@ -13,6 +13,6 @@ export const renderUserNavigation = activeSection => renderNavigation([
   ["overview","⌂","Overzicht"],["family","♧","Gezin"],["meat","♨","Vlees"],["balance","€","Afrekening"]
 ], activeSection);
 export const renderAdminNavigation = activeSection => renderNavigation([
-  ["overview","▦","Dashboard"],["registrations","♧","Deelnemers"],["catalog","▧","Vleescatalogus"],["meat","♨","BBQ-overzicht"],
+  ["overview","▦","Dashboard"],["users","♙","Gebruikers"],["events","▦","Evenementen"],["registrations","♧","Deelnemers"],["catalog","▧","Vleescatalogus"],["meat","♨","BBQ-overzicht"],
   ["payments","€","Betalingen"],["expenses","＋","Kosten & voorschotten"],["settlement","◎","Eindafrekening"],["editions","◷","Edities"]
 ], activeSection);
