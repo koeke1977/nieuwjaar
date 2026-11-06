@@ -144,3 +144,7 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
 .environment-switch button:disabled{opacity:.65;cursor:default}
 .environment-panel .catalog-note{margin-bottom:0}
 @media(max-width:600px){.environment-switch{align-items:stretch;flex-direction:column}.environment-switch button{width:100%}}
+
+
+/* Altijd zichtbare waarschuwing wanneer met testgegevens wordt gewerkt */
+.environment-notice{margin:0 0 16px;padding:10px 14px;border:1px solid #e8d6ac;border-radius:10px;background:#fff6df;color:#805d1f;font-size:11px;font-weight:700;letter-spacing:.15px}
