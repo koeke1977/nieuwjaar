@@ -16,6 +16,7 @@ let statePersistenceReady = false;
 let persistenceTimer = null;
 let persistenceInFlight = false;
 let persistenceAgain = false;
+let persistenceError = false;
 function scheduleAdminStateSave() {
   if (!adminAuthenticated || !statePersistenceReady) return;
   clearTimeout(persistenceTimer);
@@ -23,7 +24,7 @@ function scheduleAdminStateSave() {
     if (persistenceInFlight) { persistenceAgain = true; return; }
     persistenceInFlight = true;
     try { await saveAdminState(); }
-    catch (error) { console.error("Admin state save failed:", error); }
+    catch (error) { persistenceError = true; statePersistenceReady = false; console.error("Admin state save failed:", error); renderApp(); }
     finally {
       persistenceInFlight = false;
       if (persistenceAgain) { persistenceAgain = false; scheduleAdminStateSave(); }
@@ -34,8 +35,9 @@ function renderAdminLogin() { return `<main class="admin-login-shell"><section c
 function renderApp() {
   if (state.activeConsole === "admin" && !adminAuthenticated) { document.querySelector("#app").innerHTML=renderAdminLogin(); return; }
   const isAdmin=state.activeConsole==="admin";
+  const persistenceNotice=persistenceError?"<div class=\"environment-notice\">Opslag is niet beschikbaar. Wijzigingen worden momenteel niet bewaard; controleer de verbinding en database-migratie.</div>":"";
   const environmentNotice=state.activeEnvironment==="test"?'<div class="environment-notice">TESTOMGEVING · Wijzigingen zijn alleen testgegevens en staan los van de echte editie.</div>':"";
-  document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${isAdmin?'<div class="admin-session-bar"><span>Beveiligde admin-sessie</span><button class="text-button" data-action="admin-logout">Uitloggen</button></div>':""}${environmentNotice}${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
+  document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${isAdmin?'<div class="admin-session-bar"><span>Beveiligde admin-sessie</span><button class="text-button" data-action="admin-logout">Uitloggen</button></div>':""}${persistenceNotice}${environmentNotice}${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
   if (state.activeConsole === "admin") scheduleAdminStateSave();
 }
 function handleClick(event) {
@@ -235,6 +237,6 @@ function handleImageUpload(event){
 export async function startApp(){
   document.addEventListener("click",handleClick);document.addEventListener("submit",handleSubmit);document.addEventListener("change",handleImageUpload);
   try{const response=await fetch("/api/admin/session",{credentials:"same-origin"});const session=await response.json();adminAuthenticated=Boolean(session.authenticated);}catch{adminAuthenticated=false;}
-  if(adminAuthenticated){try{await loadAdminState();statePersistenceReady=true;}catch(error){console.error("Admin state load failed:",error);}}
+  if(adminAuthenticated){try{await loadAdminState();statePersistenceReady=true;}catch(error){persistenceError=true;console.error("Admin state load failed:",error);}}
   renderApp();
 }
