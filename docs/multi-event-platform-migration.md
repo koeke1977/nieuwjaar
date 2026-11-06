@@ -78,7 +78,7 @@ Voor elk scenario worden de huidige outputwaarden als golden fixture vastgelegd 
 
 De eerste migratie mag bestaande gegevens nog in `data_json` bewaren. Normalisatie van deelnemers, orders en financiële lijnen gebeurt pas wanneer er een afzonderlijke migratie- en paritytest voor bestaat. Bestaande accounttabellen blijven behouden; een nieuwe membership-laag vervangt de exclusieve registratie-link.
 
-## Migratievolgorde
+## Reeds toegevoegd aan de branch\n\n- `0007_multi_event_foundation.sql`: uitsluitend nieuwe event-, editie-, familie-, membership-, registratie- en financiële snapshot-tabellen. Bestaande snapshots en accountkoppelingen blijven staan.\n- `0008_shared_family_registration_access.sql`: bouwt de accountkoppeltabel opnieuw op zonder de exclusieve registratiebeperking. Bestaande koppelingen worden één-op-één gekopieerd. Een gebruiker kan dezelfde registratie niet dubbel koppelen; meerdere gebruikers kunnen dat wel.\n- De financiële referentietests staan in `tests/finance-baseline.test.js`. De verwachte bedragen zijn gebaseerd op de huidige `finance.js`-implementatie.\n\nDeze migrations zijn nog niet uitgevoerd op lokaal of remote D1.\n\n## Migratievolgorde
 
 1. **Baseline** — alle huidige finance tests uitbreiden met de tien scenario's; output bewaren als fixtures.
 2. **Schema toevoegen** — nieuwe tabellen en indexen toevoegen zonder bestaande tabellen/kolommen te verwijderen. Geen live-data wijzigen.
