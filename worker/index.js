@@ -18,7 +18,7 @@ async function sendGraphMail(env, recipient, subject, html) {
   if (env.O365_FROM_EMAIL !== fromEmail) {
     throw new Error("De ingestelde afzender moet exact registratie@datuur.be zijn.");
   }
-  if (typeof recipient !== "string" || recipient.length > 254 || !/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(recipient)) {
+  if (typeof recipient !== "string" || recipient.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
     throw new Error("Ongeldig e-mailadres van de ontvanger.");
   }
   if (typeof subject !== "string" || !subject.trim() || subject.length > 200 || /[\r\n]/.test(subject)) {
