@@ -28,8 +28,28 @@ function handleClick(event) {
     const product=state.catalog.find(item=>item.id===action.dataset.product);
     if(person&&product){const current=Number(person.orders[product.id])||0;person.orders[product.id]=Math.max(0,current+Number(action.dataset.delta));renderApp();}
   }
+  if(action.dataset.action==="edit-own-member"||action.dataset.action==="delete-own-member"){
+    const registration=state.registrations.find(item=>item.id===state.activeRegistrationId);
+    const members=registration?.members||[];
+    const index=Number(action.dataset.index);
+    const member=members[index];
+    if(!registration||!member)return;
+    if(action.dataset.action==="edit-own-member"){
+      const name=window.prompt("Naam van het gezinslid:",member.name);if(name===null)return;
+      const type=window.prompt("Type (Volwassene of Kind):",member.type);if(type===null)return;
+      if(!name.trim()||!["Volwassene","Kind"].includes(type)){window.alert("Vul een naam in en kies Volwassene of Kind.");return;}
+      member.name=name.trim();member.type=type;
+    } else {
+      if(members.length<=1){window.alert("Een inschrijving moet minstens één deelnemer bevatten.");return;}
+      if(!window.confirm(`Verwijder ${member.name} uit jullie inschrijving?`))return;
+      members.splice(index,1);
+    }
+    registration.adults=members.filter(person=>person.type==="Volwassene").length;
+    registration.children=members.filter(person=>person.type==="Kind").length;
+    renderApp();return;
+  }
   if(action.dataset.action==="manage-members"){state.managingRegistrationId=action.dataset.id;renderApp();return;}
-  if(action.dataset.action==="edit-member"){const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);const member=registration?.members?.[Number(action.dataset.index)];if(!member)return;const name=window.prompt("Naam van het gezinslid:",member.name);if(name===null)return;const type=window.prompt("Type (Volwassene of Kind):",member.type);if(type===null)return;if(!name.trim()||!["Volwassene","Kind"].includes(type)){window.alert("Vul een naam in en kies Volwassene of Kind.");return;}member.name=name.trim();member.type=type;renderApp();return;}
+  if(action.dataset.action==="edit-member"){const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);const member=registration?.members?.[Number(action.dataset.index)];if(!member)return;const name=window.prompt("Naam van het gezinslid:",member.name);if(name===null)return;const type=window.prompt("Type (Volwassene of Kind):",member.type);if(type===null)return;if(!name.trim()||!["Volwassene","Kind"].includes(type)){window.alert("Vul een naam in en kies Volwassene of Kind.");return;}member.name=name.trim();member.type=type;registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
   if(action.dataset.action==="delete-member"){const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration?.members)return;const index=Number(action.dataset.index);if(!window.confirm(`Verwijder ${registration.members[index]?.name || 'dit lid'} uit deze inschrijving?`))return;registration.members.splice(index,1);registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
   if(action.dataset.action==="edit-registration"){const item=state.registrations.find(row=>row.id===action.dataset.id);if(!item)return;const name=window.prompt("Naam van de inschrijving:",item.name);if(name===null)return;const adults=window.prompt("Aantal volwassenen (18+):",String(item.adults));if(adults===null)return;const children=window.prompt("Aantal kinderen:",String(item.children));if(children===null)return;const adultCount=Number(adults),childCount=Number(children);if(!name.trim()||!Number.isInteger(adultCount)||!Number.isInteger(childCount)||adultCount<0||childCount<0||adultCount+childCount<1){window.alert("Controleer de naam en aantallen. Er moet minstens één deelnemer zijn.");return;}item.name=name.trim();item.adults=adultCount;item.children=childCount;renderApp();}
   if(action.dataset.action==="print")window.print();
@@ -38,6 +58,20 @@ function handleClick(event) {
 }
 function handleSubmit(event){
   if(event.target.id==="add-member-form"){event.preventDefault();const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration)return;const form=event.target;const name=form.elements.memberName.value.trim();const type=form.elements.memberType.value;if(!name)return;if(!registration.members?.length&&registration.id!=="koen-isabella"){const replace=window.confirm("Deze inschrijving bevat momenteel alleen historische aantallen, geen namen. De nieuwe ledenlijst vervangt die aantallen. Doorgaan?");if(!replace)return;}registration.members=registration.members||[];registration.members.push({name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
+  if(event.target.id==="add-own-member-form"){
+    event.preventDefault();
+    const registration=state.registrations.find(item=>item.id===state.activeRegistrationId);
+    if(!registration)return;
+    const form=event.target;
+    const name=form.elements.memberName.value.trim();
+    const type=form.elements.memberType.value;
+    if(!name||!["Volwassene","Kind"].includes(type))return;
+    registration.members=registration.members||[];
+    registration.members.push({name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});
+    registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;
+    registration.children=registration.members.filter(person=>person.type==="Kind").length;
+    renderApp();return;
+  }
   if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();const adults=Number(form.elements.adults.value);const children=Number(form.elements.children.value);if(!name||!Number.isInteger(adults)||!Number.isInteger(children)||adults<0||children<0||adults+children<1){window.alert("Vul een naam en minstens één deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults,children,members:[],financial:{advanced:0,share:0,bring:0}});renderApp();return;}
   if(event.target.id!=="add-product-form")return;event.preventDefault();
   const name=event.target.elements.productName.value.trim();if(!name)return;
