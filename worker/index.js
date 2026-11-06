@@ -275,7 +275,7 @@ async function handleAdminApi(request, env, url) {
     if (!env.PHOTOS) return json({ error: "Foto-opslag is nog niet gekoppeld aan de Worker." }, 503);
     const body = await request.json().catch(() => null);
     const image = typeof body?.image === "string" ? body.image : "";
-    const match = image.match(/^\\/media\\/(products\\/(?:test|live)\\/[A-Za-z0-9_-]+-[0-9a-f-]+\\.(?:jpg|png|webp))$/i);
+    const match = image.match(/^\/media\/(products\/(?:test|live)\/[A-Za-z0-9_-]+-[0-9a-f-]+\.(?:jpg|png|webp))$/i);
     if (!match) return json({ error: "Ongeldige fotoverwijzing." }, 400);
     await env.PHOTOS.delete(match[1]);
     return json({ deleted: true });
@@ -350,7 +350,7 @@ export default {
       if (url.pathname.startsWith("/media/") && request.method === "GET") {
         if (!env.PHOTOS) return new Response("Foto-opslag niet beschikbaar.", { status: 503 });
         const key = url.pathname.slice("/media/".length);
-        if (!/^products\\/(?:test|live)\\/[A-Za-z0-9_-]+-[0-9a-f-]+\\.(?:jpg|png|webp)$/i.test(key)) return new Response("Niet gevonden.", { status: 404 });
+        if (!/^products\/(?:test|live)\/[A-Za-z0-9_-]+-[0-9a-f-]+\.(?:jpg|png|webp)$/i.test(key)) return new Response("Niet gevonden.", { status: 404 });
         const object = await env.PHOTOS.get(key);
         if (!object) return new Response("Niet gevonden.", { status: 404 });
         const headers = new Headers();
