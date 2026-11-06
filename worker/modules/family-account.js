@@ -70,10 +70,38 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
   if (path === "/api/family-account/session" && request.method === "GET") {
     const session = await familyAccountSession(request, env, cookieValue, sha256);
     if (!session) return json({ authenticated: false }, 200, { "Set-Cookie": familyAccountCookie("", 0) });
-    const registrations = await env.DB.prepare(
+    const links = await env.DB.prepare(
       "SELECT edition_id, registration_id FROM family_user_registrations WHERE user_id = ? ORDER BY edition_id"
     ).bind(session.user_id).all();
-    return json({ authenticated: true, user: { email: session.email, displayName: session.display_name }, registrations: registrations.results || [] });
+    const registrations = [];
+    const catalogByEdition = {};
+    for (const link of links.results || []) {
+      const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(link.edition_id).first();
+      if (!stateRow) continue;
+      let data;
+      try { data = JSON.parse(stateRow.data_json); } catch { continue; }
+      const registration = (data.registrations || []).find(item => item.id === link.registration_id);
+      if (!registration) continue;
+      catalogByEdition[link.edition_id] = (data.catalog || []).filter(item => item.active).map(item => ({
+        id: item.id, name: item.name, image: item.image || null
+      }));
+      registrations.push({
+        edition: link.edition_id,
+        event: data.activeEvent?.name || data.activeEvent?.title || "Nieuwjaar",
+        registration: {
+          id: registration.id,
+          name: registration.name || "",
+          adults: Math.max(0, Number(registration.adults) || 0),
+          children: Math.max(0, Number(registration.children) || 0),
+          members: (registration.members || []).map(person => ({
+            id: person.id, name: person.name, type: person.type,
+            orders: person.orders && typeof person.orders === "object" ? person.orders : {}
+          }))
+        },
+        catalog: catalogByEdition[link.edition_id]
+      });
+    }
+    return json({ authenticated: true, user: { email: session.email, displayName: session.display_name }, registrations });
   }
 
   if (path === "/api/family-account/logout" && request.method === "POST") {
