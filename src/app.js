@@ -5,6 +5,7 @@ import { renderUserContent } from "./pages/user.js";
 import { renderAdminContent } from "./pages/admin.js";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
+import { switchEnvironment, resetTestEnvironment } from "./data/environment-store.js";
 const markCostsProvisional = () => { state.costsFinalized=false; state.costsFinalizedAt=null; };
 const makeId = (prefix = "lid") => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 function renderApp() {
@@ -18,6 +19,19 @@ function handleClick(event) {
   if(sectionButton){state.activeSection=sectionButton.dataset.section;state.editingMember=null;renderApp();return;}
   const action=event.target.closest("[data-action]");
   if(!action)return;
+  if(action.dataset.action==="switch-environment"){
+    const target=action.dataset.environment;
+    const label=target==="test"?"de testomgeving":"de echte editie";
+    if(!window.confirm(`Wisselen naar ${label}? De gegevens van de huidige omgeving blijven apart bewaard.`))return;
+    switchEnvironment(target);
+    renderApp();return;
+  }
+  if(action.dataset.action==="reset-test-environment"){
+    if(state.activeEnvironment!=="test")return;
+    if(!window.confirm("Alle testgezinnen, testkosten, betalingen en bestellingen verwijderen en de testomgeving opnieuw instellen? De echte editie blijft onaangeroerd."))return;
+    resetTestEnvironment();
+    renderApp();return;
+  }
   if(action.dataset.action==="edit-expense"){state.editingExpenseId=action.dataset.id;renderApp();return;}
   if(action.dataset.action==="finalize-costs"){if(!window.confirm("Bevestig je dat alle kosten en facturen voor deze editie zijn ontvangen en ingevoerd? Daarna worden de bedragen als definitief getoond."))return;state.costsFinalized=true;state.costsFinalizedAt=new Date().toISOString();renderApp();return;}
   if(action.dataset.action==="reopen-costs"){if(!window.confirm("De eindafrekening opnieuw voorlopig maken?"))return;markCostsProvisional();renderApp();return;}
