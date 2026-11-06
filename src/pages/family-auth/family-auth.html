@@ -1,0 +1,37 @@
+<main class="family-auth-shell">
+  <section class="family-auth-card" aria-live="polite">
+    <a class="family-auth-brand" href="/">NIEUWJAAR</a>
+    <section data-panel="login">
+      <p class="family-auth-eyebrow">FAMILIEPORTAAL</p><h1>Samen vieren.</h1>
+      <p class="family-auth-intro">Meld je aan om jullie inschrijving te bekijken en verder te beheren.</p>
+      <form data-form="login">
+        <label for="family-email">E-mailadres</label><input id="family-email" name="email" type="email" autocomplete="username" required maxlength="254">
+        <label for="family-password">Wachtwoord</label><input id="family-password" name="password" type="password" autocomplete="current-password" required>
+        <button class="family-auth-button" type="submit">Aanmelden</button>
+      </form>
+      <button class="family-auth-link" type="button" data-action="show-forgot">Wachtwoord vergeten?</button>
+    </section>
+    <section data-panel="forgot" hidden>
+      <p class="family-auth-eyebrow">ACCOUNT HERSTELLEN</p><h1>Nieuw wachtwoord aanvragen</h1>
+      <p class="family-auth-intro">Vul het e-mailadres van je account in. Als het gekend is, ontvang je een herstelmail.</p>
+      <form data-form="forgot"><label for="forgot-email">E-mailadres</label><input id="forgot-email" name="email" type="email" autocomplete="email" required maxlength="254><button class="family-auth-button" type="submit">Herstelmail aanvragen</button></form>
+      <button class="family-auth-link" type="button" data-action="show-login">Terug naar aanmelden</button>
+    </section>
+    <section data-panel="activate" hidden>
+      <p class="family-auth-eyebrow">ACCOUNT ACTIVEREN</p><h1>Welkom bij Nieuwjaar.</h1>
+      <p class="family-auth-intro">Kies een wachtwoord van minstens 12 tekens om je account te activeren.</p>
+      <form data-form="activate"><label for="display-name">Naam</label><input id="display-name" name="displayName" autocomplete="name" maxlength="100" required><label for="activate-password">Nieuw wachtwoord</label><input id="activate-password" name="password" type="password" autocomplete="new-password" minlength="12" required><label for="activate-confirm">Herhaal wachtwoord</label><input id="activate-confirm" name="confirm" type="password" autocomplete="new-password" minlength="12" required><button class="family-auth-button" type="submit">Account activeren</button></form>
+    </section>
+    <section data-panel="reset" hidden>
+      <p class="family-auth-eyebrow">ACCOUNT HERSTELLEN</p><h1>Kies een nieuw wachtwoord.</h1>
+      <form data-form="reset"><label for="reset-password">Nieuw wachtwoord</label><input id="reset-password" name="password" type="password" autocomplete="new-password" minlength="12" required><label for="reset-confirm">Herhaal wachtwoord</label><input id="reset-confirm" name="confirm" type="password" autocomplete="new-password" minlength="12" required><button class="family-auth-button" type="submit">Wachtwoord opslaan</button></form>
+    </section>
+    <section data-panel="account" hidden>
+      <p class="family-auth-eyebrow">FAMILIEPORTAAL</p><h1 data-account-heading>Welkom.</h1><p class="family-auth-intro" data-account-email></p>
+      <div class="family-auth-notice">Je account is actief. De koppeling met de inschrijvingsgegevens wordt in de volgende stap afgewerkt. Je bestaande persoonlijke gezinslink blijft voorlopig beschikbaar.</div>
+      <button class="family-auth-button" type="button" data-action="logout">Afmelden</button>
+    </section>
+    <p class="family-auth-feedback" data-feedback role="status" hidden></p>
+    <p class="family-auth-footnote">Hulp nodig? Neem contact op met de organisatie.</p>
+  </section>
+</main>
