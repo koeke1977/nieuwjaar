@@ -183,3 +183,26 @@ De concrete boekingswijze en verdeling van inkomsten wordt als afzonderlijke bus
 - Historische edities onveranderlijk bewaren.
 - Een nieuwe editie kunnen starten op basis van vorige groepen, personen en catalogus.
 - Leden, groepssamenstellingen en categorieën per editie kunnen aanpassen zonder oude edities te wijzigen.
+
+
+## 8. Besluit onboarding voor de nieuwe app
+
+De standaard onboarding wordt bewust vereenvoudigd tot twee keuzes:
+
+1. **Gezin:** de inschrijver geeft een gezinsnaam op en voegt alle leden toe. Per lid wordt de categorie volwassene of kind vastgelegd.
+2. **Alleen:** één persoon schrijft zichzelf in en kiest volwassene of kind.
+
+Een inschrijving (gezin of alleenstaande) is de standaard rekeneenheid voor bestellingen en afrekening. Er is geen algemene vrije groepsbeheerlaag nodig. De individuele leden blijven wel apart opgeslagen om verdeelsleutels per volwassene/kind correct te kunnen berekenen.
+
+## 9. Vleescatalogus per editie
+
+De acht vleescategorieën uit de oude Excel zijn uitsluitend historische gegevens en vormen geen vast gamma voor toekomstige edities.
+
+De organisator/beheerder moet voor elke nieuwe editie zelf het actuele vleesgamma kunnen beheren:
+- vleesproduct toevoegen;
+- naam en eventueel korte omschrijving aanpassen;
+- product activeren of deactiveren;
+- productvolgorde bepalen;
+- producten met bestaande bestellingen niet hard verwijderen, maar archiveren of deactiveren.
+
+De deelnemers zien uitsluitend de actieve producten van de huidige editie. Een nieuwe editie kan desgewenst een kopie van het vorige gamma starten, waarna de beheerder het aanbod aanpast voordat de bestellingen openen. De oude editie en haar bestellingen blijven ongewijzigd.
