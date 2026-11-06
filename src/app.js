@@ -52,7 +52,8 @@ function scheduleAdminStateSave() {
 }
 async function loadFamilyInvites() {
   if (!adminAuthenticated) return;
-  const response = await fetch("/api/admin/family-invites", { credentials: "same-origin" });
+  const environment = state.activeEnvironment;
+  const response = await fetch(`/api/admin/family-invites?environment=${encodeURIComponent(environment)}`, { credentials: "same-origin" });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Gezinslinks konden niet worden geladen.");
   setFamilyInvites(result.invites || []);
@@ -102,7 +103,7 @@ function handleClick(event) {
   if(action.dataset.action==="revoke-family-invite"){
     if(!window.confirm("Deze persoonlijke gezinslink intrekken? De link en bestaande sessies verliezen onmiddellijk toegang."))return;
     (async()=>{try{
-      const response=await fetch(`/api/admin/family-invites/${encodeURIComponent(action.dataset.id)}`,{method:"DELETE",credentials:"same-origin"});
+      const response=await fetch(`/api/admin/family-invites/${encodeURIComponent(action.dataset.id)}?environment=${encodeURIComponent(state.activeEnvironment)}`,{method:"DELETE",credentials:"same-origin"});
       const result=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(result.error||"Intrekken is niet gelukt.");
       await loadFamilyInvites();renderApp();
@@ -118,7 +119,7 @@ function handleClick(event) {
     const target=action.dataset.environment;
     const label=target==="test"?"de testomgeving":"de echte editie";
     if(!window.confirm(`Wisselen naar ${label}? De gegevens van de huidige omgeving blijven apart bewaard.`))return;
-    (async()=>{try{await flushAdminState();switchEnvironment(target);renderApp();}
+    (async()=>{try{await flushAdminState();switchEnvironment(target);await loadFamilyInvites();renderApp();}
       catch(error){window.alert(error.message);renderApp();}
     })();return;
   }
