@@ -195,6 +195,22 @@ function handleClick(event) {
   }
 }
 async function handleSubmit(event){
+
+  if(event.target.id==="mail-test-form"){
+    event.preventDefault();
+    const form=event.target, button=form.querySelector('button[type="submit"]');
+    const recipient=form.elements.recipient.value.trim();
+    button.disabled=true;button.textContent="Verzenden…";
+    try{
+      const response=await fetch("/api/admin/mail-test",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({recipient})});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||"De testmail kon niet worden verzonden.");
+      window.alert("Testmail verzonden. Controleer ook je ongewenste e-mail.");form.reset();
+    }catch(error){window.alert(error.message||"De testmail kon niet worden verzonden.");}
+    finally{button.disabled=false;button.textContent="Testmail versturen";}
+    return;
+  }
+
   if(event.target.id==="admin-login-form"){event.preventDefault();const form=event.target;const button=form.querySelector("button[type=submit]");button.disabled=true;button.textContent="Even controleren…";loginError="";try{const response=await fetch("/api/admin/login",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:form.elements.password.value})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||"Aanmelden is niet gelukt.");adminAuthenticated=true;try{await loadAdminState();statePersistenceReady=true;await loadFamilyInvites();}catch(loadError){console.error("Admin state load failed:",loadError);}state.activeConsole="admin";state.activeSection="overview";renderApp();}catch(error){loginError=error.message||"Aanmelden is niet gelukt.";renderApp();}return;}
   if(event.target.id==="add-member-form"){event.preventDefault();const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration)return;const form=event.target;const name=form.elements.memberName.value.trim();const type=form.elements.memberType.value;if(!name)return;if(!registration.members?.length&&registration.id!=="koen-isabella"){const replace=window.confirm("Deze inschrijving bevat momenteel alleen historische aantallen, geen namen. De nieuwe ledenlijst vervangt die aantallen. Doorgaan?");if(!replace)return;}registration.members=registration.members||[];registration.members.push({id:makeId("lid"),name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});markCostsProvisional();registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
   if(event.target.id==="add-own-member-form"){
