@@ -1,5 +1,6 @@
 import { state, getGlobalMeatTotals } from "../data/demo-data.js";
 import { money, total, received, outstanding } from "../utils/format.js";
+import { getExpenseShares, getFinancialSummary } from "../utils/finance.js";
 const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function renderMeatTable() {
   const totals=getGlobalMeatTotals();
@@ -55,6 +56,25 @@ function renderPaymentRows() {
   return state.payments.map((payment,index) => { const remaining=Math.max(0,payment.due-payment.paid); const status=remaining===0?'<span class="status success">Betaald</span>':payment.paid>0?'<span class="status warning">Gedeeltelijk</span>':'<span class="status neutral">Openstaand</span>';
     return `<div class="payment-row"><div class="payment-person"><strong>${esc(payment.household)}</strong><small>Te betalen: ${money(payment.due)} · Ontvangen: ${money(payment.paid)}</small></div><div class="payment-right">${status}<button class="button button-small button-outline" data-action="receive" data-index="${index}">+ Ontvangen</button></div></div>`; }).join("");
 }
+
+function renderExpenses() {
+  const methodLabels = { general: "Algemene kost", adults: "18+ kost", meat: "Vleesjeskost" };
+  const summaries = getFinancialSummary(state.registrations, state.expenses);
+  const expenseRows = state.expenses.map(expense => {
+    const payer = state.registrations.find(item => item.id === expense.advancedBy);
+    const shares = getExpenseShares(expense, state.registrations);
+    return `<article class="expense-row"><div class="expense-main"><strong>${esc(expense.description)}</strong><small>${esc(expense.date)} · ${methodLabels[expense.method]} · voorgeschoten door ${esc(payer?.name || "Onbekend")}</small></div><strong>${money(expense.amountCents / 100)}</strong><details class="expense-shares"><summary>Verdeling bekijken</summary><div>${shares.map(share => { const registration=state.registrations.find(item => item.id === share.id); return `<span>${esc(registration?.name || "Onbekend")} <b>${money(share.cents/100)}</b></span>`; }).join("")}</div></details></article>`;
+  }).join("");
+  return `<section class="panel"><div class="section-heading"><div><h2>Gemeenschappelijke kosten</h2><p>Elke uitgave wordt over de volledige groep verdeeld.</p></div><span class="status neutral">${state.expenses.length} uitgaven</span></div>
+  <form class="catalog-add-form expense-form" id="add-expense-form"><label for="expense-description">Nieuwe uitgave registreren</label>
+  <div class="expense-form-grid"><input id="expense-description" name="description" maxlength="120" placeholder="Omschrijving, bv. Beenhouwer" required><input name="amount" type="number" min="0.01" step="0.01" placeholder="Bedrag (€)" required><input name="date" type="date" value="${new Date().toISOString().slice(0,10)}" required><select name="method" aria-label="Verdeelsleutel"><option value="general">Algemene kost – iedereen</option><option value="adults">18+ kost – volwassenen</option><option value="meat">Vleesjeskost – per portie</option></select><select name="advancedBy" aria-label="Voorgeschoten door" required><option value="">Wie schoot voor?</option>${state.registrations.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join("")}</select><button class="button button-dark" type="submit">+ Kost toevoegen</button></div>
+  <p class="catalog-note">De volledige factuur wordt als voorschot toegekend aan de betaler. De kost zelf wordt volgens de gekozen verdeelsleutel verdeeld.</p></form>
+  <div class="expense-list">${expenseRows || '<p class="catalog-note">Nog geen gemeenschappelijke kosten geregistreerd.</p>'}</div></section>
+  <section class="panel"><div class="section-heading"><div><h2>Voorlopige kostenafrekening per inschrijving</h2><p>Voorschotten min het eigen aandeel in alle geregistreerde kosten.</p></div><span class="status neutral">Exclusief betalingen</span></div>
+  <div class="financial-summary-list">${summaries.map(row=>`<div class="financial-summary-row"><div><strong>${esc(row.name)}</strong><small>Voorgeschoten ${money(row.advancedCents/100)} · Eigen aandeel ${money(row.shareCents/100)}</small></div><strong class="${row.balanceCents>=0?"positive":"negative"}">${money(row.balanceCents/100)}</strong></div>`).join("") || '<p class="catalog-note">Voeg eerst inschrijvingen toe.</p>'}</div>
+  <p class="catalog-note">Positief = deze inschrijving heeft meer voorgeschoten dan haar eigen aandeel. Negatief = deze inschrijving moet nog bijdragen. Ontvangen betalingen worden later apart verrekend.</p></section>`;
+}
+
 function renderSettlementPanel() {
   return `<section class="panel"><div class="section-heading"><div><h2>Groepsafrekening</h2><p>Alle individuele saldi samen moeten exact nul zijn.</p></div><span class="status success">Sluitend ontwerp</span></div><div class="settlement-zero"><span>Controle groepssaldo</span><strong>€ 0,00</strong><small>De eindafrekening is in evenwicht.</small></div></section>`;
 }
@@ -70,7 +90,7 @@ export function renderAdminContent(activeSection) {
   if (activeSection==="catalog") return renderCatalogManager();
   if (activeSection==="meat") return `<section class="page-heading"><p class="eyebrow">KEUKEN & BBQ</p><h1>BBQ-totaaloverzicht</h1><p>De globale aantallen voor de slager én de individuele bestellingen per gezin.</p></section><section class="panel meat-overview-panel"><div class="section-heading"><div><h2>Bestelling per vleessoort</h2><p>Alle actieve inschrijvingen samen, inclusief producten zonder bestelling.</p></div><span class="status success">Actuele bestelling</span></div>${renderMeatTable()}<button class="button button-outline" data-action="print">BBQ-lijst afdrukken</button></section><section class="panel order-details-panel"><div class="section-heading"><div><h2>Wie bestelde wat?</h2><p>Detailoverzicht per gezin en per individuele deelnemer.</p></div><button class="button button-outline" data-action="print">Detail afdrukken</button></div>${renderOrderDetails()}</section>`;
   if (activeSection==="payments") return `<section class="page-heading"><p class="eyebrow">KASSA</p><h1>Betalingen ontvangen</h1><p>Registreer cash, overschrijvingen en gedeeltelijke betalingen.</p></section><section class="stats-grid"><article class="stat-card"><strong>${money(received(state.payments))}</strong><small>Ontvangen</small></article><article class="stat-card"><strong>${money(outstanding(state.payments))}</strong><small>Nog te ontvangen</small></article></section><section class="panel"><div class="section-heading"><h2>Betalingslijst</h2><span class="status neutral">${state.payments.length} inschrijvingen</span></div><div class="payment-list">${renderPaymentRows()}</div></section>`;
-  if (activeSection==="expenses") return `<section class="page-heading"><p class="eyebrow">BOEKHOUDING</p><h1>Kosten & inkomsten</h1><p>Alle kosten zijn gemeenschappelijk. De admin kiest per uitgave de verdeelsleutel.</p></section><section class="panel"><h2>Vaste verdeelsleutels</h2><div class="rule-list"><div><b>Algemene kost</b><span>Iedereen – volwassenen en kinderen</span></div><div><b>18+ kost</b><span>Alle volwassenen</span></div><div><b>Vleesjeskost</b><span>Volgens individueel bestelde vleesporties</span></div></div><p class="muted">Het invoerscherm voor kosten en inkomsten volgt in de volgende bouwstap.</p></section>`;
+  if (activeSection==="expenses") return `<section class="page-heading"><p class="eyebrow">BOEKHOUDING</p><h1>Kosten & inkomsten</h1><p>Registreer gemeenschappelijke uitgaven en bekijk hoe ze over de inschrijvingen verdeeld worden.</p></section><section class="panel"><h2>Vaste verdeelsleutels</h2><div class="rule-list"><div><b>Algemene kost</b><span>Iedereen – volwassenen en kinderen</span></div><div><b>18+ kost</b><span>Alle volwassenen</span></div><div><b>Vleesjeskost</b><span>Volgens individueel bestelde vleesporties</span></div></div></section>${renderExpenses()}`;
   if (activeSection==="settlement") return `<section class="page-heading"><p class="eyebrow">AFREKENING</p><h1>Definitieve eindafrekening</h1><p>Alle voorschotten, kosten, inkomsten en ontvangen betalingen in evenwicht.</p></section>${renderSettlementPanel()}`;
   return renderAdminOverview();
 }
