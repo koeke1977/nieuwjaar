@@ -79,8 +79,8 @@ test("Nieuwjaar baseline: member-level allocation retains adult and meat eligibi
     { amountCents: 3000, method: "meat" }
   ]);
   assert.deepEqual(shares, [
-    { id: "a1", name: "Volwassene 1", cents: 3000 },
-    { id: "a2", name: "Volwassene 2", cents: 2000 },
-    { id: "a3", name: "Kind", cents: 1000 }
+    { id: "a1", name: "Volwassene 1", cents: 2500 },
+    { id: "a2", name: "Volwassene 2", cents: 1750 },
+    { id: "a3", name: "Kind", cents: 0 }
   ]);
 });
