@@ -3,11 +3,18 @@ const FAMILY_ACCOUNT_COOKIE = "ny_family_account";
 const FAMILY_ACCOUNT_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 async function hashPassword(password) {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iterations = 100000;
-  const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
-  return "pbkdf2$" + iterations + "$" + base64Url(salt) + "$" + base64Url(new Uint8Array(bits));
+  try {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iterations = 100000;
+    const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
+    return "pbkdf2$" + iterations + "$" + base64Url(salt) + "$" + base64Url(new Uint8Array(bits));
+  } catch (error) {
+    const name = typeof error?.name === "string" ? error.name : "Error";
+    const message = typeof error?.message === "string" ? error.message : "Onbekende Web Crypto-fout";
+    console.error("Family account password hashing failed:", { name, message, stack: error?.stack || "" });
+    throw new Error("Family account password hashing failed (" + name + "): " + message);
+  }
 }
 
 async function verifyFamilyPassword(password, stored) {
