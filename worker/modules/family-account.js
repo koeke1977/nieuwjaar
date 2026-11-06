@@ -29,14 +29,14 @@ function familyAccountCookie(value, maxAge) {
   return FAMILY_ACCOUNT_COOKIE + "=" + value + "; HttpOnly; Secure; SameSite=Strict; Path=/api/family-account; Max-Age=" + maxAge;
 }
 
-async function createFamilyAccountSession(env, userId, now) {
+async function createFamilyAccountSession(env, userId, now, sha256, base64Url) {
   const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
   await env.DB.prepare("INSERT INTO family_user_sessions (user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?)")
     .bind(userId, await sha256(token), now, now + FAMILY_ACCOUNT_TTL_SECONDS).run();
   return token;
 }
 
-async function familyAccountSession(request, env) {
+async function familyAccountSession(request, env, cookieValue, sha256) {
   const token = cookieValue(request, FAMILY_ACCOUNT_COOKIE);
   if (!token) return null;
   return env.DB.prepare(
@@ -62,13 +62,13 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     const user = await env.DB.prepare("SELECT id, password_hash, status FROM family_users WHERE email = ?").bind(email).first();
     const valid = user?.status === "active" && user.password_hash ? await verifyFamilyPassword(password, user.password_hash) : false;
     if (!valid) return json({ error: "E-mailadres of wachtwoord is niet correct." }, 401);
-    const token = await createFamilyAccountSession(env, user.id, now);
+    const token = await createFamilyAccountSession(env, user.id, now, sha256, base64Url);
     await env.DB.prepare("UPDATE family_users SET last_login_at = ?, updated_at = ? WHERE id = ?").bind(now, now, user.id).run();
     return json({ authenticated: true }, 200, { "Set-Cookie": familyAccountCookie(token, FAMILY_ACCOUNT_TTL_SECONDS) });
   }
 
   if (path === "/api/family-account/session" && request.method === "GET") {
-    const session = await familyAccountSession(request, env);
+    const session = await familyAccountSession(request, env, cookieValue, sha256);
     if (!session) return json({ authenticated: false }, 200, { "Set-Cookie": familyAccountCookie("", 0) });
     const registrations = await env.DB.prepare(
       "SELECT edition_id, registration_id FROM family_user_registrations WHERE user_id = ? ORDER BY edition_id"
@@ -103,7 +103,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     if (!updated) return json({ error: "Deze activatielink is al gebruikt of verlopen." }, 400);
     await env.DB.prepare("UPDATE family_users SET password_hash = ?, display_name = ?, status = 'active', updated_at = ? WHERE id = ? AND status = 'invited'")
       .bind(passwordHash, displayName, now, invite.user_id).run();
-    const sessionToken = await createFamilyAccountSession(env, invite.user_id, now);
+    const sessionToken = await createFamilyAccountSession(env, invite.user_id, now, sha256, base64Url);
     return json({ activated: true }, 200, { "Set-Cookie": familyAccountCookie(sessionToken, FAMILY_ACCOUNT_TTL_SECONDS) });
   }
 
