@@ -245,6 +245,42 @@ async function handleAdminApi(request, env, url) {
     return json({ revoked: true });
   }
 
+  if (url.pathname === "/api/admin/product-image" && request.method === "POST") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    if (!env.PHOTOS) return json({ error: "Foto-opslag is nog niet gekoppeld aan de Worker." }, 503);
+    const session = await adminSession(request, env);
+    if (!session) return json({ error: "Niet aangemeld." }, 401);
+    const form = await request.formData().catch(() => null);
+    const file = form?.get("file");
+    const productId = form?.get("productId");
+    const environment = form?.get("environment");
+    if (!(file instanceof File) || !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+        file.size < 1 || file.size > 5 * 1024 * 1024 ||
+        typeof productId !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(productId) ||
+        !["test", "live"].includes(environment)) {
+      return json({ error: "Ongeldig afbeeldingsbestand. Gebruik JPG, PNG of WebP tot 5 MB." }, 400);
+    }
+    const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
+    const key = `products/${environment}/${productId}-${crypto.randomUUID()}.${extension}`;
+    await env.PHOTOS.put(key, await file.arrayBuffer(), {
+      httpMetadata: { contentType: file.type, cacheControl: "public, max-age=31536000, immutable" }
+    });
+    return json({ image: `/media/${key}` }, 201);
+  }
+
+  if (url.pathname === "/api/admin/product-image" && request.method === "DELETE") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const session = await adminSession(request, env);
+    if (!session) return json({ error: "Niet aangemeld." }, 401);
+    if (!env.PHOTOS) return json({ error: "Foto-opslag is nog niet gekoppeld aan de Worker." }, 503);
+    const body = await request.json().catch(() => null);
+    const image = typeof body?.image === "string" ? body.image : "";
+    const match = image.match(/^\\/media\\/(products\\/(?:test|live)\\/[A-Za-z0-9_-]+-[0-9a-f-]+\\.(?:jpg|png|webp))$/i);
+    if (!match) return json({ error: "Ongeldige fotoverwijzing." }, 400);
+    await env.PHOTOS.delete(match[1]);
+    return json({ deleted: true });
+  }
+
   if (url.pathname === "/api/admin/state" && request.method === "GET") {
     const session = await adminSession(request, env);
     if (!session) return json({ error: "Niet aangemeld." }, 401);
@@ -309,6 +345,19 @@ export default {
           environment: env.ENVIRONMENT || "development",
           database: Boolean(env.DB)
         });
+      }
+
+      if (url.pathname.startsWith("/media/") && request.method === "GET") {
+        if (!env.PHOTOS) return new Response("Foto-opslag niet beschikbaar.", { status: 503 });
+        const key = url.pathname.slice("/media/".length);
+        if (!/^products\\/(?:test|live)\\/[A-Za-z0-9_-]+-[0-9a-f-]+\\.(?:jpg|png|webp)$/i.test(key)) return new Response("Niet gevonden.", { status: 404 });
+        const object = await env.PHOTOS.get(key);
+        if (!object) return new Response("Niet gevonden.", { status: 404 });
+        const headers = new Headers();
+        object.writeHttpMetadata(headers);
+        headers.set("ETag", object.httpEtag);
+        headers.set("Cache-Control", "public, max-age=31536000, immutable");
+        return new Response(object.body, { headers });
       }
 
       if (url.pathname.startsWith("/api/family/")) {
