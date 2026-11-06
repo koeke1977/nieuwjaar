@@ -7,6 +7,7 @@ let saving = false;
 let notice = "";
 let error = "";
 let bound = false;
+let revision = null;
 
 function render() {
   const registration = state.registrations.find(row => row.id === state.activeRegistrationId);
@@ -22,10 +23,12 @@ async function saveRegistration() {
   if (!registration) return;
   saving = true; notice = "Wijzigingen opslaan…"; error = ""; render();
   try {
-    const response = await fetch("/api/family/registration", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ members: registration.members || [] }) });
+    const response = await fetch("/api/family/registration", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ members: registration.members || [], revision }) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Opslaan is niet gelukt.");
-    Object.assign(registration, result.registration); notice = "Alles is bewaard.";
+    Object.assign(registration, result.registration);
+    revision = result.revision;
+    notice = "Alles is bewaard.";
   } catch (e) { error = e.message || "Opslaan is niet gelukt."; }
   finally { saving = false; render(); }
 }
@@ -96,6 +99,8 @@ async function load(token) {
     state.registrations = data.registrations || [data.registration]; state.activeRegistrationId = data.registration.id;
     state.managingRegistrationId = data.registration.id; state.catalog = data.catalog || []; state.expenses = data.expenses || [];
     state.payments = data.payments || []; state.costsFinalized = Boolean(data.costsFinalized); state.activeEvent = data.edition || state.activeEvent;
+    revision = data.revision ?? null;
+    history.replaceState({}, "", "/familie/");
     state.activeConsole = "user"; state.activeSection = "overview";
     if (!bound) { document.addEventListener("click", handleClick, true); document.addEventListener("submit", handleSubmit, true); bound = true; }
     notice = "Jullie persoonlijke inschrijving is geladen."; render();
