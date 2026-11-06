@@ -6,7 +6,7 @@ function renderPersonEditor(person) {
   const products = state.catalog.filter(item => item.active);
   return `<div class="person-order-editor"><p>Bestelling voor <strong>${esc(person.name)}</strong></p><div class="person-order-grid">${products.map(product => {
     const count = Number(person.orders[product.id]) || 0;
-    return `<div class="person-order-item"><span>${esc(product.name)}</span><div class="quantity-control"><button type="button" data-action="change-quantity" data-person-id="${esc(person.id)}" data-product="${esc(product.id)}" data-delta="-1" ${count===0?"disabled":""}>−</button><strong>${count}</strong><button type="button" data-action="change-quantity" data-person="${esc(person.name)}" data-product="${esc(product.id)}" data-delta="1">+</button></div></div>`;
+    return `<div class="person-order-item"><span>${esc(product.name)}</span><div class="quantity-control"><button type="button" data-action="change-quantity" data-person-id="${esc(person.id)}" data-product="${esc(product.id)}" data-delta="-1" ${count===0?"disabled":""}>−</button><strong>${count}</strong><button type="button" data-action="change-quantity" data-person-id="${esc(person.id)}" data-product="${esc(product.id)}" data-delta="1">+</button></div></div>`;
   }).join("")}</div><button class="button button-small button-outline" data-action="close-order-editor">Gereed</button></div>`;
 }
 function renderMeatPanel(compact = false) {
