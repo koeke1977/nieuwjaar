@@ -9,7 +9,7 @@ function json(data, status = 200, headers = {}) {
 function base64Url(bytes) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/=/g, "").replace(/\\+/g, "-").replace(/\\//g, "_");
+  return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
 function fromBase64Url(value) {
@@ -82,7 +82,6 @@ async function handleAdminApi(request, env, url) {
     }
     const tokenBytes = crypto.getRandomValues(new Uint8Array(32));
     const token = base64Url(tokenBytes);
-    const now = Math.floor(Date.now() / 1000);
     await env.DB.prepare("INSERT INTO admin_sessions (token_hash, created_at, expires_at) VALUES (?, ?, ?)")
       .bind(await sha256(token), now, now + SESSION_TTL_SECONDS).run();
     return json({ authenticated: true, expiresAt: now + SESSION_TTL_SECONDS }, 200, {
