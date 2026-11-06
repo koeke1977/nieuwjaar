@@ -4,6 +4,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const fields = [
   "activeEvent",
   "expenses",
+  "editionArchive",
   "costsFinalized",
   "costsFinalizedAt",
   "registrations",
@@ -38,6 +39,7 @@ const liveCatalog = clone(state.catalog).map(product => ({ ...product, image: nu
 const initialLiveData = {
   activeEvent: { id: "nieuwjaar-2026-2027-live", name: "Nieuwjaar 2026–2027", status: "active" },
   expenses: [],
+  editionArchive: [],
   costsFinalized: false,
   costsFinalizedAt: null,
   registrations: [],
