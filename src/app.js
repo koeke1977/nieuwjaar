@@ -1,8 +1,7 @@
 import { startFamilyPortal } from "./pages/family-portal.js";
 import { state, getActiveFamily } from "./data/demo-data.js";
 import { renderHeader } from "./components/header.js";
-import { renderUserNavigation, renderAdminNavigation } from "./components/navigation.js";
-import { renderUserContent } from "./pages/user.js";
+import { renderAdminNavigation } from "./components/navigation.js";
 import { renderAdminContent, setFamilyInvites } from "./pages/admin.js";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
@@ -57,6 +56,16 @@ async function loadFamilyInvites() {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Gezinslinks konden niet worden geladen.");
   setFamilyInvites(result.invites || []);
+}
+function renderLandingPage() {
+  document.querySelector("#app").innerHTML = `
+    <main style="min-height:100vh;display:grid;place-items:center;padding:32px 20px;background:#f5f3ef;color:#242424;font-family:inherit;text-align:center">
+      <section style="width:min(100%,520px);padding:48px 32px;background:#fff;border:1px solid #e8e4dd;border-radius:20px;box-shadow:0 18px 55px rgba(35,30,20,.07)">
+        <p style="margin:0 0 16px;font-size:12px;letter-spacing:.2em;font-weight:700;color:#9a8058">NIEUWJAAR</p>
+        <h1 style="margin:0 0 16px;font-size:clamp(30px,6vw,42px);line-height:1.1">Samen vieren.</h1>
+        <p style="margin:0;color:#68645e;font-size:16px;line-height:1.7">Het deelnemersportaal is persoonlijk toegankelijk via de gezinslink die je ontvangen hebt.</p>
+      </section>
+    </main>`;
 }
 function renderAdminLogin() { return `<main class="admin-login-shell"><section class="admin-login-card"><p class="eyebrow">NIEUWJAAR · ORGANISATIE</p><h1>Admin aanmelden</h1><p>Deze omgeving is uitsluitend toegankelijk voor de organisator.</p><form id="admin-login-form"><label for="admin-password">Adminwachtwoord</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required>${loginError ? `<p class="admin-login-error" role="alert">${loginError}</p>` : ""}<button class="button button-dark full" type="submit">Aanmelden</button></form></section></main>`; }
 function renderApp() {
@@ -319,7 +328,8 @@ async function handleImageUpload(event){
 export async function startApp(){
   if (location.pathname.startsWith("/familie/")) { startFamilyPortal(); return; }
   const isAdminRoute = location.pathname === "/beheer" || location.pathname === "/beheer/";
-  state.activeConsole = isAdminRoute ? "admin" : "user";
+  if (!isAdminRoute) { renderLandingPage(); return; }
+  state.activeConsole = "admin";
   state.activeSection = "overview";
   document.addEventListener("click",handleClick);document.addEventListener("submit",handleSubmit);document.addEventListener("change",handleImageUpload);
   try{const response=await fetch("/api/admin/session",{credentials:"same-origin"});const session=await response.json();adminAuthenticated=Boolean(session.authenticated);}catch{adminAuthenticated=false;}
