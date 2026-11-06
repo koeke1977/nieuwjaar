@@ -41,7 +41,7 @@ Elke uitgave krijgt een verdeelsleutel die de organisator kiest, bijvoorbeeld:
 
 De verdeling gebeurt op basis van de effectieve aantallen/gewichten en wordt in eurocenten afgerond. Afrondingsverschillen worden verdeeld zodat de som van de toegewezen bedragen altijd exact gelijk is aan het ingevoerde totaal.
 
-Inkomsten worden apart geregistreerd. Bij de afrekening wordt duidelijk vastgelegd wie het bedrag ontving of voor wie het bedoeld is, zodat inkomsten niet dubbel of verkeerd worden verrekend.
+Inkomsten worden apart geregistreerd. Uitgaven zijn altijd gemeenschappelijke kosten voor de volledige groep; er is geen toewijzing van een uitgave aan één gezin. Bij een uitgave registreren we alleen welke inschrijving (gezin of alleenstaande) het bedrag heeft voorgeschoten. De verdeelsleutel bepaalt hoe de kost over alle deelnemers wordt verdeeld.
 
 Een uitgave bevat minstens omschrijving, bedrag, betaler/aankoper, verdeelsleutel en eventueel notitie of bon. Historische uitgaven blijven gekoppeld aan de editie waarin ze zijn ingevoerd.
 
