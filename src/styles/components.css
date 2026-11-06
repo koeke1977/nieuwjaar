@@ -120,3 +120,19 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
 .cost-finalization.is-provisional{background:#fffaf0;border-color:#f0dfb9}
 .cost-finalization.is-final{background:#f1f8f4;border-color:#cfe8d8}
 @media(max-width:600px){.cost-finalization{align-items:stretch;flex-direction:column}.cost-finalization button{width:100%}}
+
+
+/* Transparante uitsplitsing van gezins- en individuele afrekening */
+.settlement-family{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0;background:#fff}
+.settlement-family .financial-summary-row{border-bottom:1px solid #edf0f2;padding:4px 0 12px}
+.settlement-members{padding:10px 0 4px}
+.settlement-members-heading,.settlement-member-row,.settlement-family-footer{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.settlement-members-heading{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:4px 0 7px}
+.settlement-member-row{font-size:12px;padding:7px 0;border-bottom:1px solid #f0f1f3}
+.settlement-member-row strong,.settlement-family-footer strong{font-variant-numeric:tabular-nums}
+.settlement-family-footer{padding-top:11px;margin-top:4px;font-size:12px;font-weight:700}
+.member-cost-breakdown{margin:18px 0;padding:14px;background:#f8f9fa;border-radius:12px}
+.member-cost-breakdown .section-heading{margin-bottom:8px}
+.member-cost-line{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #e9edf0;font-size:12px}
+.member-cost-line:last-child{border-bottom:0}
+.member-cost-line strong{font-variant-numeric:tabular-nums}
