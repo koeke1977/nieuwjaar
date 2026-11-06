@@ -5,6 +5,7 @@ import { renderUserContent } from "./pages/user.js";
 import { renderAdminContent } from "./pages/admin.js";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
+const markCostsProvisional = () => { state.costsFinalized=false; state.costsFinalizedAt=null; };
 const makeId = (prefix = "lid") => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 function renderApp() {
   const isAdmin=state.activeConsole==="admin";
@@ -18,12 +19,15 @@ function handleClick(event) {
   const action=event.target.closest("[data-action]");
   if(!action)return;
   if(action.dataset.action==="edit-expense"){state.editingExpenseId=action.dataset.id;renderApp();return;}
+  if(action.dataset.action==="finalize-costs"){if(!window.confirm("Bevestig je dat alle kosten en facturen voor deze editie zijn ontvangen en ingevoerd? Daarna worden de bedragen als definitief getoond."))return;state.costsFinalized=true;state.costsFinalizedAt=new Date().toISOString();renderApp();return;}
+  if(action.dataset.action==="reopen-costs"){if(!window.confirm("De eindafrekening opnieuw voorlopig maken?"))return;markCostsProvisional();renderApp();return;}
   if(action.dataset.action==="cancel-edit-expense"){state.editingExpenseId=null;renderApp();return;}
   if(action.dataset.action==="delete-expense"){
     const expense=state.expenses.find(item=>item.id===action.dataset.id);
     if(!expense)return;
     if(!window.confirm(`Verwijder de kost "${expense.description}" van ${money(expense.amountCents/100)} definitief? De verdeling en saldi worden opnieuw berekend.`))return;
     state.expenses=state.expenses.filter(item=>item.id!==expense.id);
+    markCostsProvisional();
     renderApp();return;
   }
   if(action.dataset.action==="delete-payment"){
@@ -37,7 +41,7 @@ function handleClick(event) {
   if(action.dataset.action==="change-quantity"){
     const person=getActiveFamily().members.find(item=>item.id===action.dataset.personId);
     const product=state.catalog.find(item=>item.id===action.dataset.product);
-    if(person&&product){const current=Number(person.orders[product.id])||0;person.orders[product.id]=Math.max(0,current+Number(action.dataset.delta));renderApp();}
+    if(person&&product){const current=Number(person.orders[product.id])||0;person.orders[product.id]=Math.max(0,current+Number(action.dataset.delta));markCostsProvisional();renderApp();}
   }
   if(action.dataset.action==="edit-own-member"||action.dataset.action==="delete-own-member"){
     const registration=state.registrations.find(item=>item.id===state.activeRegistrationId);
@@ -50,6 +54,7 @@ function handleClick(event) {
       if(members.length<=1){window.alert("Een inschrijving moet minstens één deelnemer bevatten.");return;}
       if(!window.confirm(`Verwijder ${member.name} uit jullie inschrijving?`))return;
       members.splice(index,1);
+      markCostsProvisional();
     }
     registration.adults=members.filter(person=>person.type==="Volwassene").length;
     registration.children=members.filter(person=>person.type==="Kind").length;
@@ -59,14 +64,14 @@ function handleClick(event) {
   if(action.dataset.action==="edit-member"){state.editingAdminMemberIndex=Number(action.dataset.index);renderApp();return;}
   if(action.dataset.action==="cancel-edit-admin-member"){state.editingAdminMemberIndex=null;renderApp();return;}
   if(action.dataset.action==="cancel-edit-own-member"){state.editingOwnMemberIndex=null;renderApp();return;}
-  if(action.dataset.action==="delete-member"){const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration?.members)return;const index=Number(action.dataset.index);if(!window.confirm(`Verwijder ${registration.members[index]?.name || 'dit lid'} uit deze inschrijving?`))return;registration.members.splice(index,1);registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
+  if(action.dataset.action==="delete-member"){const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration?.members)return;const index=Number(action.dataset.index);if(!window.confirm(`Verwijder ${registration.members[index]?.name || 'dit lid'} uit deze inschrijving?`))return;registration.members.splice(index,1);markCostsProvisional();registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
   if(action.dataset.action==="edit-registration"){const item=state.registrations.find(row=>row.id===action.dataset.id);if(!item)return;const name=window.prompt("Naam van de inschrijving:",item.name);if(name===null)return;const adults=window.prompt("Aantal volwassenen (18+):",String(item.adults));if(adults===null)return;const children=window.prompt("Aantal kinderen:",String(item.children));if(children===null)return;const adultCount=Number(adults),childCount=Number(children);if(!name.trim()||!Number.isInteger(adultCount)||!Number.isInteger(childCount)||adultCount<0||childCount<0||adultCount+childCount<1){window.alert("Controleer de naam en aantallen. Er moet minstens één deelnemer zijn.");return;}item.name=name.trim();item.adults=adultCount;item.children=childCount;renderApp();}
   if(action.dataset.action==="print")window.print();
   if(action.dataset.action==="toggle-product"){const product=state.catalog.find(item=>item.id===action.dataset.id);if(product)product.active=!product.active;renderApp();}
   if(action.dataset.action==="remove-image"){const product=state.catalog.find(item=>item.id===action.dataset.id);if(product)product.image=null;renderApp();}
 }
 function handleSubmit(event){
-  if(event.target.id==="add-member-form"){event.preventDefault();const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration)return;const form=event.target;const name=form.elements.memberName.value.trim();const type=form.elements.memberType.value;if(!name)return;if(!registration.members?.length&&registration.id!=="koen-isabella"){const replace=window.confirm("Deze inschrijving bevat momenteel alleen historische aantallen, geen namen. De nieuwe ledenlijst vervangt die aantallen. Doorgaan?");if(!replace)return;}registration.members=registration.members||[];registration.members.push({id:makeId("lid"),name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
+  if(event.target.id==="add-member-form"){event.preventDefault();const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration)return;const form=event.target;const name=form.elements.memberName.value.trim();const type=form.elements.memberType.value;if(!name)return;if(!registration.members?.length&&registration.id!=="koen-isabella"){const replace=window.confirm("Deze inschrijving bevat momenteel alleen historische aantallen, geen namen. De nieuwe ledenlijst vervangt die aantallen. Doorgaan?");if(!replace)return;}registration.members=registration.members||[];registration.members.push({id:makeId("lid"),name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});markCostsProvisional();registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
   if(event.target.id==="add-own-member-form"){
     event.preventDefault();
     const registration=state.registrations.find(item=>item.id===state.activeRegistrationId);
@@ -116,6 +121,7 @@ function handleSubmit(event){
     const updated={...expense,description,amountCents,date,method,advancedBy};
     try{getExpenseShares(updated,state.registrations);}catch(error){window.alert(error.message);return;}
     Object.assign(expense,updated);
+    markCostsProvisional();
     state.editingExpenseId=null;
     renderApp();return;
   }
@@ -153,9 +159,10 @@ function handleSubmit(event){
     const expense={id:makeId("kost"),eventId:state.activeEvent.id,description,amountCents,date,method,advancedBy};
     try { getExpenseShares(expense,state.registrations); } catch(error){ window.alert(error.message); return; }
     state.expenses.push(expense);
+    markCostsProvisional();
     renderApp();return;
   }
-  if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();const adults=Number(form.elements.adults.value);const children=Number(form.elements.children.value);if(!name||!Number.isInteger(adults)||!Number.isInteger(children)||adults<0||children<0||adults+children<1){window.alert("Vul een naam en minstens één deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults,children,members:[],financial:{advanced:0,share:0,bring:0}});renderApp();return;}
+  if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();const adults=Number(form.elements.adults.value);const children=Number(form.elements.children.value);if(!name||!Number.isInteger(adults)||!Number.isInteger(children)||adults<0||children<0||adults+children<1){window.alert("Vul een naam en minstens één deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults,children,members:[],financial:{advanced:0,share:0,bring:0}});markCostsProvisional();renderApp();return;}
   if(event.target.id!=="add-product-form")return;event.preventDefault();
   const name=event.target.elements.productName.value.trim();if(!name)return;
   if(state.catalog.some(item=>item.name.toLowerCase()===name.toLowerCase())){window.alert("Dit product bestaat al in de catalogus.");return;}
