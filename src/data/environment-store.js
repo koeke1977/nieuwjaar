@@ -81,7 +81,12 @@ const clonePersisted = value => JSON.parse(JSON.stringify(value));
 
 export function getPersistableEnvironmentData() {
   state.environmentData[state.activeEnvironment] = captureEnvironment();
-  return clonePersisted(state.environmentData);
+  const snapshot = clonePersisted(state.environmentData);
+  for (const environment of ["test", "live"]) {
+    snapshot[environment].catalog = (snapshot[environment].catalog || []).map(product => ({ ...product, image: null }));
+    snapshot[environment].editionArchive = (snapshot[environment].editionArchive || []).map(edition => ({ ...edition, catalog: (edition.catalog || []).map(product => ({ ...product, image: null })) }));
+  }
+  return snapshot;
 }
 
 export function restorePersistedEnvironmentData(environments) {
