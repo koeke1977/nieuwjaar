@@ -43,7 +43,7 @@ function renderAdminLogin() { return `<main class="admin-login-shell"><section c
 function renderApp() {
   if (state.activeConsole === "admin" && !adminAuthenticated) { document.querySelector("#app").innerHTML=renderAdminLogin(); return; }
   const isAdmin=state.activeConsole==="admin";
-  const persistenceNotice=persistenceError?"<div class=\"environment-notice\">Opslag is niet beschikbaar. Wijzigingen worden momenteel niet bewaard; controleer de verbinding en database-migratie.</div>":"";
+  const persistenceNotice=persistenceError?`<div class="environment-notice" role="alert">${persistenceError.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")} Lokale wijzigingen zijn niet opgeslagen. Herlaad de admin om de nieuwste gegevens op te halen.</div>`:"";
   const environmentNotice=state.activeEnvironment==="test"?'<div class="environment-notice">TESTOMGEVING · Wijzigingen zijn alleen testgegevens en staan los van de echte editie.</div>':"";
   document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${isAdmin?'<div class="admin-session-bar"><span>Beveiligde admin-sessie</span><button class="text-button" data-action="admin-logout">Uitloggen</button></div>':""}${persistenceNotice}${environmentNotice}${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
   if (state.activeConsole === "admin") scheduleAdminStateSave();
