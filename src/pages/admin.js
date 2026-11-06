@@ -51,7 +51,40 @@ function renderRegistrations() {
   ${state.registrations.length ? `<div class="registration-list">${state.registrations.map(item=>`<article class="registration-row"><div class="registration-name"><strong>${esc(item.name)}</strong><small>${item.adults} volwassenen · ${item.children} kinderen</small></div><strong class="registration-total">${item.adults+item.children}</strong><button class="button button-small button-outline" data-action="manage-members" data-id="${esc(item.id)}">Leden beheren</button></article>`).join("")}</div>` : '<p class="catalog-note">Nog geen inschrijvingen voor deze editie.</p>'}
   </section>
   ${state.registrations.some(item=>item.id===state.managingRegistrationId) ? renderMemberManager(state.registrations.find(item=>item.id===state.managingRegistrationId)) : ""}
-  <details class="panel archive-panel"><summary><strong>Archief vorige editie</strong> <span class="muted">· ${archivedPeople} deelnemers · alleen lezen</span></summary><p class="catalog-note">Historische aantallen ter referentie. Deze gegevens zijn niet wijzigbaar en tellen niet mee in de huidige editie.</p><div class="registration-list">${state.previousEditionRegistrations.map(item=>`<article class="registration-row"><div class="registration-name"><strong>${esc(item.name)}</strong><small>${item.adults} volwassenen · ${item.children} kinderen</small></div><strong class="registration-total">${item.adults+item.children}</strong><span class="status neutral">Archief</span></article>`).join("")}</div></details>`;
+  <details class="panel archive-panel"><summary><strong>Historische referentie vorige editie</strong> <span class="muted">· ${archivedPeople} deelnemers · alleen lezen</span></summary><p class="catalog-note">Historische aantallen ter referentie. Deze gegevens zijn niet wijzigbaar en tellen niet mee in de huidige editie.</p><div class="registration-list">${state.previousEditionRegistrations.map(item=>`<article class="registration-row"><div class="registration-name"><strong>${esc(item.name)}</strong><small>${item.adults} volwassenen · ${item.children} kinderen</small></div><strong class="registration-total">${item.adults+item.children}</strong><span class="status neutral">Archief</span></article>`).join("")}</div></details>`;
+}
+function renderEditionManagement() {
+  const archives=[...(state.editionArchive||[])].reverse();
+  const current=state.activeEvent;
+  const archiveCards=archives.map(edition=>{
+    const people=(edition.registrations||[]).reduce((sum,row)=>sum+(Number(row.adults)||0)+(Number(row.children)||0),0);
+    const adults=(edition.registrations||[]).reduce((sum,row)=>sum+(Number(row.adults)||0),0);
+    const children=(edition.registrations||[]).reduce((sum,row)=>sum+(Number(row.children)||0),0);
+    const portions=(edition.registrations||[]).flatMap(row=>row.members||[]).reduce((sum,person)=>sum+Object.values(person.orders||{}).reduce((n,value)=>n+(Number(value)||0),0),0);
+    const expenses=(edition.expenses||[]).reduce((sum,item)=>sum+(Number(item.amountCents)||0),0);
+    const payments=(edition.payments||[]).reduce((sum,item)=>sum+(Number(item.amountCents)||0),0);
+    const date=edition.archivedAt?new Date(edition.archivedAt).toLocaleString("nl-BE"):"";
+    return `<details class="edition-archive-card"><summary><span><strong>${esc(edition.event?.name||"Onbenoemde editie")}</strong><small>Afgesloten op ${esc(date)}</small></span><span class="status neutral">${people} deelnemers</span></summary>
+      <div class="edition-archive-stats"><div><b>${(edition.registrations||[]).length}</b><small>Inschrijvingen</small></div><div><b>${adults}</b><small>Volwassenen</small></div><div><b>${children}</b><small>Kinderen</small></div><div><b>${portions}</b><small>Vleesporties</small></div><div><b>${money(expenses/100)}</b><small>Geregistreerde kosten</small></div><div><b>${money(payments/100)}</b><small>Ontvangen betalingen</small></div></div>
+      <h3>Inschrijvingen</h3>
+      ${(edition.registrations||[]).length?`<div class="registration-list">${edition.registrations.map(row=>`<article class="registration-row"><div class="registration-name"><strong>${esc(row.name)}</strong><small>${Number(row.adults)||0} volwassenen · ${Number(row.children)||0} kinderen</small></div><strong class="registration-total">${(Number(row.adults)||0)+(Number(row.children)||0)}</strong><span class="status neutral">Archief</span></article>`).join("")}</div>`:'<p class="catalog-note">Geen inschrijvingen in deze editie.</p>'}
+      <h3>Geregistreerde kosten</h3>
+      ${(edition.expenses||[]).length?`<div class="edition-archive-lines">${edition.expenses.map(item=>`<div><span>${esc(item.date||"")} · ${esc(item.description||"")}</span><b>${money((Number(item.amountCents)||0)/100)}</b></div>`).join("")}</div>`:'<p class="catalog-note">Geen kosten geregistreerd.</p>'}
+      <h3>Vleescatalogus van toen</h3><p class="catalog-note">${(edition.catalog||[]).map(item=>esc(item.name)).join(" · ")||"Geen catalogus bewaard."}</p>
+      <p class="catalog-note">Dit archief is alleen-lezen. De gegevens tellen niet mee in de actieve editie.</p>
+    </details>`;
+  }).join("");
+  return `<section class="page-heading"><p class="eyebrow">JAARLIJKS BEHEER</p><h1>Edities beheren</h1><p>Sluit een editie af, start een nieuw jaar en raadpleeg vorige edities zonder historische gegevens te wijzigen.</p></section>
+    <section class="panel edition-current-panel"><div class="section-heading"><div><h2>Actieve editie</h2><p>Alle nieuwe inschrijvingen, bestellingen en afrekeningen horen bij deze editie.</p></div><span class="status success">Actief</span></div><strong class="edition-current-name">${esc(current?.name||"Geen actieve editie")}</strong><p class="catalog-note">Inschrijvingen: ${state.registrations.length} · Kosten: ${state.expenses.length} · Betalingen: ${state.payments.length}</p></section>
+    <section class="panel"><div class="section-heading"><div><h2>Nieuwe editie starten</h2><p>De huidige editie wordt eerst automatisch en volledig gearchiveerd.</p></div></div>
+      <form id="new-edition-form" class="edition-create-form"><label for="edition-name">Naam van de nieuwe editie</label><input id="edition-name" name="editionName" maxlength="80" placeholder="Bijvoorbeeld: Nieuwjaar 2027–2028" required>
+      <label class="edition-copy-option"><input type="checkbox" name="copyCatalog" checked><span><strong>Vleescatalogus overnemen</strong><small>Producten en foto's kopiëren naar de nieuwe editie. Bestellingen worden niet overgenomen.</small></span></label>
+      <p class="catalog-note">De nieuwe editie start met nul inschrijvingen, nul kosten, nul betalingen en een voorlopige afrekening.</p>
+      <button class="button button-dark" type="submit">Huidige editie archiveren & nieuwe starten</button></form>
+    </section>
+    <section class="panel"><div class="section-heading"><div><h2>Archief</h2><p>Afgesloten edities met hun inschrijvingen, kosten, betalingen en catalogus.</p></div><span class="status neutral">${archives.length} edities</span></div>
+      ${archiveCards||'<p class="catalog-note">Er zijn nog geen edities gearchiveerd.</p>'}
+    </section>`;
 }
 function renderCatalogManager() {
   return `<section class="page-heading"><p class="eyebrow">PRODUCTBEHEER</p><h1>Vleescatalogus</h1><p>Beheer producten en foto's. Deelnemers zien alleen actieve producten.</p></section>
@@ -122,6 +155,7 @@ function renderAdminOverview() {
 }
 export function renderAdminContent(activeSection) {
   if (activeSection==="registrations") return renderRegistrations();
+  if (activeSection==="editions") return renderEditionManagement();
   if (activeSection==="catalog") return renderCatalogManager();
   if (activeSection==="meat") return `<section class="page-heading"><p class="eyebrow">KEUKEN & BBQ</p><h1>BBQ-totaaloverzicht</h1><p>De globale aantallen voor de slager én de individuele bestellingen per gezin.</p></section><section class="panel meat-overview-panel"><div class="section-heading"><div><h2>Bestelling per vleessoort</h2><p>Alle actieve inschrijvingen samen, inclusief producten zonder bestelling.</p></div><span class="status success">Actuele bestelling</span></div>${renderMeatTable()}<button class="button button-outline" data-action="print">BBQ-lijst afdrukken</button></section><section class="panel order-details-panel"><div class="section-heading"><div><h2>Wie bestelde wat?</h2><p>Detailoverzicht per gezin en per individuele deelnemer.</p></div><button class="button button-outline" data-action="print">Detail afdrukken</button></div>${renderOrderDetails()}</section>`;
   if (activeSection==="payments") {
