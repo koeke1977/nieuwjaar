@@ -100,6 +100,12 @@ async function handleFamilyApi(request, env, url) {
       authenticated: true,
       edition: data.activeEvent,
       registration,
+      registrations: (data.registrations || []).map(item => item.id === registration.id ? item : ({
+        id: item.id, name: "", adults: item.adults, children: item.children,
+        members: (item.members || []).map(person => ({ id: person.id, type: person.type, orders: person.orders || {} }))
+      })),
+      expenses: data.expenses || [],
+      payments: data.payments || [],
       catalog: (data.catalog || []).filter(item => item.active).map(({ id, name, image }) => ({ id, name, image: image || null })),
       costsFinalized: Boolean(data.costsFinalized)
     });
