@@ -1,6 +1,6 @@
 import { state, getActiveFamily, getFamilyMeat, getPersonMeatTotal } from "../data/demo-data.js";
 const family = () => getActiveFamily();
-const activeRegistration = () => activeRegistration() || state.registrations[0] || null;
+const activeRegistration = () => state.registrations.find(item => item.id === state.activeRegistrationId) || state.registrations[0] || null;
 import { money, total } from "../utils/format.js";
 import { getMemberCostSummary } from "../utils/finance.js";
 const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
