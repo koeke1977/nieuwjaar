@@ -1,5 +1,18 @@
 export const state = {
   activeConsole: "user", activeSection: "overview", editingMember: null,
+  registrations: [
+    { id:"olivier-kelly", name:"Olivier & Kelly", adults:2, children:2 },
+    { id:"boef-claudia", name:"Boef & Claudia", adults:2, children:2 },
+    { id:"koen-isabella", name:"Koen & Isabella", adults:2, children:2 },
+    { id:"lorenzo-kim", name:"Lorenzo & Kim", adults:2, children:2 },
+    { id:"ben-tina", name:"Ben & Tina", adults:4, children:2 },
+    { id:"inge", name:"Inge", adults:1, children:2 },
+    { id:"jurgen-nathalie", name:"Jurgen & Nathalie", adults:2, children:2 },
+    { id:"filip-nathalie", name:"Filip & Nathalie", adults:2, children:2 },
+    { id:"maaike-jelke", name:"Maaike & Jelke", adults:2, children:0 },
+    { id:"wim-annelies", name:"Wim & Annelies", adults:2, children:3 },
+    { id:"jong-geweld", name:"Jong geweld", adults:11, children:0 }
+  ],
   payments: [
     { household: "Familie Thomaes-Beckers", due: 185, paid: 185, method: "Cash" },
     { household: "Familie Ben-Tina", due: 240, paid: 200, method: "Cash" },
