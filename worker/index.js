@@ -60,6 +60,61 @@ async function adminSession(request, env) {
   return row || null;
 }
 
+async function handleFamilyApi(request, env, url) {
+  if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
+  if (url.pathname === "/api/family/session" && request.method === "POST") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const body = await request.json().catch(() => null);
+    const token = typeof body?.token === "string" ? body.token : "";
+    if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) return json({ error: "Deze gezinslink is ongeldig of ingetrokken." }, 401);
+    const invite = await env.DB.prepare(
+      "SELECT id, edition_id, registration_id FROM family_invites WHERE token_hash = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)"
+    ).bind(await sha256(token), Math.floor(Date.now() / 1000)).first();
+    if (!invite) return json({ error: "Deze gezinslink is ongeldig of ingetrokken." }, 401);
+    const tokenBytes = crypto.getRandomValues(new Uint8Array(32));
+    const sessionToken = base64Url(tokenBytes);
+    const now = Math.floor(Date.now() / 1000);
+    await env.DB.prepare("INSERT INTO family_sessions (token_hash, invite_id, edition_id, registration_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(await sha256(sessionToken), invite.id, invite.edition_id, invite.registration_id, now, now + 30 * 24 * 60 * 60).run();
+    await env.DB.prepare("UPDATE family_invites SET last_used_at = ? WHERE id = ?").bind(now, invite.id).run();
+    return json({ authenticated: true }, 200, {
+      "Set-Cookie": `ny_family=${sessionToken}; HttpOnly; Secure; SameSite=Strict; Path=/api/family; Max-Age=${30 * 24 * 60 * 60}`
+    });
+  }
+  if (url.pathname === "/api/family/session" && request.method === "GET") {
+    const token = cookieValue(request, "ny_family");
+    if (!token) return json({ authenticated: false }, 200);
+    const session = await env.DB.prepare(
+      "SELECT s.edition_id, s.registration_id, s.invite_id FROM family_sessions s JOIN family_invites i ON i.id = s.invite_id WHERE s.token_hash = ? AND s.expires_at > ? AND i.revoked_at IS NULL AND (i.expires_at IS NULL OR i.expires_at > ?)"
+    ).bind(await sha256(token), Math.floor(Date.now() / 1000), Math.floor(Date.now() / 1000)).first();
+    if (!session) return json({ authenticated: false }, 200, {
+      "Set-Cookie": "ny_family=; HttpOnly; Secure; SameSite=Strict; Path=/api/family; Max-Age=0"
+    });
+    const row = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(session.edition_id).first();
+    if (!row) return json({ error: "De editie is niet beschikbaar." }, 404);
+    let data;
+    try { data = JSON.parse(row.data_json); } catch { return json({ error: "De inschrijving kon niet worden gelezen." }, 500); }
+    const registration = (data.registrations || []).find(item => item.id === session.registration_id);
+    if (!registration) return json({ error: "Deze inschrijving bestaat niet meer." }, 404);
+    return json({
+      authenticated: true,
+      edition: data.activeEvent,
+      registration,
+      catalog: (data.catalog || []).filter(item => item.active).map(({ id, name, image }) => ({ id, name, image: image || null })),
+      costsFinalized: Boolean(data.costsFinalized)
+    });
+  }
+  if (url.pathname === "/api/family/logout" && request.method === "POST") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const token = cookieValue(request, "ny_family");
+    if (token) await env.DB.prepare("DELETE FROM family_sessions WHERE token_hash = ?").bind(await sha256(token)).run();
+    return json({ authenticated: false }, 200, {
+      "Set-Cookie": "ny_family=; HttpOnly; Secure; SameSite=Strict; Path=/api/family; Max-Age=0"
+    });
+  }
+  return json({ error: "Niet gevonden." }, 404);
+}
+
 async function handleAdminApi(request, env, url) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
 
@@ -162,7 +217,7 @@ export default {
         });
       }
 
-      if (url.pathname.startsWith("/api/admin/")) {
+      if (url.pathname.startsWith("/api/family/")) {\n        return await handleFamilyApi(request, env, url);\n      }\n\n      if (url.pathname.startsWith("/api/admin/")) {
         return await handleAdminApi(request, env, url);
       }
 
