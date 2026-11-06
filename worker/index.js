@@ -96,6 +96,50 @@ async function handleAdminApi(request, env, url) {
     return json({ authenticated: false }, 200, { "Set-Cookie": cookieHeader("", 0) });
   }
 
+  if (url.pathname === "/api/admin/state" && request.method === "GET") {
+    const session = await adminSession(request, env);
+    if (!session) return json({ error: "Niet aangemeld." }, 401);
+    const rows = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state")
+      .all();
+    const environments = { test: null, live: null };
+    for (const row of rows.results || []) {
+      if (row.environment === "test" || row.environment === "live") {
+        try { environments[row.environment] = JSON.parse(row.data_json); }
+        catch (error) { console.error("Invalid stored app state:", row.environment, error); }
+      }
+    }
+    return json({ environments, updatedAt: rows.results?.reduce((latest, row) => Math.max(latest, row.updated_at || 0), 0) || null });
+  }
+
+  if (url.pathname === "/api/admin/state" && request.method === "PUT") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const session = await adminSession(request, env);
+    if (!session) return json({ error: "Niet aangemeld." }, 401);
+    const body = await request.json().catch(() => null);
+    const environments = body?.environments;
+    if (!environments || typeof environments !== "object" || Array.isArray(environments)) {
+      return json({ error: "Ongeldige gegevensstructuur." }, 400);
+    }
+    const statements = [];
+    for (const environment of ["test", "live"]) {
+      const data = environments[environment];
+      if (!data || typeof data !== "object" || Array.isArray(data) ||
+          !data.activeEvent || typeof data.activeEvent !== "object" ||
+          !Array.isArray(data.registrations) || !Array.isArray(data.expenses) ||
+          !Array.isArray(data.payments) || !Array.isArray(data.catalog) ||
+          !Array.isArray(data.editionArchive)) {
+        return json({ error: `Ongeldige gegevens voor omgeving ${environment}.` }, 400);
+      }
+      const serialized = JSON.stringify(data);
+      if (serialized.length > 1_500_000) return json({ error: "De gegevens zijn te groot om op te slaan." }, 413);
+      statements.push(env.DB.prepare(
+        "INSERT INTO app_state (environment, data_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(environment) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at"
+      ).bind(environment, serialized, Math.floor(Date.now() / 1000)));
+    }
+    await env.DB.batch(statements);
+    return json({ saved: true, updatedAt: Math.floor(Date.now() / 1000) });
+  }
+
   if (url.pathname === "/api/admin/session" && request.method === "GET") {
     const session = await adminSession(request, env);
     return json({ authenticated: Boolean(session), expiresAt: session?.expires_at || null });
@@ -106,21 +150,26 @@ async function handleAdminApi(request, env, url) {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
+    try {
+      const url = new URL(request.url);
 
-    if (url.pathname === "/api/health") {
-      return json({
-        status: "ok",
-        app: "nieuwjaar",
-        environment: env.ENVIRONMENT || "development",
-        database: Boolean(env.DB)
-      });
+      if (url.pathname === "/api/health") {
+        return json({
+          status: "ok",
+          app: "nieuwjaar",
+          environment: env.ENVIRONMENT || "development",
+          database: Boolean(env.DB)
+        });
+      }
+
+      if (url.pathname.startsWith("/api/admin/")) {
+        return await handleAdminApi(request, env, url);
+      }
+
+      return env.ASSETS.fetch(request);
+    } catch (error) {
+      console.error("Nieuwjaar Worker exception:", error);
+      return json({ error: "Interne serverfout." }, 500);
     }
-
-    if (url.pathname.startsWith("/api/admin/")) {
-      return handleAdminApi(request, env, url);
-    }
-
-    return env.ASSETS.fetch(request);
   }
 };
