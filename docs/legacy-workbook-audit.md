@@ -210,13 +210,17 @@ De deelnemers zien uitsluitend de actieve producten van de huidige editie. Een n
 
 ## 10. Kost boeken op een gezin of alleenstaande
 
-Bij iedere uitgave kiest de organisator aan welke inschrijving de uitgave wordt toegerekend als voorschot/betaling. Dat is altijd een gezin of een alleenstaande deelnemer.
+Alle uitgaven zijn altijd gemeenschappelijke kosten voor de volledige nieuwjaarsgroep. Een uitgave wordt dus nooit uitsluitend aan één gezin of deelnemer toegewezen.
 
-Voorbeeld: Koen doet een aankoop en registreert die als betaald door **Gezin Thomaes-Beckers**. De uitgave wordt dus als voorschot aan dat gezin geboekt. De persoon die de registratie in de app invoert, wordt daarnaast automatisch als auditinformatie bewaard. Zo onderscheiden we:
-- **Betaald/voorgeschoten door:** de inschrijving (gezin of alleenstaande) die het bedrag heeft uitgegeven.
-- **Ingevoerd door:** de beheerder die de registratie in de app heeft aangemaakt of aangepast.
+Bij iedere uitgave registreert de organisator:
+- **Bedrag en omschrijving:** de gemeenschappelijke aankoop of kost.
+- **Voorgeschoten door:** de inschrijving (gezin of alleenstaande) die de rekening heeft betaald.
+- **Verdeelsleutel:** bepaalt hoe de volledige groep de kost draagt (iedereen, volwassenen, kinderen, vleesporties of een andere ingestelde regel).
+- **Ingevoerd door:** de beheerder die de registratie heeft aangemaakt of aangepast; dit wordt automatisch als auditinformatie bewaard.
 
-De betaler-inschrijving krijgt het voorschot in de afrekening terug, los van de verdeelsleutel waarmee de kost over alle deelnemers wordt verdeeld.
+Voorbeeld: Koen doet een aankoop van €150 en boekt die als voorgeschoten door **Gezin Thomaes-Beckers**. De volledige €150 wordt over alle deelnemers verdeeld volgens de gekozen verdeelsleutel. Het gezin krijgt de €150 als voorschot in de afrekening terug, naast zijn eigen aandeel in de gemeenschappelijke kosten.
+
+De betaler/voorschieter en de verdeling van de kost zijn dus twee aparte gegevens.
 
 ## 11. Vorig vleesgamma als standaard startpunt
 
