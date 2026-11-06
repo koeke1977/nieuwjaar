@@ -72,7 +72,7 @@ function handleClick(event) {
   }
   if(action.dataset.action==="copy-family-invite"){
     const registrationId=action.dataset.id;
-    const input=action.parentElement.querySelector("input");
+    const input=action.closest(".registration-row")?.nextElementSibling?.querySelector("input");
     if(input?.value){navigator.clipboard?.writeText(input.value).then(()=>window.alert("Gezinslink gekopieerd.")).catch(()=>{input.select();window.alert("Selecteer en kopieer de gezinslink.");});}
     return;
   }
