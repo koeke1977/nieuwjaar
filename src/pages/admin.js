@@ -5,11 +5,11 @@ const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&
 function renderEnvironmentPanel() {
   const isTest = state.activeEnvironment === "test";
   return `<section class="panel environment-panel">
-    <div class="section-heading"><div><h2>Omgeving beheren</h2><p>Test veilig met gezinnen, bestellingen, kosten en betalingen zonder de echte editie te wijzigen.</p></div><span class="status ${isTest?"warning":"success"}">${isTest?"TEST":"PRODUCTIE"}</span></div>
+    <div class="section-heading"><div><h2>Omgeving beheren</h2><p>Test veilig met gezinnen, bestellingen, kosten en betalingen zonder de echte editie te wijzigen.</p></div><span class="status ${isTest?"warning":"success"}">${isTest?"TEST":"ECHTE EDITIE"}</span></div>
     <div class="environment-switch">
       <button class="button ${isTest?"button-dark":"button-outline"}" data-action="switch-environment" data-environment="test" ${isTest?"disabled":""}>Testomgeving</button>
       <button class="button ${!isTest?"button-dark":"button-outline"}" data-action="switch-environment" data-environment="live" ${!isTest?"disabled":""}>Echte editie</button>
-      ${isTest?'<button class="button button-outline danger-text" data-action="reset-test-environment">Testgegevens wissen</button>':""}
+      ${isTest?'<button class="button button-outline danger-text" data-action="reset-test-environment">Testomgeving resetten</button>':""}
     </div>
     <p class="catalog-note">${isTest?"Je werkt momenteel uitsluitend met testgegevens. De echte editie is apart en start leeg.":"Je werkt in de echte editie. Wijzigingen hier zijn geen tests en mogen meetellen voor de uiteindelijke afrekening."} Gegevens blijven in deze prototypeversie alleen tijdens deze browsersessie bewaard; na vernieuwen wordt de beginstand opnieuw geladen.</p>
   </section>`;
