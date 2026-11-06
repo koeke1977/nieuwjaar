@@ -4,6 +4,7 @@ import { renderConsoleSwitcher, renderUserNavigation, renderAdminNavigation } fr
 import { renderUserContent } from "./pages/user.js";
 import { renderAdminContent } from "./pages/admin.js";
 import { money } from "./utils/format.js";
+const makeId = (prefix = "lid") => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 function renderApp() {
   const isAdmin=state.activeConsole==="admin";
   document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
@@ -24,7 +25,7 @@ function handleClick(event) {
   if(action.dataset.action==="edit-order"){state.editingMember=state.editingMember===action.dataset.name?null:action.dataset.name;renderApp();}
   if(action.dataset.action==="close-order-editor"){state.editingMember=null;renderApp();}
   if(action.dataset.action==="change-quantity"){
-    const person=getActiveFamily().members.find(item=>item.name===action.dataset.person);
+    const person=getActiveFamily().members.find(item=>item.id===action.dataset.personId);
     const product=state.catalog.find(item=>item.id===action.dataset.product);
     if(person&&product){const current=Number(person.orders[product.id])||0;person.orders[product.id]=Math.max(0,current+Number(action.dataset.delta));renderApp();}
   }
@@ -57,7 +58,7 @@ function handleClick(event) {
   if(action.dataset.action==="remove-image"){const product=state.catalog.find(item=>item.id===action.dataset.id);if(product)product.image=null;renderApp();}
 }
 function handleSubmit(event){
-  if(event.target.id==="add-member-form"){event.preventDefault();const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration)return;const form=event.target;const name=form.elements.memberName.value.trim();const type=form.elements.memberType.value;if(!name)return;if(!registration.members?.length&&registration.id!=="koen-isabella"){const replace=window.confirm("Deze inschrijving bevat momenteel alleen historische aantallen, geen namen. De nieuwe ledenlijst vervangt die aantallen. Doorgaan?");if(!replace)return;}registration.members=registration.members||[];registration.members.push({name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
+  if(event.target.id==="add-member-form"){event.preventDefault();const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration)return;const form=event.target;const name=form.elements.memberName.value.trim();const type=form.elements.memberType.value;if(!name)return;if(!registration.members?.length&&registration.id!=="koen-isabella"){const replace=window.confirm("Deze inschrijving bevat momenteel alleen historische aantallen, geen namen. De nieuwe ledenlijst vervangt die aantallen. Doorgaan?");if(!replace)return;}registration.members=registration.members||[];registration.members.push({id:makeId("lid"),name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
   if(event.target.id==="add-own-member-form"){
     event.preventDefault();
     const registration=state.registrations.find(item=>item.id===state.activeRegistrationId);
@@ -67,19 +68,7 @@ function handleSubmit(event){
     const type=form.elements.memberType.value;
     if(!name||!["Volwassene","Kind"].includes(type))return;
     registration.members=registration.members||[];
-    registration.members.push({name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});
-    registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;
-    registration.children=registration.members.filter(person=>person.type==="Kind").length;
-    renderApp();return;
-  }
-  if(event.target.id==="add-own-member-form"){
-    event.preventDefault();
-    const registration=state.registrations.find(item=>item.id===state.activeRegistrationId);
-    if(!registration)return;
-    const form=event.target,name=form.elements.memberName.value.trim(),type=form.elements.memberType.value;
-    if(!name||!["Volwassene","Kind"].includes(type))return;
-    registration.members=registration.members||[];
-    registration.members.push({name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});
+    registration.members.push({id:makeId("lid"),name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});
     registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;
     registration.children=registration.members.filter(person=>person.type==="Kind").length;
     renderApp();return;
