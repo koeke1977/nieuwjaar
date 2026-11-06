@@ -20,12 +20,7 @@ export const state = {
     { id:"wim-annelies", name:"Wim & Annelies", adults:2, children:3 },
     { id:"jong-geweld", name:"Jong geweld", adults:11, children:0 }
   ],
-  payments: [
-    { household: "Familie Thomaes-Beckers", due: 185, paid: 185, method: "Cash" },
-    { household: "Familie Ben-Tina", due: 240, paid: 200, method: "Cash" },
-    { household: "Inge", due: 95, paid: 0, method: "—" },
-    { household: "Familie Olivier-Kelly", due: 165, paid: 165, method: "Overschrijving" }
-  ],
+  payments: [],
   previousEditionMeats: [
     { name: "Steak", count: 28 }, { name: "Kip", count: 14 }, { name: "Saté", count: 8 },
     { name: "Worst", count: 15 }, { name: "Hamburger", count: 5 }, { name: "Witte pens", count: 6 },
