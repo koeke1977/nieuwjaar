@@ -50,7 +50,7 @@ Afspraken:
 - Frontend: Vite en vanilla JavaScript/CSS.
 - Backend: Cloudflare Worker.
 - Database: Cloudflare D1 (volgende bouwfase).
-- Optioneel: Cloudflare R2 voor bonnetjes en facturen.
+- Optioneel: Cloudflare R2 voor productfoto’s en bonnetjes.
 - GitHub is de centrale broncode; lokaal ontwikkelen gebeurt vanuit Visual Studio Code.
 - Beoogd adres: `nieuwjaar.datuur.be`.
 - Project blijft volledig gescheiden van andere applicaties.
@@ -132,7 +132,7 @@ Alle bedragen worden intern in eurocenten berekend. Afrondingsresten worden dete
 Inkomsten worden afzonderlijk geregistreerd en mogen niet verward worden met voorschotten of betalingen van deelnemers. De precieze boekingsregel voor inkomsten moet nog finaal worden vastgelegd voordat de financiële backend wordt gebouwd.
 
 Ontvangen betalingen zijn **vereffeningen van een bestaand saldo**, geen nieuwe inkomsten of kosten:
-- De admin kan cash, overschrijving of een andere betaalwijze registreren.
+- De admin registreert uitsluitend betalingen via cash of overschrijving. Online betalingen maken geen deel uit van de applicatie.
 - Gedeeltelijke betalingen zijn toegestaan.
 - Het ontvangen bedrag wordt opgeteld bij de betrokken inschrijving.
 - Het openstaande bedrag wordt onmiddellijk herberekend.
