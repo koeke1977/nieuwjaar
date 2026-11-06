@@ -1,3 +1,4 @@
+import { renderAdminPlatformSection } from "./admin-platform/admin-platform.js";
 import { state, getGlobalMeatTotals } from "../data/demo-data.js";
 import { money, total, received, outstanding } from "../utils/format.js";
 import { getExpenseShares, getFinancialSummary, getMemberCostSummary } from "../utils/finance.js";
@@ -174,6 +175,7 @@ function renderAdminOverview() {
   <section class="panel"><div class="section-heading"><div><h2>Betalingen</h2><p>Stand van de ontvangen bedragen.</p></div></div><div class="payment-summary"><div><span>Ontvangen</span><strong class="positive">${money(receivedCents/100)}</strong></div><div><span>Openstaand</span><strong>${money(remainingCents/100)}</strong></div></div><button class="button button-dark full" data-section="payments">Betaling registreren <span>→</span></button></section></div>${renderMailTestPanel()}${renderFamilyInviteHistory()}${renderSettlementPanel()}`;
 }
 export function renderAdminContent(activeSection) {
+  if (activeSection==="users" || activeSection==="events") return renderAdminPlatformSection(activeSection);
   if (activeSection==="registrations") return renderRegistrations();
   if (activeSection==="editions") return renderEditionManagement();
   if (activeSection==="catalog") return renderCatalogManager();
