@@ -104,6 +104,48 @@ async function handleFamilyApi(request, env, url) {
       costsFinalized: Boolean(data.costsFinalized)
     });
   }
+  if (url.pathname === "/api/family/registration" && request.method === "PUT") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const token = cookieValue(request, "ny_family");
+    if (!token) return json({ error: "Gezinssessie verlopen." }, 401);
+    const now = Math.floor(Date.now() / 1000);
+    const session = await env.DB.prepare(
+      "SELECT s.edition_id, s.registration_id FROM family_sessions s JOIN family_invites i ON i.id = s.invite_id WHERE s.token_hash = ? AND s.expires_at > ? AND i.revoked_at IS NULL AND (i.expires_at IS NULL OR i.expires_at > ?)"
+    ).bind(await sha256(token), now, now).first();
+    if (!session) return json({ error: "Deze gezinslink is niet langer geldig." }, 401);
+    const body = await request.json().catch(() => null);
+    if (!Array.isArray(body?.members) || body.members.length > 30) return json({ error: "Ongeldige ledenlijst." }, 400);
+    const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(session.edition_id).first();
+    if (!stateRow) return json({ error: "De editie is niet beschikbaar." }, 404);
+    let data;
+    try { data = JSON.parse(stateRow.data_json); } catch { return json({ error: "De editiegegevens zijn ongeldig." }, 500); }
+    const registration = (data.registrations || []).find(item => item.id === session.registration_id);
+    if (!registration) return json({ error: "Deze inschrijving bestaat niet meer." }, 404);
+    const catalogIds = new Set((data.catalog || []).map(item => item.id));
+    const members = [];
+    for (const person of body.members) {
+      if (!person || typeof person.name !== "string" || !person.name.trim() || person.name.trim().length > 80 ||
+          !["Volwassene", "Kind"].includes(person.type) || typeof person.id !== "string" || person.id.length > 100) {
+        return json({ error: "Controleer de namen en categorieën van alle gezinsleden." }, 400);
+      }
+      const orders = {};
+      for (const productId of catalogIds) {
+        const quantity = Number(person.orders?.[productId] || 0);
+        if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) return json({ error: "Ongeldig aantal in de vleesbestelling." }, 400);
+        orders[productId] = quantity;
+      }
+      members.push({ id: person.id, name: person.name.trim(), type: person.type, orders });
+    }
+    registration.members = members;
+    registration.adults = members.filter(person => person.type === "Volwassene").length;
+    registration.children = members.filter(person => person.type === "Kind").length;
+    data.costsFinalized = false;
+    data.costsFinalizedAt = null;
+    await env.DB.prepare("UPDATE app_state SET data_json = ?, updated_at = ? WHERE environment = ?")
+      .bind(JSON.stringify(data), now, session.edition_id).run();
+    return json({ saved: true, registration });
+  }
+
   if (url.pathname === "/api/family/logout" && request.method === "POST") {
     if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
     const token = cookieValue(request, "ny_family");
