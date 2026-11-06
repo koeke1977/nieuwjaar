@@ -18,6 +18,24 @@ let persistenceTimer = null;
 let persistenceInFlight = false;
 let persistenceAgain = false;
 let persistenceError = "";
+async function flushAdminState() {
+  if (!adminAuthenticated || !statePersistenceReady) throw new Error("De adminopslag is niet klaar. Meld opnieuw aan en controleer de opslagstatus.");
+  clearTimeout(persistenceTimer);
+  while (persistenceInFlight) await new Promise(resolve => setTimeout(resolve, 25));
+  clearTimeout(persistenceTimer);
+  persistenceAgain = false;
+  persistenceInFlight = true;
+  try {
+    await saveAdminState();
+  } catch (error) {
+    persistenceError = error.message || "Opslaan is mislukt.";
+    statePersistenceReady = false;
+    throw error;
+  } finally {
+    persistenceInFlight = false;
+  }
+}
+
 function scheduleAdminStateSave() {
   if (!adminAuthenticated || !statePersistenceReady) return;
   clearTimeout(persistenceTimer);
@@ -60,7 +78,7 @@ function handleClick(event) {
     action.disabled=true;action.textContent="Aanmaken…";
     (async()=>{
       try{
-        await saveAdminState();
+        await flushAdminState();
         const response=await fetch("/api/admin/family-invites",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({edition:state.activeEnvironment,registrationId})});
         const result=await response.json().catch(()=>({}));
         if(!response.ok)throw new Error(result.error||"De gezinslink kon niet worden aangemaakt.");
@@ -91,13 +109,18 @@ function handleClick(event) {
     }catch(error){window.alert(error.message||"Intrekken is niet gelukt.");}})();
     return;
   }
-  if(action.dataset.action==="admin-logout"){fetch("/api/admin/logout",{method:"POST",credentials:"same-origin"}).finally(()=>{adminAuthenticated=false;state.activeConsole="user";state.activeSection="overview";renderApp();});return;}
+  if(action.dataset.action==="admin-logout"){
+    (async()=>{try{await flushAdminState();}catch(error){window.alert(error.message);renderApp();return;}
+      fetch("/api/admin/logout",{method:"POST",credentials:"same-origin"}).finally(()=>{adminAuthenticated=false;state.activeConsole="user";state.activeSection="overview";renderApp();});
+    })();return;
+  }
   if(action.dataset.action==="switch-environment"){
     const target=action.dataset.environment;
     const label=target==="test"?"de testomgeving":"de echte editie";
     if(!window.confirm(`Wisselen naar ${label}? De gegevens van de huidige omgeving blijven apart bewaard.`))return;
-    switchEnvironment(target);
-    renderApp();return;
+    (async()=>{try{await flushAdminState();switchEnvironment(target);renderApp();}
+      catch(error){window.alert(error.message);renderApp();}
+    })();return;
   }
   if(action.dataset.action==="reset-test-environment"){
     if(state.activeEnvironment!=="test")return;
