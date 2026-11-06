@@ -246,17 +246,19 @@ async function handleAdminApi(request, env, url) {
   if (url.pathname === "/api/admin/family-invites" && request.method === "GET") {
     const session = await adminSession(request, env);
     if (!session) return json({ error: "Niet aangemeld." }, 401);
+    const environment = url.searchParams.get("environment");
+    if (!["test", "live"].includes(environment)) return json({ error: "Ongeldige omgeving." }, 400);
     let rows;
     let hasTokenColumn = true;
     try {
       rows = await env.DB.prepare(
-        "SELECT id, edition_id, registration_id, token_value, created_at, expires_at, revoked_at, last_used_at FROM family_invites ORDER BY created_at DESC"
-      ).all();
+        "SELECT id, edition_id, registration_id, token_value, created_at, expires_at, revoked_at, last_used_at FROM family_invites WHERE edition_id = ? ORDER BY created_at DESC"
+      ).bind(environment).all();
     } catch {
       hasTokenColumn = false;
       rows = await env.DB.prepare(
-        "SELECT id, edition_id, registration_id, created_at, expires_at, revoked_at, last_used_at FROM family_invites ORDER BY created_at DESC"
-      ).all();
+        "SELECT id, edition_id, registration_id, created_at, expires_at, revoked_at, last_used_at FROM family_invites WHERE edition_id = ? ORDER BY created_at DESC"
+      ).bind(environment).all();
     }
     const invites = await Promise.all((rows.results || []).map(async row => ({ ...row, token_value: hasTokenColumn ? await decryptInviteToken(row.token_value, env) : "" })));
     return json({ invites, migrationRequired: !hasTokenColumn });
@@ -297,10 +299,11 @@ async function handleAdminApi(request, env, url) {
     const session = await adminSession(request, env);
     if (!session) return json({ error: "Niet aangemeld." }, 401);
     const inviteId = url.pathname.slice("/api/admin/family-invites/".length);
-    if (!inviteId || inviteId.length > 80) return json({ error: "Ongeldige uitnodiging." }, 400);
+    const environment = url.searchParams.get("environment");
+    if (!inviteId || inviteId.length > 80 || !["test", "live"].includes(environment)) return json({ error: "Ongeldige uitnodiging of omgeving." }, 400);
     const now = Math.floor(Date.now() / 1000);
-    const result = await env.DB.prepare("UPDATE family_invites SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
-      .bind(now, inviteId).run();
+    const result = await env.DB.prepare("UPDATE family_invites SET revoked_at = ? WHERE id = ? AND edition_id = ? AND revoked_at IS NULL")
+      .bind(now, inviteId, environment).run();
     if (!result.meta?.changes) return json({ error: "Uitnodiging niet gevonden of al ingetrokken." }, 404);
     await env.DB.prepare("DELETE FROM family_sessions WHERE invite_id = ?").bind(inviteId).run();
     return json({ revoked: true });
