@@ -181,3 +181,9 @@ footer { padding: 34px; }
   .brand small { font-size: 9px; }
   .welcome-icon { display:none; }
 }
+
+.member-add-grid{display:grid;grid-template-columns:minmax(140px,1fr) minmax(150px,.7fr) auto;gap:9px}
+.member-add-grid input,.member-add-grid select{min-width:0;min-height:40px;border:1px solid #dfe4e9;border-radius:9px;padding:10px 12px;background:#fff;font:inherit;font-size:12px;color:#334155}
+.member-manager{border-color:#e6dfcf;background:linear-gradient(180deg,#fff,#fffdfa)}
+.member-manager .member-row:last-of-type{border-bottom:0}
+@media(max-width:650px){.member-add-grid{grid-template-columns:1fr}.member-add-grid button{width:100%}}
