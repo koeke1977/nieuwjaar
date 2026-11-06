@@ -157,6 +157,12 @@ function renderExpenses() {
 function renderSettlementPanel() {
   return `<section class="panel"><div class="section-heading"><div><h2>Groepsafrekening</h2><p>Alle individuele saldi samen moeten exact nul zijn.</p></div><span class="status success">Sluitend ontwerp</span></div><div class="settlement-zero"><span>Controle groepssaldo</span><strong>€ 0,00</strong><small>De eindafrekening is in evenwicht.</small></div></section>`;
 }
+
+function renderMailTestPanel() {
+  return `<section class="panel"><div class="section-heading"><div><h2>Microsoft 365 e-mail</h2><p>Verstuur een testbericht via registratie@datuur.be om de Graph-koppeling te controleren.</p></div><span class="status neutral">Mailtest</span></div>
+    <form class="catalog-add-form" id="mail-test-form"><label for="mail-test-recipient">Testmail versturen naar</label><div class="registration-form-grid"><input id="mail-test-recipient" name="recipient" type="email" maxlength="254" placeholder="jouw e-mailadres" autocomplete="email" required><button class="button button-dark" type="submit">Testmail versturen</button></div></form></section>`;
+}
+
 function renderAdminOverview() {
   const totals=getGlobalMeatTotals();
   const financial=getFinancialSummary(state.registrations,state.expenses,state.payments);
@@ -165,7 +171,7 @@ function renderAdminOverview() {
   return `${renderEnvironmentPanel()}<section class="welcome"><div><p class="eyebrow">ORGANISATIE</p><h1>Admin dashboard</h1><p>Alles voor de nieuwjaarsbijeenkomst op één plek.</p></div><div class="welcome-icon">✦</div></section>
   <section class="stats-grid"><article class="stat-card"><span class="stat-icon">♧</span><strong>${state.registrations.reduce((sum,item)=>sum+item.adults+item.children,0)}</strong><small>Deelnemers</small></article><article class="stat-card"><span class="stat-icon">♨</span><strong>${total(totals)}</strong><small>Vleesporties</small></article><article class="stat-card"><span class="stat-icon">€</span><strong>${money(receivedCents/100)}</strong><small>Ontvangen betalingen</small></article><article class="stat-card"><span class="stat-icon">◷</span><strong>${money(remainingCents/100)}</strong><small>Nog te ontvangen</small></article></section>
   <div class="admin-grid"><section class="panel"><div class="section-heading"><div><h2>BBQ – totaaloverzicht</h2><p>Actuele aantallen voor de grill.</p></div><span class="status success">Bestelling</span></div>${renderMeatTable()}<button class="button button-outline" data-section="meat">Volledig BBQ-overzicht <span>→</span></button></section>
-  <section class="panel"><div class="section-heading"><div><h2>Betalingen</h2><p>Stand van de ontvangen bedragen.</p></div></div><div class="payment-summary"><div><span>Ontvangen</span><strong class="positive">${money(receivedCents/100)}</strong></div><div><span>Openstaand</span><strong>${money(remainingCents/100)}</strong></div></div><button class="button button-dark full" data-section="payments">Betaling registreren <span>→</span></button></section></div>${renderFamilyInviteHistory()}${renderSettlementPanel()}`;
+  <section class="panel"><div class="section-heading"><div><h2>Betalingen</h2><p>Stand van de ontvangen bedragen.</p></div></div><div class="payment-summary"><div><span>Ontvangen</span><strong class="positive">${money(receivedCents/100)}</strong></div><div><span>Openstaand</span><strong>${money(remainingCents/100)}</strong></div></div><button class="button button-dark full" data-section="payments">Betaling registreren <span>→</span></button></section></div>${renderMailTestPanel()}${renderFamilyInviteHistory()}${renderSettlementPanel()}`;
 }
 export function renderAdminContent(activeSection) {
   if (activeSection==="registrations") return renderRegistrations();
