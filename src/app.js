@@ -3,7 +3,7 @@ import { state, getActiveFamily } from "./data/demo-data.js";
 import { renderHeader } from "./components/header.js";
 import { renderConsoleSwitcher, renderUserNavigation, renderAdminNavigation } from "./components/navigation.js";
 import { renderUserContent } from "./pages/user.js";
-import { renderAdminContent } from "./pages/admin.js";
+import { renderAdminContent, setFamilyInviteLink } from "./pages/admin.js";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
 import { switchEnvironment, resetTestEnvironment } from "./data/environment-store.js";
@@ -48,6 +48,27 @@ function handleClick(event) {
   if(sectionButton){state.activeSection=sectionButton.dataset.section;state.editingMember=null;renderApp();return;}
   const action=event.target.closest("[data-action]");
   if(!action)return;
+  if(action.dataset.action==="create-family-invite"){
+    const registrationId=action.dataset.id;
+    action.disabled=true;action.textContent="Aanmaken…";
+    (async()=>{
+      try{
+        await saveAdminState();
+        const response=await fetch("/api/admin/family-invites",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({edition:state.activeEnvironment,registrationId})});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(result.error||"De gezinslink kon niet worden aangemaakt.");
+        setFamilyInviteLink(registrationId,result.url);
+        renderApp();
+      }catch(error){window.alert(error.message||"De gezinslink kon niet worden aangemaakt.");action.disabled=false;action.textContent="Gezinslink maken";}
+    })();
+    return;
+  }
+  if(action.dataset.action==="copy-family-invite"){
+    const registrationId=action.dataset.id;
+    const input=action.parentElement.querySelector("input");
+    if(input?.value){navigator.clipboard?.writeText(input.value).then(()=>window.alert("Gezinslink gekopieerd.")).catch(()=>{input.select();window.alert("Selecteer en kopieer de gezinslink.");});}
+    return;
+  }
   if(action.dataset.action==="admin-logout"){fetch("/api/admin/logout",{method:"POST",credentials:"same-origin"}).finally(()=>{adminAuthenticated=false;state.activeConsole="user";state.activeSection="overview";renderApp();});return;}
   if(action.dataset.action==="switch-environment"){
     const target=action.dataset.environment;
