@@ -42,6 +42,7 @@ function renderUserOverview() {
     <section class="stats-grid"><article class="stat-card"><span class="stat-icon">♧</span><strong>${family().members.length}</strong><small>Deelnemers</small></article><article class="stat-card"><span class="stat-icon">♨</span><strong>${total(getFamilyMeat())}</strong><small>Vleesporties</small></article><article class="stat-card"><span class="stat-icon">€</span><strong>${money(family().bring)}</strong><small>Voorlopig mee te brengen</small></article></section>
     <section class="panel"><div class="section-heading"><div><h2>Onze inschrijving</h2><p>De personen die bij ${esc(family().name)} horen.</p></div><span class="status success">Compleet</span></div>
     <div class="member-list">${family().members.map(person => `<div class="member-row"><span class="person-avatar">${esc(person.name[0])}</span><div class="member-name"><strong>${esc(person.name)}</strong><small>${esc(person.type)}</small></div><span class="check">✓</span></div>`).join("")}</div>
+    <div class="registration-price"><div><small>VOORLOPIGE PRIJS VAN ONZE INSCHRIJVING</small><p>Ons aandeel in de gezamenlijke kosten, zonder verrekening van voorschotten of betalingen.</p></div><strong>${money(family().share)}</strong></div>
     <button class="button button-outline" data-section="family">Inschrijving beheren <span>→</span></button></section>${renderMeatPanel(true)}${renderBalancePanel(true)}`;
 }
 export function renderUserContent(activeSection) {
