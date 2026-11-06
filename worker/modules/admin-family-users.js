@@ -111,6 +111,40 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     return json({ revoked: true });
   }
 
+  if (!action && request.method === "DELETE") {
+    const body = await request.json().catch(() => null);
+    if (body?.confirmEmail !== user.email || body?.removeTestRegistration !== true) {
+      return json({ error: "Bevestig het exacte e-mailadres en de opruiming van de testinschrijving." }, 400);
+    }
+
+    const testLinks = await env.DB.prepare(
+      "SELECT registration_id FROM family_user_registrations WHERE user_id = ? AND edition_id = 'test'"
+    ).bind(userId).all();
+    const testRegistrationIds = (testLinks.results || []).map(row => row.registration_id);
+
+    if (testRegistrationIds.length) {
+      const stateRow = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = 'test'").first();
+      if (stateRow) {
+        let data;
+        try { data = JSON.parse(stateRow.data_json); }
+        catch { return json({ error: "De testeditie kon niet veilig worden gelezen. Er is niets verwijderd." }, 500); }
+        const removed = new Set(testRegistrationIds);
+        data.registrations = (data.registrations || []).filter(item => !removed.has(item.id));
+        data.payments = (data.payments || []).filter(item => !removed.has(item.registrationId));
+        data.expenses = (data.expenses || []).filter(item => !removed.has(item.advancedBy));
+        data.costsFinalized = false;
+        data.costsFinalizedAt = null;
+        const updated = await env.DB.prepare(
+          "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = 'test' AND updated_at = ? RETURNING updated_at"
+        ).bind(JSON.stringify(data), now, stateRow.updated_at).first();
+        if (!updated) return json({ error: "De testeditie is intussen gewijzigd. Herlaad het beheer en probeer opnieuw; er is geen account verwijderd." }, 409);
+      }
+    }
+
+    await env.DB.prepare("DELETE FROM family_users WHERE id = ?").bind(userId).run();
+    return json({ deleted: true, removedTestRegistrations: testRegistrationIds.length });
+  }
+
   if (!action && request.method === "PATCH") {
     const body = await request.json().catch(() => null);
     const status = body?.status;
