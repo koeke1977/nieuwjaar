@@ -17,7 +17,7 @@ let statePersistenceReady = false;
 let persistenceTimer = null;
 let persistenceInFlight = false;
 let persistenceAgain = false;
-let persistenceError = false;
+let persistenceError = "";
 function scheduleAdminStateSave() {
   if (!adminAuthenticated || !statePersistenceReady) return;
   clearTimeout(persistenceTimer);
@@ -25,7 +25,7 @@ function scheduleAdminStateSave() {
     if (persistenceInFlight) { persistenceAgain = true; return; }
     persistenceInFlight = true;
     try { await saveAdminState(); }
-    catch (error) { persistenceError = true; statePersistenceReady = false; console.error("Admin state save failed:", error); renderApp(); }
+    catch (error) { persistenceError = error.message || "Opslaan is mislukt."; statePersistenceReady = false; console.error("Admin state save failed:", error); renderApp(); }
     finally {
       persistenceInFlight = false;
       if (persistenceAgain) { persistenceAgain = false; scheduleAdminStateSave(); }
