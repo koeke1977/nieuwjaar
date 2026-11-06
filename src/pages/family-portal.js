@@ -1,6 +1,6 @@
 const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const makeId = () => "lid-" + crypto.randomUUID();
-const PRODUCT_IMAGE_PATHS = { "spareribs":"/images/spareribs.jpg", "steak":"/images/steak.jpg", "witte-pens":"/images/witte-pens.jpg", "worst":"/images/worst.jpg", "hamburger":"/images/hamburger.jpg", "sate":"/images/sate.jpg", "bolletjes":"/images/bolletjes-op-stok.jpg", "kip":"/images/kip.jpg" };
+const PRODUCT_IMAGE_PATHS = { "sparerib":"/images/spareribs.jpg", "steak":"/images/steak.jpg", "witte-pens":"/images/witte-pens.jpg", "worst":"/images/worst.jpg", "hamburger":"/images/hamburger.jpg", "sate":"/images/sate.jpg", "bolletjes":"/images/bolletjes-op-stok.jpg", "kip":"/images/kip.jpg" };
 
 let registration = null, catalog = [], saving = false, notice = "", error = "", activeSection = "overview", editingIndex = null;
 
