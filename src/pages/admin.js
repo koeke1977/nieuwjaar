@@ -63,6 +63,21 @@ function renderExpenses() {
   const expenseRows = state.expenses.map(expense => {
     const payer = state.registrations.find(item => item.id === expense.advancedBy);
     const shares = getExpenseShares(expense, state.registrations);
+    if(state.editingExpenseId===expense.id) return `<article class="expense-row expense-edit-row">
+      <form id="edit-expense-form" class="expense-form-grid">
+        <input name="description" maxlength="120" aria-label="Omschrijving" value="${esc(expense.description)}" required>
+        <input name="amount" type="number" min="0.01" step="0.01" aria-label="Bedrag in euro" value="${(expense.amountCents/100).toFixed(2)}" required>
+        <input name="date" type="date" aria-label="Datum" value="${esc(expense.date)}" required>
+        <select name="method" aria-label="Verdeelsleutel">
+          <option value="general" ${expense.method==="general"?"selected":""}>Algemene kost – iedereen</option>
+          <option value="adults" ${expense.method==="adults"?"selected":""}>18+ kost – volwassenen</option>
+          <option value="meat" ${expense.method==="meat"?"selected":""}>Vleesjeskost – per portie</option>
+        </select>
+        <select name="advancedBy" aria-label="Voorgeschoten door" required>
+          ${state.registrations.map(item=>`<option value="${esc(item.id)}" ${expense.advancedBy===item.id?"selected":""}>${esc(item.name)}</option>`).join("")}
+        </select>
+        <div class="expense-edit-actions"><button class="button button-dark" type="submit">Wijzigingen opslaan</button><button class="button button-outline" type="button" data-action="cancel-edit-expense">Annuleren</button></div>
+      </form></article>`;
     return `<article class="expense-row"><div class="expense-main"><strong>${esc(expense.description)}</strong><small>${esc(expense.date)} · ${methodLabels[expense.method]} · voorgeschoten door ${esc(payer?.name || "Onbekend")}</small><div class="expense-actions"><button class="button button-small button-outline" data-action="edit-expense" data-id="${esc(expense.id)}">Aanpassen</button><button class="text-button danger-text" data-action="delete-expense" data-id="${esc(expense.id)}">Verwijderen</button></div></div><strong>${money(expense.amountCents / 100)}</strong><details class="expense-shares"><summary>Verdeling bekijken</summary><div>${shares.map(share => { const registration=state.registrations.find(item => item.id === share.id); return `<span>${esc(registration?.name || "Onbekend")} <b>${money(share.cents/100)}</b></span>`; }).join("")}</div></details></article>`;
   }).join("");
   return `<section class="panel"><div class="section-heading"><div><h2>Gemeenschappelijke kosten</h2><p>Elke uitgave wordt over de volledige groep verdeeld.</p></div><span class="status neutral">${state.expenses.length} uitgaven</span></div>
