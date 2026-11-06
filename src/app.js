@@ -110,7 +110,7 @@ function handleClick(event) {
   }
   if(action.dataset.action==="admin-logout"){
     (async()=>{try{await flushAdminState();}catch(error){window.alert(error.message);renderApp();return;}
-      fetch("/api/admin/logout",{method:"POST",credentials:"same-origin"}).finally(()=>{adminAuthenticated=false;state.activeConsole="user";state.activeSection="overview";renderApp();});
+      fetch("/api/admin/logout",{method:"POST",credentials:"same-origin"}).finally(()=>{adminAuthenticated=false;window.location.href="/";});
     })();return;
   }
   if(action.dataset.action==="switch-environment"){
