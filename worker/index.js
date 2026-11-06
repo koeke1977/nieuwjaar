@@ -9,9 +9,23 @@ function json(data, status = 200, headers = {}) {
 
 async function sendGraphMail(env, recipient, subject, html) {
   const tenantId = env.O365_TENANT_ID, clientId = env.O365_CLIENT_ID;
-  const clientSecret = env.O365_CLIENT_SECRET, fromEmail = env.O365_FROM_EMAIL;
-  if (![tenantId, clientId, clientSecret, fromEmail].every(value => typeof value === "string" && value.trim())) {
+  const clientSecret = env.O365_CLIENT_SECRET;
+  // Transactionele mail mag uitsluitend vanuit deze mailbox vertrekken.
+  const fromEmail = "registratie@datuur.be";
+  if (![tenantId, clientId, clientSecret].every(value => typeof value === "string" && value.trim())) {
     throw new Error("Microsoft 365-mailinstellingen ontbreken in de Worker-secrets.");
+  }
+  if (env.O365_FROM_EMAIL !== fromEmail) {
+    throw new Error("De ingestelde afzender moet exact registratie@datuur.be zijn.");
+  }
+  if (typeof recipient !== "string" || recipient.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) {
+    throw new Error("Ongeldig e-mailadres van de ontvanger.");
+  }
+  if (typeof subject !== "string" || !subject.trim() || subject.length > 200 || /[\\r\\n]/.test(subject)) {
+    throw new Error("Ongeldig e-mailonderwerp.");
+  }
+  if (typeof html !== "string" || html.length > 100000) {
+    throw new Error("Ongeldige e-mailinhoud.");
   }
   const tokenResponse = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`, {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -241,7 +255,7 @@ async function handleAdminApi(request, env, url) {
     const recipient = typeof body?.recipient === "string" ? body.recipient.trim() : "";
     if (recipient.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return json({ error: "Vul een geldig e-mailadres in." }, 400);
     const safeRecipient = recipient.replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
-    const html = `<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Nieuwjaar – mailtest geslaagd</h2><p>Deze test bevestigt dat de Nieuwjaar-app e-mail kan versturen via Microsoft 365.</p><p>Verzonden vanuit <strong>${env.O365_FROM_EMAIL || "de ingestelde mailbox"}</strong>.</p><p>Ontvanger: ${safeRecipient}</p></div>`;
+    const html = `<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Nieuwjaar – mailtest geslaagd</h2><p>Deze test bevestigt dat de Nieuwjaar-app e-mail kan versturen via Microsoft 365.</p><p>Verzonden vanuit <strong>registratie@datuur.be</strong>.</p><p>Ontvanger: ${safeRecipient}</p></div>`;
     try {
       await sendGraphMail(env, recipient, "[Nieuwjaar] Test e-mailverbinding", html);
       return json({ sent: true });
