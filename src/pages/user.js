@@ -1,6 +1,7 @@
 import { state, getActiveFamily, getFamilyMeat, getPersonMeatTotal } from "../data/demo-data.js";
 const family = () => getActiveFamily();
 import { money, total } from "../utils/format.js";
+import { getMemberCostSummary } from "../utils/finance.js";
 const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function renderPersonEditor(person) {
   const products = state.catalog.filter(item => item.active);
@@ -41,8 +42,8 @@ function renderUserOverview() {
   return `<section class="welcome"><div><p class="eyebrow">PERSOONLIJKE OMGEVING</p><h1>Hallo, ${esc(family().name)}!</h1><p>Hier vinden jullie alles voor de nieuwjaarsbijeenkomst.</p></div><div class="welcome-icon">🥂</div></section>
     <section class="stats-grid"><article class="stat-card"><span class="stat-icon">♧</span><strong>${family().members.length}</strong><small>Deelnemers</small></article><article class="stat-card"><span class="stat-icon">♨</span><strong>${total(getFamilyMeat())}</strong><small>Vleesporties</small></article><article class="stat-card"><span class="stat-icon">€</span><strong>${money(family().bring)}</strong><small>Voorlopig mee te brengen</small></article></section>
     <section class="panel"><div class="section-heading"><div><h2>Onze inschrijving</h2><p>De personen die bij ${esc(family().name)} horen.</p></div><span class="status success">Compleet</span></div>
-    <div class="member-list">${family().members.map(person => `<div class="member-row"><span class="person-avatar">${esc(person.name[0])}</span><div class="member-name"><strong>${esc(person.name)}</strong><small>${esc(person.type)}</small></div><span class="check">✓</span></div>`).join("")}</div>
-    <div class="registration-price"><div><small>VOORLOPIGE PRIJS VAN ONZE INSCHRIJVING</small><p>Ons aandeel in de gezamenlijke kosten, zonder verrekening van voorschotten of betalingen.</p></div><strong>${money(family().share)}</strong></div>
+    <div class="member-list">${getMemberCostSummary(state.registrations.find(item => item.id === state.activeRegistrationId), state.registrations, state.expenses).map(person => `<div class="member-row"><span class="person-avatar">${esc(person.name[0])}</span><div class="member-name"><strong>${esc(person.name)}</strong><small>${esc(family().members.find(member => member.id === person.id)?.type || "")}</small></div><strong class="member-price">${money(person.cents / 100)}</strong><span class="check">✓</span></div>`).join("")}</div>
+    <div class="registration-price"><div><small>TOTAALPRIJS VAN ONZE INSCHRIJVING</small><p>Som van de individuele aandelen, zonder verrekening van voorschotten of betalingen.</p></div><strong>${money(family().share)}</strong></div>
     <button class="button button-outline" data-section="family">Inschrijving beheren <span>→</span></button></section>${renderMeatPanel(true)}${renderBalancePanel(true)}`;
 }
 export function renderUserContent(activeSection) {
