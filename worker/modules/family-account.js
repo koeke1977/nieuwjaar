@@ -136,7 +136,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       }));
       registrations.push({
         edition: link.edition_id,
-        event: data.activeEvent?.name || data.activeEvent?.title || "Nieuwjaar",
+        event: data.activeEvent?.name || data.activeEvent?.title || "Evenement",
         registration: {
           id: registration.id,
           name: registration.name || "",
