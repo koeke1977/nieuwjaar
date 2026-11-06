@@ -69,6 +69,11 @@ async function handleAdminApi(request, env, url) {
     const body = await request.json().catch(() => null);
     const password = typeof body?.password === "string" ? body.password : "";
     if (!password || password.length > 1024) return json({ error: "Vul het adminwachtwoord in." }, 400);
+    const now = Math.floor(Date.now() / 1000);
+    const failures = await env.DB.prepare(
+      "SELECT COUNT(*) AS total FROM auth_events WHERE event_type = 'admin_login_failed' AND created_at > ?"
+    ).bind(now - 15 * 60).first();
+    if ((failures?.total || 0) >= 10) return json({ error: "Te veel mislukte pogingen. Probeer over 15 minuten opnieuw." }, 429);
     const valid = await verifyPassword(password, env.ADMIN_PASSWORD_HASH);
     if (!valid) {
       await env.DB.prepare("INSERT INTO auth_events (event_type, created_at) VALUES ('admin_login_failed', ?)")
