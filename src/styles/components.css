@@ -136,3 +136,11 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
 .member-cost-line{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #e9edf0;font-size:12px}
 .member-cost-line:last-child{border-bottom:0}
 .member-cost-line strong{font-variant-numeric:tabular-nums}
+
+
+/* Gescheiden test- en productieomgeving */
+.environment-panel{border-color:#e5d8bd;background:#fffdf8}
+.environment-switch{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.environment-switch button:disabled{opacity:.65;cursor:default}
+.environment-panel .catalog-note{margin-bottom:0}
+@media(max-width:600px){.environment-switch{align-items:stretch;flex-direction:column}.environment-switch button{width:100%}}
