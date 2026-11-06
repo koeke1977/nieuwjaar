@@ -151,6 +151,58 @@ async function handleAdminApi(request, env, url) {
     return json({ authenticated: false }, 200, { "Set-Cookie": cookieHeader("", 0) });
   }
 
+  if (url.pathname === "/api/admin/family-invites" && request.method === "GET") {
+    const session = await adminSession(request, env);
+    if (!session) return json({ error: "Niet aangemeld." }, 401);
+    const rows = await env.DB.prepare(
+      "SELECT id, edition_id, registration_id, created_at, expires_at, revoked_at, last_used_at FROM family_invites ORDER BY created_at DESC"
+    ).all();
+    return json({ invites: rows.results || [] });
+  }
+
+  if (url.pathname === "/api/admin/family-invites" && request.method === "POST") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const session = await adminSession(request, env);
+    if (!session) return json({ error: "Niet aangemeld." }, 401);
+    const body = await request.json().catch(() => null);
+    const edition = body?.edition;
+    const registrationId = typeof body?.registrationId === "string" ? body.registrationId : "";
+    if (!["test", "live"].includes(edition) || !registrationId || registrationId.length > 160) {
+      return json({ error: "Ongeldige editie of inschrijving." }, 400);
+    }
+    const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(edition).first();
+    if (!stateRow) return json({ error: "Er zijn nog geen gegevens voor deze editie opgeslagen." }, 404);
+    let appState;
+    try { appState = JSON.parse(stateRow.data_json); } catch { return json({ error: "De editiegegevens zijn ongeldig." }, 500); }
+    const registration = (appState.registrations || []).find(item => item.id === registrationId);
+    if (!registration) return json({ error: "Deze inschrijving bestaat niet in de gekozen editie." }, 404);
+    const now = Math.floor(Date.now() / 1000);
+    const inviteId = crypto.randomUUID();
+    const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
+    await env.DB.prepare("UPDATE family_invites SET revoked_at = ? WHERE edition_id = ? AND registration_id = ? AND revoked_at IS NULL")
+      .bind(now, edition, registrationId).run();
+    await env.DB.prepare("INSERT INTO family_invites (id, edition_id, registration_id, token_hash, created_at) VALUES (?, ?, ?, ?, ?)")
+      .bind(inviteId, edition, registrationId, await sha256(token), now).run();
+    return json({
+      invite: { id: inviteId, edition_id: edition, registration_id: registrationId, created_at: now },
+      url: `https://nieuwjaar.datuur.be/familie/${token}`
+    }, 201);
+  }
+
+  if (url.pathname.startsWith("/api/admin/family-invites/") && request.method === "DELETE") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const session = await adminSession(request, env);
+    if (!session) return json({ error: "Niet aangemeld." }, 401);
+    const inviteId = url.pathname.slice("/api/admin/family-invites/".length);
+    if (!inviteId || inviteId.length > 80) return json({ error: "Ongeldige uitnodiging." }, 400);
+    const now = Math.floor(Date.now() / 1000);
+    const result = await env.DB.prepare("UPDATE family_invites SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
+      .bind(now, inviteId).run();
+    if (!result.meta?.changes) return json({ error: "Uitnodiging niet gevonden of al ingetrokken." }, 404);
+    await env.DB.prepare("DELETE FROM family_sessions WHERE invite_id = ?").bind(inviteId).run();
+    return json({ revoked: true });
+  }
+
   if (url.pathname === "/api/admin/state" && request.method === "GET") {
     const session = await adminSession(request, env);
     if (!session) return json({ error: "Niet aangemeld." }, 401);
