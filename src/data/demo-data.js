@@ -1,5 +1,5 @@
 export const state = {
-  activeConsole: "user", activeSection: "overview", activeRegistrationId: "koen-isabella", editingMember: null,
+  activeConsole: "user", activeSection: "overview", activeRegistrationId: "koen-isabella", editingMember: null, managingRegistrationId: "koen-isabella",
   registrations: [
     { id:"olivier-kelly", name:"Olivier & Kelly", adults:2, children:2 },
     { id:"boef-claudia", name:"Boef & Claudia", adults:2, children:2 },
