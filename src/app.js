@@ -32,6 +32,13 @@ function scheduleAdminStateSave() {
     }
   }, 500);
 }
+async function loadFamilyInvites() {
+  if (!adminAuthenticated) return;
+  const response = await fetch("/api/admin/family-invites", { credentials: "same-origin" });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || "Gezinslinks konden niet worden geladen.");
+  setFamilyInvites(result.invites || []);
+}
 function renderAdminLogin() { return `<main class="admin-login-shell"><section class="admin-login-card"><p class="eyebrow">NIEUWJAAR · ORGANISATIE</p><h1>Admin aanmelden</h1><p>Deze omgeving is uitsluitend toegankelijk voor de organisator.</p><form id="admin-login-form"><label for="admin-password">Adminwachtwoord</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required>${loginError ? `<p class="admin-login-error" role="alert">${loginError}</p>` : ""}<button class="button button-dark full" type="submit">Aanmelden</button></form><a class="admin-login-back" href="/">Terug naar deelnemersportaal</a></section></main>`; }
 function renderApp() {
   if (state.activeConsole === "admin" && !adminAuthenticated) { document.querySelector("#app").innerHTML=renderAdminLogin(); return; }
@@ -57,7 +64,7 @@ function handleClick(event) {
         const response=await fetch("/api/admin/family-invites",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({edition:state.activeEnvironment,registrationId})});
         const result=await response.json().catch(()=>({}));
         if(!response.ok)throw new Error(result.error||"De gezinslink kon niet worden aangemaakt.");
-        setFamilyInviteLink(registrationId,result.url);
+        await loadFamilyInvites();
         renderApp();
       }catch(error){window.alert(error.message||"De gezinslink kon niet worden aangemaakt.");action.disabled=false;action.textContent="Gezinslink maken";}
     })();
