@@ -337,7 +337,7 @@ async function handleImageUpload(event){
 }
 export async function startApp(){
   if (location.pathname.startsWith("/familie/")) { startFamilyPortal(); return; }
-  const path = location.pathname.replace(/\\/+$/, "") || "/";
+  const path = location.pathname.replace(/\/+$/, "") || "/";
   const isAdminRoute = path === "/beheer" || path === "/test";
   if (!isAdminRoute) { renderLandingPage(); return; }
   // The URL is the source of truth: /beheer is always live, /test is always test.
