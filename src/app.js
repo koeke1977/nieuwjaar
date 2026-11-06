@@ -249,12 +249,23 @@ async function handleSubmit(event){
   const id=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);
   state.catalog.push({id,name,active:true,image:null});state.registrations.forEach(registration=>(registration.members||[]).forEach(person=>{person.orders[id]=0;}));renderApp();
 }
-function handleImageUpload(event){
+async function handleImageUpload(event){
   const input=event.target;if(!input.matches("[data-upload-image]"))return;const file=input.files?.[0];if(!file)return;
   if(!["image/jpeg","image/png","image/webp"].includes(file.type)){window.alert("Gebruik een JPG-, PNG- of WebP-afbeelding.");input.value="";return;}
   if(file.size>5*1024*1024){window.alert("De afbeelding mag maximaal 5 MB groot zijn.");input.value="";return;}
   const product=state.catalog.find(item=>item.id===input.dataset.uploadImage);if(!product)return;
-  const reader=new FileReader();reader.onload=()=>{product.image=reader.result;renderApp();};reader.readAsDataURL(file);
+  const oldImage=product.image;
+  const label=input.closest(".catalog-admin-actions")?.querySelector("label");
+  if(label){label.textContent="Uploaden…";label.classList.add("disabled");}
+  try{
+    const form=new FormData();form.append("file",file);form.append("productId",product.id);form.append("environment",state.activeEnvironment);
+    const response=await fetch("/api/admin/product-image",{method:"POST",credentials:"same-origin",body:form});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||"De foto kon niet worden opgeslagen.");
+    product.image=result.image;renderApp();
+    if(oldImage?.startsWith("/media/"))fetch("/api/admin/product-image",{method:"DELETE",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({image:oldImage})}).catch(error=>console.error("Photo cleanup failed:",error));
+  }catch(error){window.alert(error.message||"De foto kon niet worden opgeslagen.");}
+  finally{input.value="";}
 }
 export async function startApp(){
   if (location.pathname.startsWith("/familie/")) { startFamilyPortal(); return; }
