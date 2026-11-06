@@ -1,3 +1,5 @@
+import { getFinancialSummary } from "../utils/finance.js";
+
 export const state = {
   activeEvent: { id: "nieuwjaar-2026-2027", name: "Nieuwjaar 2026–2027", status: "active" },
   expenses: [],
@@ -37,18 +39,29 @@ export const family = {
     { id: "emma", name: "Emma", type: "Kind", orders: { steak: 1, kip: 1, worst: 1 } },
     { id: "lisa", name: "Lisa", type: "Kind", orders: { steak: 1, kip: 1, worst: 2 } }
   ],
-  advanced: 250, share: 185, bring: 185
 };
 
 // De bekende voorbeeldleden zijn gekoppeld aan dezelfde registratie die de admin beheert.
 state.registrations.find(item => item.id === "koen-isabella").members = family.members;
-state.registrations.find(item => item.id === "koen-isabella").financial = { advanced: family.advanced, share: family.share, bring: family.bring };
 export function getActiveRegistration() {
   return state.registrations.find(item => item.id === state.activeRegistrationId) || state.registrations[0];
 }
 export function getActiveFamily() {
   const registration = getActiveRegistration();
-  return { name: registration.name, members: registration.members || [], advanced: registration.financial?.advanced || 0, share: registration.financial?.share || 0, bring: registration.financial?.bring || 0 };
+  if (!registration) return { name: "", members: [], advanced: 0, share: 0, bring: 0, paid: 0, remaining: 0, balance: 0, paymentStatus: "Geen inschrijving" };
+  const summary = getFinancialSummary(state.registrations, state.expenses, state.payments)
+    .find(row => row.id === registration.id);
+  return {
+    name: registration.name,
+    members: registration.members || [],
+    advanced: (summary?.advancedCents || 0) / 100,
+    share: (summary?.shareCents || 0) / 100,
+    bring: (summary?.remainingCents || 0) / 100,
+    paid: (summary?.paidCents || 0) / 100,
+    remaining: (summary?.remainingCents || 0) / 100,
+    balance: (summary?.balanceCents || 0) / 100,
+    paymentStatus: summary?.paymentStatus || "Geen bedrag verschuldigd"
+  };
 }
 
 // Alleen bestellingen uit actieve inschrijvingen tellen mee in de huidige editie.
