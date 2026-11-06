@@ -1,4 +1,5 @@
 import { startFamilyPortal } from "./pages/family-portal.js";
+import { startFamilyAuth } from "./pages/family-auth/family-auth.js";
 import { state, getActiveFamily } from "./data/demo-data.js";
 import { renderHeader } from "./components/header.js";
 import { renderAdminNavigation } from "./components/navigation.js";
@@ -352,7 +353,15 @@ async function handleImageUpload(event){
   finally{input.value="";}
 }
 export async function startApp(){
-  if (location.pathname.startsWith("/familie/")) { startFamilyPortal(); return; }
+  const familyPath = location.pathname.replace(/\/+$/, "") || "/";
+  if (familyPath === "/familie" || familyPath === "/familie/portaal" ||
+      familyPath === "/familie/wachtwoord-vergeten" ||
+      /^\/familie\/activeren\/[^/]+$/.test(familyPath) ||
+      /^\/familie\/wachtwoord-reset\/[^/]+$/.test(familyPath)) {
+    startFamilyAuth();
+    return;
+  }
+  if (/^\/familie\/[^/]+$/.test(familyPath)) { startFamilyPortal(); return; }
   const path = location.pathname.replace(/\/+$/, "") || "/";
   const isAdminRoute = path === "/beheer" || path === "/test";
   if (!isAdminRoute) { renderLandingPage(); return; }
