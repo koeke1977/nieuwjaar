@@ -124,9 +124,10 @@ function handleClick(event) {
   }
   if(action.dataset.action==="switch-environment"){
     const target=action.dataset.environment;
-    const label=target==="test"?"de testomgeving":"de echte editie";
-    if(!window.confirm(`Wisselen naar ${label}? De gegevens van de huidige omgeving blijven apart bewaard.`))return;
-    (async()=>{try{await flushAdminState();switchEnvironment(target);await loadFamilyInvites();renderApp();}
+    if(!["test","live"].includes(target) || target===state.activeEnvironment)return;
+    const label=target==="test"?"de testomgeving":"de echte liveomgeving";
+    if(!window.confirm(`Wisselen naar ${label}? De gegevens blijven volledig gescheiden bewaard.`))return;
+    (async()=>{try{await flushAdminState();window.location.href=target==="test"?"/test":"/beheer";}
       catch(error){window.alert(error.message);renderApp();}
     })();return;
   }
@@ -336,8 +337,11 @@ async function handleImageUpload(event){
 }
 export async function startApp(){
   if (location.pathname.startsWith("/familie/")) { startFamilyPortal(); return; }
-  const isAdminRoute = location.pathname === "/beheer" || location.pathname === "/beheer/";
+  const path = location.pathname.replace(/\\/+$/, "") || "/";
+  const isAdminRoute = path === "/beheer" || path === "/test";
   if (!isAdminRoute) { renderLandingPage(); return; }
+  // The URL is the source of truth: /beheer is always live, /test is always test.
+  state.activeEnvironment = path === "/test" ? "test" : "live";
   state.activeConsole = "admin";
   state.activeSection = "overview";
   document.addEventListener("click",handleClick);document.addEventListener("submit",handleSubmit);document.addEventListener("change",handleImageUpload);
