@@ -30,3 +30,15 @@
 .family-account-orders{display:flex;gap:7px;flex-wrap:wrap}
 .family-account-orders span{padding:5px 8px;border-radius:7px;background:#fff;border:1px solid #e8e4dd;color:#625c52;font-size:12px}
 .family-account-orders b{color:#92754c}
+
+.family-account-person{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.family-account-products{display:grid;gap:6px}
+.family-account-product{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 9px;border-radius:8px;background:#fff;border:1px solid #ece8e1;font-size:12px}
+.family-account-product>div{display:flex;align-items:center;gap:10px}
+.family-account-product button{width:30px;height:30px;border:1px solid #ded8cd;border-radius:8px;background:#f8f6f2;color:#514633;font-size:18px;line-height:1;cursor:pointer}
+.family-account-product button:active{background:#eee7db}
+.family-account-product b{min-width:16px;text-align:center;font-variant-numeric:tabular-nums}
+.family-account-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #eeeae3}
+.family-account-add input,.family-account-add select{min-width:0;min-height:42px;padding:9px 10px;border:1px solid #dcd7ce;border-radius:8px;background:#fff;color:#242424;font:inherit;font-size:13px}
+.family-account-add button{grid-column:1/-1;min-height:42px;border:0;border-radius:8px;background:#292722;color:#fff;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+@media(max-width:420px){.family-account-add{grid-template-columns:1fr}.family-account-add select{width:100%}}
