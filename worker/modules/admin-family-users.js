@@ -1,0 +1,148 @@
+const encoder = new TextEncoder();
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
+}
+
+function validEmail(value) {
+  return typeof value === "string" && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+export async function handleAdminFamilyUsers(request, env, url, dependencies) {
+  const { json, sameOrigin, adminSession, sha256, base64Url, sendGraphMail } = dependencies;
+  if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
+  const session = await adminSession(request, env);
+  if (!session) return json({ error: "Niet aangemeld." }, 401);
+  const path = url.pathname;
+  const now = Math.floor(Date.now() / 1000);
+  const base = "/api/admin/family-users";
+
+  if (path === base && request.method === "GET") {
+    const environment = url.searchParams.get("environment");
+    if (!["test", "live"].includes(environment)) return json({ error: "Ongeldige omgeving." }, 400);
+    const result = await env.DB.prepare(
+      "SELECT u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at, r.id AS link_id, r.edition_id, r.registration_id FROM family_users u LEFT JOIN family_user_registrations r ON r.user_id = u.id AND r.edition_id = ? ORDER BY u.email COLLATE NOCASE, r.registration_id"
+    ).bind(environment).all();
+    const users = new Map();
+    for (const row of result.results || []) {
+      if (!users.has(row.id)) users.set(row.id, {
+        id: row.id, email: row.email, displayName: row.display_name, status: row.status,
+        createdAt: row.created_at, lastLoginAt: row.last_login_at, registrations: []
+      });
+      if (row.link_id) users.get(row.id).registrations.push({
+        linkId: row.link_id, registrationId: row.registration_id, environment: row.edition_id
+      });
+    }
+    return json({ users: [...users.values()], environment });
+  }
+
+  if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+
+  if (path === base && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+    const displayName = typeof body?.displayName === "string" ? body.displayName.trim().slice(0, 100) : "";
+    const environment = body?.environment;
+    const registrationId = typeof body?.registrationId === "string" ? body.registrationId.trim() : "";
+    if (!validEmail(email) || !displayName || !["test", "live"].includes(environment) || !registrationId || registrationId.length > 120) {
+      return json({ error: "Vul een geldige naam, e-mail, omgeving en inschrijving in." }, 400);
+    }
+    const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(environment).first();
+    if (!stateRow) return json({ error: "De gekozen editie bestaat niet." }, 404);
+    let data;
+    try { data = JSON.parse(stateRow.data_json); } catch { return json({ error: "De editiegegevens zijn ongeldig." }, 500); }
+    const registration = (data.registrations || []).find(item => item.id === registrationId);
+    if (!registration) return json({ error: "De gekozen inschrijving bestaat niet in deze editie." }, 404);
+    let user = await env.DB.prepare("SELECT id, status FROM family_users WHERE email = ?").bind(email).first();
+    if (user && user.status === "disabled") return json({ error: "Dit account is geblokkeerd. Activeer het eerst opnieuw via accountbeheer." }, 409);
+    if (!user) {
+      const id = crypto.randomUUID();
+      await env.DB.prepare("INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'invited', ?, ?)")
+        .bind(id, email, displayName, now, now).run();
+      user = { id, status: "invited" };
+    } else {
+      await env.DB.prepare("UPDATE family_users SET display_name = ?, updated_at = ? WHERE id = ?").bind(displayName, now, user.id).run();
+    }
+    try {
+      await env.DB.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES (?, ?, ?, ?)")
+        .bind(user.id, environment, registrationId, now).run();
+    } catch {
+      return json({ error: "Deze inschrijving is al aan een ander account gekoppeld of bestaat al." }, 409);
+    }
+    if (user.status === "active") return json({ created: true, invited: false, userId: user.id });
+    const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
+    await env.DB.prepare("UPDATE family_user_invites SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL").bind(now, user.id).run();
+    await env.DB.prepare("INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), user.id, await sha256(token), now, now + 7 * 24 * 60 * 60).run();
+    const activationUrl = "https://nieuwjaar.datuur.be/familie/activeren/" + token;
+    const html = '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Uitnodiging Nieuwjaar-familieportaal</h2><p>Dag ' + escapeHtml(displayName) + ',</p><p>Je krijgt toegang tot het Nieuwjaar-familieportaal.</p><p><a href="' + activationUrl + '">Account activeren</a></p><p>Deze eenmalige link is 7 dagen geldig. Stel bij activatie je eigen wachtwoord in.</p></div>';
+    try {
+      await sendGraphMail(env, email, "Nieuwjaar – activeer je familieaccount", html);
+    } catch (error) {
+      console.error("Family account invitation mail failed:", error.message);
+      return json({ error: "Account en inschrijvingskoppeling zijn aangemaakt, maar de uitnodigingsmail kon niet worden verzonden. Gebruik opnieuw uitnodigen zodra de mailverbinding hersteld is.", userId: user.id, mailFailed: true }, 502);
+    }
+    return json({ created: true, invited: true, userId: user.id });
+  }
+
+  const match = path.match(/^\/api\/admin\/family-users\/([0-9a-f-]+)(?:\/(resend|sessions|registrations))?$/i);
+  if (!match) return json({ error: "Niet gevonden." }, 404);
+  const [, userId, action] = match;
+  const user = await env.DB.prepare("SELECT id, email, display_name, status FROM family_users WHERE id = ?").bind(userId).first();
+  if (!user) return json({ error: "Gebruiker niet gevonden." }, 404);
+
+  if (action === "resend" && request.method === "POST") {
+    if (user.status !== "invited") return json({ error: "Alleen openstaande uitnodigingen kunnen opnieuw worden verstuurd." }, 409);
+    const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
+    await env.DB.prepare("UPDATE family_user_invites SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL").bind(now, userId).run();
+    await env.DB.prepare("INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), userId, await sha256(token), now, now + 7 * 24 * 60 * 60).run();
+    const url = "https://nieuwjaar.datuur.be/familie/activeren/" + token;
+    const html = '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Je Nieuwjaar-uitnodiging</h2><p>Dag ' + escapeHtml(user.display_name) + ',</p><p><a href="' + url + '">Activeer je familieaccount</a></p><p>Deze link is 7 dagen geldig.</p></div>';
+    try { await sendGraphMail(env, user.email, "Nieuwjaar – nieuwe activatielink", html); }
+    catch (error) { console.error("Family invitation resend failed:", error.message); return json({ error: "De uitnodigingsmail kon niet worden verzonden." }, 502); }
+    return json({ sent: true });
+  }
+
+  if (action === "sessions" && request.method === "POST") {
+    await env.DB.prepare("UPDATE family_user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL").bind(now, userId).run();
+    return json({ revoked: true });
+  }
+
+  if (!action && request.method === "PATCH") {
+    const body = await request.json().catch(() => null);
+    const status = body?.status;
+    if (!["active", "disabled"].includes(status)) return json({ error: "Ongeldige accountstatus." }, 400);
+    await env.DB.prepare("UPDATE family_users SET status = ?, updated_at = ? WHERE id = ?").bind(status, now, userId).run();
+    if (status === "disabled") await env.DB.prepare("UPDATE family_user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL").bind(now, userId).run();
+    return json({ updated: true, status });
+  }
+
+  if (action === "registrations" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    const environment = body?.environment;
+    const registrationId = typeof body?.registrationId === "string" ? body.registrationId.trim() : "";
+    if (!["test", "live"].includes(environment) || !registrationId) return json({ error: "Ongeldige omgeving of inschrijving." }, 400);
+    const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(environment).first();
+    if (!stateRow) return json({ error: "De gekozen editie bestaat niet." }, 404);
+    let data;
+    try { data = JSON.parse(stateRow.data_json); } catch { return json({ error: "De editiegegevens zijn ongeldig." }, 500); }
+    if (!(data.registrations || []).some(item => item.id === registrationId)) return json({ error: "De inschrijving bestaat niet in deze editie." }, 404);
+    try {
+      await env.DB.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES (?, ?, ?, ?)")
+        .bind(userId, environment, registrationId, now).run();
+    } catch { return json({ error: "Deze inschrijving is al gekoppeld." }, 409); }
+    return json({ linked: true });
+  }
+
+  if (action === "registrations" && request.method === "DELETE") {
+    const linkId = Number(url.searchParams.get("linkId"));
+    if (!Number.isSafeInteger(linkId) || linkId < 1) return json({ error: "Ongeldige koppeling." }, 400);
+    await env.DB.prepare("DELETE FROM family_user_registrations WHERE id = ? AND user_id = ?").bind(linkId, userId).run();
+    return json({ unlinked: true });
+  }
+
+  return json({ error: "Niet gevonden." }, 404);
+}
