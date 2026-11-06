@@ -252,7 +252,7 @@ async function handleSubmit(event){
       window.alert("Controleer de omschrijving, het bedrag, de datum, de verdeelsleutel en de voorschieter.");return;
     }
     const expense={id:makeId("kost"),eventId:state.activeEvent.id,description,amountCents,date,method,advancedBy};
-    try { getExpenseShares(expense,state.registrations); } catch(error){ window.alert(error.message); return; }
+    try { getExpenseShares(expense,state.registrations,{ strict: true }); } catch(error){ window.alert(error.message); return; }
     state.expenses.push(expense);
     markCostsProvisional();
     renderApp();return;
