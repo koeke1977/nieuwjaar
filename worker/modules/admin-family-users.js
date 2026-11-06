@@ -69,7 +69,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       await env.DB.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES (?, ?, ?, ?)")
         .bind(user.id, environment, registrationId, now).run();
     } catch {
-      return json({ error: "Deze inschrijving is al aan een ander account gekoppeld of bestaat al." }, 409);
+      return json({ error: "Deze inschrijving is al aan dit account gekoppeld." }, 409);
     }
     if (user.status === "active") return json({ created: true, invited: false, userId: user.id });
     const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
@@ -167,7 +167,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     try {
       await env.DB.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES (?, ?, ?, ?)")
         .bind(userId, environment, registrationId, now).run();
-    } catch { return json({ error: "Deze inschrijving is al gekoppeld." }, 409); }
+    } catch { return json({ error: "Deze inschrijving is al aan dit account gekoppeld." }, 409); }
     return json({ linked: true });
   }
 
