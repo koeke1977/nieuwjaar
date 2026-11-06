@@ -7,12 +7,15 @@ let saving = false;
 let notice = "";
 let error = "";
 let bound = false;
+const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+}[character]));
 let revision = null;
 
 function render() {
   const registration = state.registrations.find(row => row.id === state.activeRegistrationId);
   document.querySelector("#app").innerHTML = `${renderHeader()}<main class="shell">
-    <div class="family-session-bar"><span>Persoonlijke inschrijving · ${registration?.name || ""}</span><button class="text-button" data-family-logout>Uitloggen</button></div>
+    <div class="family-session-bar"><span>Persoonlijke inschrijving · ${escapeHtml(registration?.name || "")}</span><button class="text-button" data-family-logout>Uitloggen</button></div>
     <div class="workspace">${renderUserNavigation(state.activeSection)}<div class="content">${renderUserContent(state.activeSection)}
     <div class="family-save-status" role="status">${error || notice || (saving ? "Opslaan…" : "Wijzigingen worden automatisch bewaard.")}</div></div></div>
     <footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
@@ -105,11 +108,11 @@ async function load(token) {
     if (!bound) { document.addEventListener("click", handleClick, true); document.addEventListener("submit", handleSubmit, true); bound = true; }
     notice = "Jullie persoonlijke inschrijving is geladen."; render();
   } catch (e) {
-    document.querySelector("#app").innerHTML = `<main class="admin-login-shell"><section class="admin-login-card"><h1>Geen toegang</h1><p>${String(e.message || "Deze persoonlijke link is niet geldig.")}</p></section></main>`;
+    document.querySelector("#app").innerHTML = `<main class="admin-login-shell"><section class="admin-login-card"><h1>Geen toegang</h1><p>${escapeHtml(e.message || "Deze persoonlijke link is niet geldig.")}</p></section></main>`;
   }
 }
 export function startFamilyPortal() {
-  const token = decodeURIComponent(location.pathname.split("/").filter(Boolean)[1] || "");
+  const token = location.pathname.split("/").filter(Boolean)[1] || "";
   if (!token) { document.querySelector("#app").innerHTML = '<main class="admin-login-shell"><section class="admin-login-card"><h1>Persoonlijke link ontbreekt</h1></section></main>'; return; }
   load(token);
 }
