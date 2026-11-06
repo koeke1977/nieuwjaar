@@ -76,7 +76,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     const registrations = [];
     const catalogByEdition = {};
     for (const link of links.results || []) {
-      const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(link.edition_id).first();
+      const stateRow = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(link.edition_id).first();
       if (!stateRow) continue;
       let data;
       try { data = JSON.parse(stateRow.data_json); } catch { continue; }
@@ -98,10 +98,64 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
             orders: person.orders && typeof person.orders === "object" ? person.orders : {}
           }))
         },
-        catalog: catalogByEdition[link.edition_id]
+        catalog: catalogByEdition[link.edition_id],
+        revision: stateRow.updated_at
       });
     }
     return json({ authenticated: true, user: { email: session.email, displayName: session.display_name }, registrations });
+  }
+
+  if (path === "/api/family-account/registration" && request.method === "PUT") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const session = await familyAccountSession(request, env, cookieValue, sha256);
+    if (!session) return json({ error: "Je sessie is verlopen. Meld je opnieuw aan." }, 401);
+    const body = await request.json().catch(() => null);
+    const edition = body?.edition;
+    const registrationId = typeof body?.registrationId === "string" ? body.registrationId : "";
+    if (!["test", "live"].includes(edition) || !registrationId || !Number.isSafeInteger(body?.revision) ||
+        !Array.isArray(body?.members) || body.members.length < 1 || body.members.length > 30) {
+      return json({ error: "Ongeldige inschrijvingsgegevens." }, 400);
+    }
+    const linked = await env.DB.prepare(
+      "SELECT 1 AS linked FROM family_user_registrations WHERE user_id = ? AND edition_id = ? AND registration_id = ?"
+    ).bind(session.user_id, edition, registrationId).first();
+    if (!linked) return json({ error: "Deze inschrijving is niet aan je account gekoppeld." }, 403);
+    const stateRow = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(edition).first();
+    if (!stateRow) return json({ error: "De editie is niet beschikbaar." }, 404);
+    if (stateRow.updated_at !== body.revision) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
+    let data;
+    try { data = JSON.parse(stateRow.data_json); } catch { return json({ error: "De editiegegevens zijn ongeldig." }, 500); }
+    const registration = (data.registrations || []).find(item => item.id === registrationId);
+    if (!registration) return json({ error: "Deze inschrijving bestaat niet meer." }, 404);
+    const catalog = (data.catalog || []).filter(item => item.active);
+    const catalogIds = new Set(catalog.map(item => item.id));
+    const members = [];
+    for (const person of body.members) {
+      if (!person || typeof person.id !== "string" || !person.id || person.id.length > 100 ||
+          typeof person.name !== "string" || !person.name.trim() || person.name.trim().length > 80 ||
+          !["Volwassene", "Kind"].includes(person.type)) {
+        return json({ error: "Controleer de namen en categorieën van alle gezinsleden." }, 400);
+      }
+      const orders = {};
+      for (const productId of catalogIds) {
+        const quantity = Number(person.orders?.[productId] ?? 0);
+        if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) {
+          return json({ error: "Ongeldig aantal in de vleesbestelling." }, 400);
+        }
+        orders[productId] = quantity;
+      }
+      members.push({ id: person.id, name: person.name.trim(), type: person.type, orders });
+    }
+    registration.members = members;
+    registration.adults = members.filter(person => person.type === "Volwassene").length;
+    registration.children = members.filter(person => person.type === "Kind").length;
+    data.costsFinalized = false;
+    data.costsFinalizedAt = null;
+    const updated = await env.DB.prepare(
+      "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ? RETURNING updated_at"
+    ).bind(JSON.stringify(data), now, edition, body.revision).first();
+    if (!updated) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
+    return json({ saved: true, revision: updated.updated_at, registration });
   }
 
   if (path === "/api/family-account/logout" && request.method === "POST") {
