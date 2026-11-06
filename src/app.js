@@ -1,7 +1,7 @@
 import { startFamilyPortal } from "./pages/family-portal.js";
 import { state, getActiveFamily } from "./data/demo-data.js";
 import { renderHeader } from "./components/header.js";
-import { renderConsoleSwitcher, renderUserNavigation, renderAdminNavigation } from "./components/navigation.js";
+import { renderUserNavigation, renderAdminNavigation } from "./components/navigation.js";
 import { renderUserContent } from "./pages/user.js";
 import { renderAdminContent, setFamilyInvites } from "./pages/admin.js";
 import { money } from "./utils/format.js";
@@ -58,18 +58,16 @@ async function loadFamilyInvites() {
   if (!response.ok) throw new Error(result.error || "Gezinslinks konden niet worden geladen.");
   setFamilyInvites(result.invites || []);
 }
-function renderAdminLogin() { return `<main class="admin-login-shell"><section class="admin-login-card"><p class="eyebrow">NIEUWJAAR · ORGANISATIE</p><h1>Admin aanmelden</h1><p>Deze omgeving is uitsluitend toegankelijk voor de organisator.</p><form id="admin-login-form"><label for="admin-password">Adminwachtwoord</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required>${loginError ? `<p class="admin-login-error" role="alert">${loginError}</p>` : ""}<button class="button button-dark full" type="submit">Aanmelden</button></form><a class="admin-login-back" href="/">Terug naar deelnemersportaal</a></section></main>`; }
+function renderAdminLogin() { return `<main class="admin-login-shell"><section class="admin-login-card"><p class="eyebrow">NIEUWJAAR · ORGANISATIE</p><h1>Admin aanmelden</h1><p>Deze omgeving is uitsluitend toegankelijk voor de organisator.</p><form id="admin-login-form"><label for="admin-password">Adminwachtwoord</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required>${loginError ? `<p class="admin-login-error" role="alert">${loginError}</p>` : ""}<button class="button button-dark full" type="submit">Aanmelden</button></form></section></main>`; }
 function renderApp() {
   if (state.activeConsole === "admin" && !adminAuthenticated) { document.querySelector("#app").innerHTML=renderAdminLogin(); return; }
   const isAdmin=state.activeConsole==="admin";
   const persistenceNotice=persistenceError?`<div class="environment-notice" role="alert">${persistenceError.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")} Lokale wijzigingen zijn niet opgeslagen. Herlaad de admin om de nieuwste gegevens op te halen.</div>`:"";
   const environmentNotice=state.activeEnvironment==="test"?'<div class="environment-notice">TESTOMGEVING · Wijzigingen zijn alleen testgegevens en staan los van de echte editie.</div>':"";
-  document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${isAdmin?'<div class="admin-session-bar"><span>Beveiligde admin-sessie</span><button class="text-button" data-action="admin-logout">Uitloggen</button></div>':""}${persistenceNotice}${environmentNotice}${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
+  document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${isAdmin?'<div class="admin-session-bar"><span>Beveiligde admin-sessie</span><button class="text-button" data-action="admin-logout">Uitloggen</button></div>':""}${persistenceNotice}${environmentNotice}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
   if (state.activeConsole === "admin") scheduleAdminStateSave();
 }
 function handleClick(event) {
-  const consoleButton=event.target.closest("[data-console]");
-  if(consoleButton){if(consoleButton.dataset.console==="admin"&&!adminAuthenticated){state.activeConsole="admin";loginError="";renderApp();return;}state.activeConsole=consoleButton.dataset.console;state.activeSection="overview";state.editingMember=null;renderApp();return;}
   const sectionButton=event.target.closest("[data-section]");
   if(sectionButton){state.activeSection=sectionButton.dataset.section;state.editingMember=null;renderApp();return;}
   const action=event.target.closest("[data-action]");
@@ -320,6 +318,9 @@ async function handleImageUpload(event){
 }
 export async function startApp(){
   if (location.pathname.startsWith("/familie/")) { startFamilyPortal(); return; }
+  const isAdminRoute = location.pathname.replace(/\\/+$/, "") === "/beheer";
+  state.activeConsole = isAdminRoute ? "admin" : "user";
+  state.activeSection = "overview";
   document.addEventListener("click",handleClick);document.addEventListener("submit",handleSubmit);document.addEventListener("change",handleImageUpload);
   try{const response=await fetch("/api/admin/session",{credentials:"same-origin"});const session=await response.json();adminAuthenticated=Boolean(session.authenticated);}catch{adminAuthenticated=false;}
   if(adminAuthenticated){try{await loadAdminState();statePersistenceReady=true;await loadFamilyInvites();}catch(error){persistenceError=true;console.error("Admin state load failed:",error);}}
