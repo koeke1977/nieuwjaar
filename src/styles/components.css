@@ -95,3 +95,9 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
 @media(max-width:520px){.expense-form-grid{grid-template-columns:1fr}}
 
 .expense-actions{display:flex;align-items:center;gap:10px;margin-top:5px}.danger-text{color:#b44b45}
+
+.expense-edit-row{display:block;background:#faf9f6;border:1px solid #e8e5df;border-radius:12px;padding:14px;margin:12px 0}
+.expense-edit-row .expense-form-grid{grid-template-columns:1.3fr .7fr .8fr 1.2fr 1.2fr;}
+.expense-edit-actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:900px){.expense-edit-row .expense-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.expense-edit-row .expense-form-grid{grid-template-columns:1fr}.expense-edit-actions{flex-direction:column}}
