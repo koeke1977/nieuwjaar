@@ -76,10 +76,11 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     await env.DB.prepare("UPDATE family_user_invites SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL").bind(now, user.id).run();
     await env.DB.prepare("INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
       .bind(crypto.randomUUID(), user.id, await sha256(token), now, now + 7 * 24 * 60 * 60).run();
+    const eventName = String(data.activeEvent?.name || data.activeEvent?.title || "het evenement");
     const activationUrl = "https://nieuwjaar.datuur.be/familie/activeren/" + token;
-    const html = '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Uitnodiging Nieuwjaar-familieportaal</h2><p>Dag ' + escapeHtml(displayName) + ',</p><p>Je krijgt toegang tot het Nieuwjaar-familieportaal.</p><p><a href="' + activationUrl + '">Account activeren</a></p><p>Deze eenmalige link is 7 dagen geldig. Stel bij activatie je eigen wachtwoord in.</p></div>';
+    const html = '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Uitnodiging voor ' + escapeHtml(eventName) + '</h2><p>Dag ' + escapeHtml(displayName) + ',</p><p>Je krijgt toegang tot het deelnemersportaal voor ' + escapeHtml(eventName) + '.</p><p><a href="' + activationUrl + '">Account activeren</a></p><p>Deze eenmalige link is 7 dagen geldig. Stel bij activatie je eigen wachtwoord in.</p></div>';
     try {
-      await sendGraphMail(env, email, "Nieuwjaar – activeer je familieaccount", html);
+      await sendGraphMail(env, email, eventName + " – activeer je account", html);
     } catch (error) {
       console.error("Family account invitation mail failed:", error.message);
       return json({ error: "Account en inschrijvingskoppeling zijn aangemaakt, maar de uitnodigingsmail kon niet worden verzonden. Gebruik opnieuw uitnodigen zodra de mailverbinding hersteld is.", userId: user.id, mailFailed: true }, 502);
@@ -99,9 +100,13 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     await env.DB.prepare("UPDATE family_user_invites SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL").bind(now, userId).run();
     await env.DB.prepare("INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
       .bind(crypto.randomUUID(), userId, await sha256(token), now, now + 7 * 24 * 60 * 60).run();
+    const linkedEdition = await env.DB.prepare("SELECT edition_id FROM family_user_registrations WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").bind(userId).first();
+    const linkedState = linkedEdition ? await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(linkedEdition.edition_id).first() : null;
+    let eventName = "het evenement";
+    try { const linkedData = JSON.parse(linkedState?.data_json || "{}"); eventName = String(linkedData.activeEvent?.name || linkedData.activeEvent?.title || eventName); } catch { /* Gebruik de neutrale benaming bij ongeldige oude data. */ }
     const url = "https://nieuwjaar.datuur.be/familie/activeren/" + token;
-    const html = '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Je Nieuwjaar-uitnodiging</h2><p>Dag ' + escapeHtml(user.display_name) + ',</p><p><a href="' + url + '">Activeer je familieaccount</a></p><p>Deze link is 7 dagen geldig.</p></div>';
-    try { await sendGraphMail(env, user.email, "Nieuwjaar – nieuwe activatielink", html); }
+    const html = '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Uitnodiging voor ' + escapeHtml(eventName) + '</h2><p>Dag ' + escapeHtml(user.display_name) + ',</p><p><a href="' + url + '">Activeer je account</a></p><p>Deze link is 7 dagen geldig.</p></div>';
+    try { await sendGraphMail(env, user.email, eventName + " – nieuwe activatielink", html); }
     catch (error) { console.error("Family invitation resend failed:", error.message); return json({ error: "De uitnodigingsmail kon niet worden verzonden." }, 502); }
     return json({ sent: true });
   }
