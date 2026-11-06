@@ -22,7 +22,7 @@ function handleClick(event) {
     const amount=Number(raw.replace(",","."));if(!Number.isFinite(amount)||amount<=0){window.alert("Geef een geldig bedrag in.");return;}
     payment.paid=Math.round((payment.paid+amount)*100)/100;payment.method="Cash";renderApp();
   }
-  if(action.dataset.action==="edit-order"){state.editingMember=state.editingMember===action.dataset.name?null:action.dataset.name;renderApp();}
+  if(action.dataset.action==="edit-order"){state.editingMember=state.editingMember===action.dataset.personId?null:action.dataset.personId;renderApp();}
   if(action.dataset.action==="close-order-editor"){state.editingMember=null;renderApp();}
   if(action.dataset.action==="change-quantity"){
     const person=getActiveFamily().members.find(item=>item.id===action.dataset.personId);
