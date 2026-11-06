@@ -206,3 +206,18 @@ De organisator/beheerder moet voor elke nieuwe editie zelf het actuele vleesgamm
 - producten met bestaande bestellingen niet hard verwijderen, maar archiveren of deactiveren.
 
 De deelnemers zien uitsluitend de actieve producten van de huidige editie. Een nieuwe editie kan desgewenst een kopie van het vorige gamma starten, waarna de beheerder het aanbod aanpast voordat de bestellingen openen. De oude editie en haar bestellingen blijven ongewijzigd.
+
+
+## 10. Kost boeken op een gezin of alleenstaande
+
+Bij iedere uitgave kiest de organisator aan welke inschrijving de uitgave wordt toegerekend als voorschot/betaling. Dat is altijd een gezin of een alleenstaande deelnemer.
+
+Voorbeeld: Koen doet een aankoop en registreert die als betaald door **Gezin Thomaes-Beckers**. De uitgave wordt dus als voorschot aan dat gezin geboekt. De persoon die de registratie in de app invoert, wordt daarnaast automatisch als auditinformatie bewaard. Zo onderscheiden we:
+- **Betaald/voorgeschoten door:** de inschrijving (gezin of alleenstaande) die het bedrag heeft uitgegeven.
+- **Ingevoerd door:** de beheerder die de registratie in de app heeft aangemaakt of aangepast.
+
+De betaler-inschrijving krijgt het voorschot in de afrekening terug, los van de verdeelsleutel waarmee de kost over alle deelnemers wordt verdeeld.
+
+## 11. Vorig vleesgamma als standaard startpunt
+
+Omdat het waarschijnlijk is dat het vleesaanbod grotendeels hetzelfde blijft, stelt de app bij het aanmaken van een nieuwe editie standaard het gamma van de vorige editie voor als kopie. De beheerder kan producten toevoegen, wijzigen, uitschakelen of herschikken vóór de bestellingen opengaan. De catalogus van de vorige editie blijft ongewijzigd.
