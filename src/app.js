@@ -9,18 +9,23 @@ import { switchEnvironment, resetTestEnvironment } from "./data/environment-stor
 import { archiveCurrentAndStartNewEdition } from "./data/edition-manager.js";
 const markCostsProvisional = () => { state.costsFinalized=false; state.costsFinalizedAt=null; };
 const makeId = (prefix = "lid") => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
+let adminAuthenticated = false;
+let loginError = "";
+function renderAdminLogin() { return `<main class="admin-login-shell"><section class="admin-login-card"><p class="eyebrow">NIEUWJAAR · ORGANISATIE</p><h1>Admin aanmelden</h1><p>Deze omgeving is uitsluitend toegankelijk voor de organisator.</p><form id="admin-login-form"><label for="admin-password">Adminwachtwoord</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required>${loginError ? `<p class="admin-login-error" role="alert">${loginError}</p>` : ""}<button class="button button-dark full" type="submit">Aanmelden</button></form><a class="admin-login-back" href="/">Terug naar deelnemersportaal</a></section></main>`; }
 function renderApp() {
+  if (state.activeConsole === "admin" && !adminAuthenticated) { document.querySelector("#app").innerHTML=renderAdminLogin(); return; }
   const isAdmin=state.activeConsole==="admin";
   const environmentNotice=state.activeEnvironment==="test"?'<div class="environment-notice">TESTOMGEVING · Wijzigingen zijn alleen testgegevens en staan los van de echte editie.</div>':"";
   document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${environmentNotice}${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
 }
 function handleClick(event) {
   const consoleButton=event.target.closest("[data-console]");
-  if(consoleButton){state.activeConsole=consoleButton.dataset.console;state.activeSection="overview";state.editingMember=null;renderApp();return;}
+  if(consoleButton){if(consoleButton.dataset.console==="admin"&&!adminAuthenticated){state.activeConsole="admin";loginError="";renderApp();return;}state.activeConsole=consoleButton.dataset.console;state.activeSection="overview";state.editingMember=null;renderApp();return;}
   const sectionButton=event.target.closest("[data-section]");
   if(sectionButton){state.activeSection=sectionButton.dataset.section;state.editingMember=null;renderApp();return;}
   const action=event.target.closest("[data-action]");
   if(!action)return;
+  if(action.dataset.action==="admin-logout"){fetch("/api/admin/logout",{method:"POST",credentials:"same-origin"}).finally(()=>{adminAuthenticated=false;state.activeConsole="user";state.activeSection="overview";renderApp();});return;}
   if(action.dataset.action==="switch-environment"){
     const target=action.dataset.environment;
     const label=target==="test"?"de testomgeving":"de echte editie";
@@ -86,7 +91,8 @@ function handleClick(event) {
   if(action.dataset.action==="toggle-product"){const product=state.catalog.find(item=>item.id===action.dataset.id);if(product)product.active=!product.active;renderApp();}
   if(action.dataset.action==="remove-image"){const product=state.catalog.find(item=>item.id===action.dataset.id);if(product)product.image=null;renderApp();}
 }
-function handleSubmit(event){
+async function handleSubmit(event){
+  if(event.target.id==="admin-login-form"){event.preventDefault();const form=event.target;const button=form.querySelector("button[type=submit]");button.disabled=true;button.textContent="Even controleren…";loginError="";try{const response=await fetch("/api/admin/login",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:form.elements.password.value})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||"Aanmelden is niet gelukt.");adminAuthenticated=true;state.activeConsole="admin";state.activeSection="overview";renderApp();}catch(error){loginError=error.message||"Aanmelden is niet gelukt.";renderApp();}return;}
   if(event.target.id==="add-member-form"){event.preventDefault();const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration)return;const form=event.target;const name=form.elements.memberName.value.trim();const type=form.elements.memberType.value;if(!name)return;if(!registration.members?.length&&registration.id!=="koen-isabella"){const replace=window.confirm("Deze inschrijving bevat momenteel alleen historische aantallen, geen namen. De nieuwe ledenlijst vervangt die aantallen. Doorgaan?");if(!replace)return;}registration.members=registration.members||[];registration.members.push({id:makeId("lid"),name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});markCostsProvisional();registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
   if(event.target.id==="add-own-member-form"){
     event.preventDefault();
@@ -206,6 +212,8 @@ function handleImageUpload(event){
   const product=state.catalog.find(item=>item.id===input.dataset.uploadImage);if(!product)return;
   const reader=new FileReader();reader.onload=()=>{product.image=reader.result;renderApp();};reader.readAsDataURL(file);
 }
-export function startApp(){
-  document.addEventListener("click",handleClick);document.addEventListener("submit",handleSubmit);document.addEventListener("change",handleImageUpload);renderApp();
+export async function startApp(){
+  document.addEventListener("click",handleClick);document.addEventListener("submit",handleSubmit);document.addEventListener("change",handleImageUpload);
+  try{const response=await fetch("/api/admin/session",{credentials:"same-origin"});const session=await response.json();adminAuthenticated=Boolean(session.authenticated);}catch{adminAuthenticated=false;}
+  renderApp();
 }
