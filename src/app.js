@@ -10,7 +10,8 @@ const markCostsProvisional = () => { state.costsFinalized=false; state.costsFina
 const makeId = (prefix = "lid") => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 function renderApp() {
   const isAdmin=state.activeConsole==="admin";
-  document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
+  const environmentNotice=state.activeEnvironment==="test"?'<div class="environment-notice">TESTOMGEVING · Wijzigingen zijn alleen testgegevens en staan los van de echte editie.</div>':"";
+  document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${environmentNotice}${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
 }
 function handleClick(event) {
   const consoleButton=event.target.closest("[data-console]");
