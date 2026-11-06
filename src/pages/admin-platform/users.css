@@ -23,3 +23,7 @@
 .family-user-link-form button{min-height:34px;padding:6px 10px;border:1px solid var(--line,#e8e4dd);border-radius:8px;background:#fff;color:var(--ink,#292720);font:inherit;font-size:12px;font-weight:700}
 .family-user-link-form button:disabled{opacity:.5}
 @media(max-width:420px){.family-user-link-form{align-items:stretch}.family-user-link-form select{width:100%}}
+
+
+.family-user-actions .danger-text { color: #b42318; }
+.family-user-actions .danger-text:hover { color: #8f1d14; }
