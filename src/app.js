@@ -16,7 +16,7 @@ function renderApp() {
   if (state.activeConsole === "admin" && !adminAuthenticated) { document.querySelector("#app").innerHTML=renderAdminLogin(); return; }
   const isAdmin=state.activeConsole==="admin";
   const environmentNotice=state.activeEnvironment==="test"?'<div class="environment-notice">TESTOMGEVING · Wijzigingen zijn alleen testgegevens en staan los van de echte editie.</div>':"";
-  document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${environmentNotice}${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
+  document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${isAdmin?'<div class="admin-session-bar"><span>Beveiligde admin-sessie</span><button class="text-button" data-action="admin-logout">Uitloggen</button></div>':""}${environmentNotice}${renderConsoleSwitcher(state.activeConsole)}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
 }
 function handleClick(event) {
   const consoleButton=event.target.closest("[data-console]");
