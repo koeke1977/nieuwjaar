@@ -119,6 +119,8 @@ export async function startFamilyAuth() {
   async function saveRegistration(item) {
     if (item.saving) return;
     item.saving = true;
+    const card = view.querySelector('[data-registration="' + CSS.escape(item.registration.id) + '"]');
+    card?.querySelectorAll("button, input, select").forEach(control => { control.disabled = true; });
     feedback("");
     try {
       const result = await request("/api/family-account/registration", {
@@ -134,6 +136,7 @@ export async function startFamilyAuth() {
       if (error.message?.includes("gewijzigd")) await loadAccount();
     } finally {
       item.saving = false;
+      card?.querySelectorAll("button, input, select").forEach(control => { control.disabled = false; });
     }
   }
   async function loadAccount() {
