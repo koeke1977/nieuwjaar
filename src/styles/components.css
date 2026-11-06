@@ -190,3 +190,23 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
 .admin-login-card .admin-login-error{margin:0;color:#b42318;font-size:13px}
 .admin-login-back{display:block;margin-top:20px;text-align:center;color:var(--muted);font-size:13px}
 .admin-session-bar{display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:8px 0;color:var(--muted);font-size:12px}
+
+
+/* Persoonlijk gezinsportaal en uitnodigingslinks */
+.family-portal-shell{max-width:900px;margin:0 auto;padding:24px 18px}
+.family-portal-header{padding:20px 2px 12px}
+.family-portal-header h1{font:800 30px Manrope,sans-serif;color:var(--ink,#172638);margin:7px 0}
+.family-portal-header p:not(.eyebrow){color:var(--muted);font-size:13px}
+.family-add-grid{display:grid;grid-template-columns:minmax(0,1fr) 160px auto;gap:9px}
+.family-add-grid input,.family-add-grid select{min-width:0;border:1px solid #dfe4e9;border-radius:9px;padding:10px 12px;font:inherit;font-size:12px;background:#fff}
+.family-order-person{padding:14px 0;border-bottom:1px solid #eff1f3}
+.family-order-person h3{font:700 13px Manrope,sans-serif;margin:0 0 10px}
+.family-order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 16px}
+.family-order-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #edf0f2}
+.family-order-item>span{font-size:12px;font-weight:600}
+.family-order-item .quantity-control{padding:0;gap:9px}
+.family-order-item .quantity-control button{width:29px;height:29px;cursor:pointer}
+.family-save-status{position:sticky;bottom:12px;padding:12px 15px;background:#f1f6f2;border:1px solid #d8e9dc;border-radius:10px;color:#315d40;font-size:12px;font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,.06)}
+.family-invite-result{display:flex;gap:8px;align-items:center;padding:8px 12px 12px 42px}
+.family-invite-result input{flex:1;min-width:0;border:1px solid #dfe4e9;border-radius:8px;padding:8px 10px;font:inherit;font-size:11px;background:#f8f9fa}
+@media(max-width:650px){.family-add-grid{grid-template-columns:1fr}.family-order-grid{grid-template-columns:1fr}.family-invite-result{padding-left:0;flex-direction:column;align-items:stretch}.family-invite-result button{width:100%}.family-portal-header h1{font-size:25px}}
