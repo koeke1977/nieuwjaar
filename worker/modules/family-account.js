@@ -1,3 +1,4 @@
+const encoder = new TextEncoder();
 const FAMILY_ACCOUNT_COOKIE = "ny_family_account";
 const FAMILY_ACCOUNT_TTL_SECONDS = 7 * 24 * 60 * 60;
 
