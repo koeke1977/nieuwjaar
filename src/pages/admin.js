@@ -2,6 +2,18 @@ import { state, getGlobalMeatTotals } from "../data/demo-data.js";
 import { money, total, received, outstanding } from "../utils/format.js";
 import { getExpenseShares, getFinancialSummary, getMemberCostSummary } from "../utils/finance.js";
 const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function renderEnvironmentPanel() {
+  const isTest = state.activeEnvironment === "test";
+  return `<section class="panel environment-panel">
+    <div class="section-heading"><div><h2>Omgeving beheren</h2><p>Test veilig met gezinnen, bestellingen, kosten en betalingen zonder de echte editie te wijzigen.</p></div><span class="status ${isTest?"warning":"success"}">${isTest?"TEST":"PRODUCTIE"}</span></div>
+    <div class="environment-switch">
+      <button class="button ${isTest?"button-dark":"button-outline"}" data-action="switch-environment" data-environment="test" ${isTest?"disabled":""}>Testomgeving</button>
+      <button class="button ${!isTest?"button-dark":"button-outline"}" data-action="switch-environment" data-environment="live" ${!isTest?"disabled":""}>Echte editie</button>
+      ${isTest?'<button class="button button-outline danger-text" data-action="reset-test-environment">Testgegevens wissen</button>':""}
+    </div>
+    <p class="catalog-note">${isTest?"Je werkt momenteel uitsluitend met testgegevens. De echte editie is apart en start leeg.":"Je werkt in de echte editie. Wijzigingen hier zijn geen tests en mogen meetellen voor de uiteindelijke afrekening."} Gegevens blijven in deze prototypeversie alleen tijdens deze browsersessie bewaard; na vernieuwen wordt de beginstand opnieuw geladen.</p>
+  </section>`;
+}
 function renderMeatTable() {
   const totals=getGlobalMeatTotals();
   return `<table class="meat-print-table"><thead><tr><th>Vleesproduct</th><th>Aantal</th></tr></thead><tbody>${totals.map(item => `<tr><td>${esc(item.name)}</td><td>${item.count}</td></tr>`).join("")}</tbody><tfoot><tr><th>Totaal aantal porties</th><th>${total(totals)}</th></tr></tfoot></table>`;
@@ -31,7 +43,7 @@ function renderRegistrations() {
   const adults=state.registrations.reduce((sum,item)=>sum+item.adults,0);
   const children=state.registrations.reduce((sum,item)=>sum+item.children,0);
   const archivedPeople=state.previousEditionRegistrations.reduce((sum,item)=>sum+item.adults+item.children,0);
-  return `<section class="page-heading"><p class="eyebrow">DEELNEMERSBEHEER</p><h1>Inschrijvingen huidige editie</h1><p>Beheer hier de nieuwe gezinnen en individuele deelnemers. Oude edities blijven apart bewaard.</p></section>
+  return `${renderEnvironmentPanel()}<section class="page-heading"><p class="eyebrow">DEELNEMERSBEHEER</p><h1>Inschrijvingen huidige editie</h1><p>Beheer hier de nieuwe gezinnen en individuele deelnemers. Oude edities blijven apart bewaard.</p></section>
   <section class="stats-grid"><article class="stat-card"><strong>${state.registrations.length}</strong><small>Inschrijvingen</small></article><article class="stat-card"><strong>${people}</strong><small>Deelnemers totaal</small></article><article class="stat-card"><strong>${adults}</strong><small>Volwassenen (18+)</small></article><article class="stat-card"><strong>${children}</strong><small>Kinderen</small></article></section>
   <section class="panel"><div class="section-heading"><div><h2>Nieuwe inschrijving</h2><p>Voeg een gezin of alleenstaande toe.</p></div><span class="status success">Huidige editie</span></div>
   <form class="catalog-add-form" id="add-registration-form"><label>Inschrijving toevoegen</label><div class="registration-form-grid"><input name="registrationName" maxlength="80" placeholder="Naam gezin of deelnemer" required><input name="adults" type="number" min="0" max="30" value="1" aria-label="Aantal volwassenen" required><input name="children" type="number" min="0" max="30" value="0" aria-label="Aantal kinderen" required><button class="button button-dark" type="submit">+ Toevoegen</button></div><p class="catalog-note">Voeg daarna de namen van de individuele deelnemers toe.</p></form>
@@ -103,7 +115,7 @@ function renderAdminOverview() {
   const financial=getFinancialSummary(state.registrations,state.expenses,state.payments);
   const receivedCents=state.payments.reduce((sum,payment)=>sum+payment.amountCents,0);
   const remainingCents=financial.reduce((sum,row)=>sum+row.remainingCents,0);
-  return `<section class="welcome"><div><p class="eyebrow">ORGANISATIE</p><h1>Admin dashboard</h1><p>Alles voor de nieuwjaarsbijeenkomst op één plek.</p></div><div class="welcome-icon">✦</div></section>
+  return `${renderEnvironmentPanel()}<section class="welcome"><div><p class="eyebrow">ORGANISATIE</p><h1>Admin dashboard</h1><p>Alles voor de nieuwjaarsbijeenkomst op één plek.</p></div><div class="welcome-icon">✦</div></section>
   <section class="stats-grid"><article class="stat-card"><span class="stat-icon">♧</span><strong>${state.registrations.reduce((sum,item)=>sum+item.adults+item.children,0)}</strong><small>Deelnemers</small></article><article class="stat-card"><span class="stat-icon">♨</span><strong>${total(totals)}</strong><small>Vleesporties</small></article><article class="stat-card"><span class="stat-icon">€</span><strong>${money(receivedCents/100)}</strong><small>Ontvangen betalingen</small></article><article class="stat-card"><span class="stat-icon">◷</span><strong>${money(remainingCents/100)}</strong><small>Nog te ontvangen</small></article></section>
   <div class="admin-grid"><section class="panel"><div class="section-heading"><div><h2>BBQ – totaaloverzicht</h2><p>Actuele aantallen voor de grill.</p></div><span class="status success">Bestelling</span></div>${renderMeatTable()}<button class="button button-outline" data-section="meat">Volledig BBQ-overzicht <span>→</span></button></section>
   <section class="panel"><div class="section-heading"><div><h2>Betalingen</h2><p>Stand van de ontvangen bedragen.</p></div></div><div class="payment-summary"><div><span>Ontvangen</span><strong class="positive">${money(receivedCents/100)}</strong></div><div><span>Openstaand</span><strong>${money(remainingCents/100)}</strong></div></div><button class="button button-dark full" data-section="payments">Betaling registreren <span>→</span></button></section></div>${renderSettlementPanel()}`;
