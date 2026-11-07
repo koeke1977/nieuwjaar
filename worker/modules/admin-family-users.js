@@ -101,6 +101,34 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     registration.members = members;
     registration.adults = members.filter(person => person.type === "Volwassene").length;
     registration.children = members.filter(person => person.type === "Kind").length;
+    if (row.legacy_environment && row.legacy_registration_id) {
+      const legacyState = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(row.legacy_environment).first();
+      if (!legacyState || Number(legacyState.updated_at) !== body.revision) {
+        return json({ error: "De speelgegevens zijn intussen gewijzigd. Herlaad het overzicht en probeer opnieuw." }, 409);
+      }
+      let legacyData;
+      try { legacyData = JSON.parse(legacyState.data_json || "{}"); }
+      catch { return json({ error: "De speelgegevens zijn ongeldig. Er is niets gewijzigd." }, 500); }
+      const legacyRegistration = (legacyData.registrations || []).find(item => item.id === row.legacy_registration_id);
+      if (!legacyRegistration) return json({ error: "De oorspronkelijke inschrijving bestaat niet meer." }, 404);
+      legacyRegistration.name = body.name.trim();
+      legacyRegistration.members = members;
+      legacyRegistration.adults = registration.adults;
+      legacyRegistration.children = registration.children;
+      legacyData.costsFinalized = false;
+      legacyData.costsFinalizedAt = null;
+      const serialized = JSON.stringify(legacyData);
+      const stateUpdated = await env.DB.prepare(
+        "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ? RETURNING updated_at"
+      ).bind(serialized, now, row.legacy_environment, body.revision).first();
+      if (!stateUpdated) return json({ error: "De speelgegevens zijn intussen gewijzigd. Herlaad het overzicht en probeer opnieuw." }, 409);
+      await env.DB.prepare(
+        "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ?"
+      ).bind(JSON.stringify(legacyRegistration), now, registrationId).run();
+      return json({ saved: true, revision: stateUpdated.updated_at, registration: {
+        id: registrationId, name: legacyRegistration.name, adults: legacyRegistration.adults, children: legacyRegistration.children, members: legacyRegistration.members
+      } });
+    }
     const updated = await env.DB.prepare(
       "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND updated_at = ? AND legacy_environment IS NULL AND legacy_registration_id IS NULL RETURNING updated_at"
     ).bind(JSON.stringify(registration), now, registrationId, body.revision).first();
