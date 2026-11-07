@@ -214,3 +214,53 @@ De nieuwe beheeracties zijn alleen beschikbaar via een geldige admin-sessie en s
 - Na schema-installatie wordt de preview opnieuw uitgevoerd op remote D1. Alleen een foutloze preview, een bewaarde back-up en een expliciet akkoord mogen voorafgaan aan de backfill.
 - Herstel gebeurt niet door tabellen blind te droppen. Bij afwijkingen wordt de backfill gestopt; de oude `app_state` blijft de bron van waarheid en herstel gebeurt vanuit de bewaarde D1-export volgens een afzonderlijk gecontroleerd herstelplan.
 - De preview en backfill zijn codegewijs voorbereid, maar de echte remote preview, export, migratie en hersteltest zijn nog niet uitgevoerd.
+
+
+## Praktisch back-updraaiboek voor Windows — vóór remote D1-migraties
+
+Voer dit pas uit vanuit `C:\\AppNieuwjaar`, met de juiste Cloudflare-account aangemeld. Dit draaiboek exporteert alleen; het voert geen migratie of deploy uit.
+
+1. Maak een aparte map buiten de repository, zodat een export niet per ongeluk wordt meegecommit:
+
+```powershell
+$backupDir = Join-Path $env:USERPROFILE ("D1-Backups\\nieuwjaar-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+New-Item -ItemType Directory -Path $backupDir | Out-Null
+```
+
+2. Noteer eerst welke migraties remote nog openstaan:
+
+```powershell
+npx wrangler d1 migrations list nieuwjaar-db --remote
+```
+
+3. Exporteer schema én data van de volledige remote database:
+
+```powershell
+$backupFile = Join-Path $backupDir "nieuwjaar-db-before-migration.sql"
+npx wrangler d1 export nieuwjaar-db --remote --output $backupFile
+if ($LASTEXITCODE -ne 0) { throw "D1-export mislukt. Niet verdergaan." }
+```
+
+Een remote export kan tijdelijk andere databaseverzoeken blokkeren. Plan dit dus op een rustig moment en bevestig de exportprompt bewust.
+
+4. Controleer dat het bestand bestaat, niet leeg is en bereken een SHA-256-controlehash:
+
+```powershell
+if (!(Test-Path $backupFile) -or (Get-Item $backupFile).Length -eq 0) { throw "Back-up ontbreekt of is leeg." }
+Get-Item $backupFile | Select-Object FullName, Length, LastWriteTime
+Get-FileHash $backupFile -Algorithm SHA256
+```
+
+Bewaar de SQL-export én hash buiten de projectmap op een tweede veilige locatie. Een hash bewijst integriteit van het bestand na export, maar niet op zichzelf dat de export herstelbaar is.
+
+5. Bewaar bij de back-up ook:
+   - de branchnaam en exacte commit-SHA die je gaat migreren;
+   - de uitvoer van `d1 migrations list --remote`;
+   - de exportdatum en SHA-256-hash;
+   - de preview-uitvoer na schema-installatie, vóór backfill.
+
+6. Hersteltest: importeer de export niet terug over productie. Een hersteltest moet op een aparte, tijdelijke D1-database gebeuren en pas na controle van schema, aantallen en kritieke gegevens als geslaagd worden beschouwd.
+
+**Stopvoorwaarden:** export mislukt/leeg, hash ontbreekt, onbekende remote migratiestatus, afwijkende databasebinding, of geen afzonderlijke herstelomgeving = geen migratie en geen backfill.
+
+Cloudflare-referenties: [D1 Wrangler commands](https://developers.cloudflare.com/d1/wrangler-commands/) en [D1 import/export best practices](https://developers.cloudflare.com/d1/best-practices/import-export-data/).
