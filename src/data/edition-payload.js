@@ -91,6 +91,8 @@ export function applyEdition(edition, { keepUi = true } = {}) {
   if (edition.financeStrategy) state.financeStrategy = edition.financeStrategy;
   state.startsAt = edition.startsAt || null;
   state.orderDeadline = edition.orderDeadline || null;
+  state.butcherEmail = edition.butcherEmail || "";
+  state.butcherSentAt = edition.butcherSentAt || null;
   state.catalog = clone(edition.catalog || []);
   state.registrations = clone(edition.registrations || []).map(reg => ({
     ...reg,

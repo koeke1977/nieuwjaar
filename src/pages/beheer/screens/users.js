@@ -12,6 +12,7 @@ import {
   accessChip,
   allFamilies,
   accounts,
+  accountsForFamily,
   pageHead
 } from "./shared.js";
 import { renderAccess } from "./families.js";
@@ -157,37 +158,113 @@ function renderUserFamily(family) {
       </div>`;
 }
 
+// ---- Sortable, filterable tables (Gezinnen and Accounts) ----
+// state.beheerUsersSort = { families: { key, dir }, accounts: { key, dir } }; state.beheerUsersFilter likewise.
+const compareText = (a, b) => String(a || "").localeCompare(String(b || ""), "nl", { sensitivity: "base" });
+const sortOf = table => state.beheerUsersSort?.[table] || { key: "name", dir: "asc" };
+const filterOf = table => state.beheerUsersFilter?.[table] || "all";
+const loginDate = seconds =>
+  seconds
+    ? new Date(seconds * 1000).toLocaleDateString("nl-BE", { day: "numeric", month: "short", year: "numeric" })
+    : "";
+const dash = html`<span class="bh-dim">–</span>`;
+
+function sortRows(rows, table, getters) {
+  const { key, dir } = sortOf(table);
+  const get = getters[key] || getters.name;
+  const sign = dir === "desc" ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const x = get(a),
+      y = get(b);
+    const order = typeof x === "string" || typeof y === "string" ? compareText(x, y) : (x || 0) - (y || 0);
+    return order * sign || compareText(getters.name(a), getters.name(b));
+  });
+}
+
+function sortHeader(table, key, label) {
+  const { key: active, dir } = sortOf(table);
+  const current = active === key;
+  return html`<th aria-sort="${current ? (dir === "asc" ? "ascending" : "descending") : "none"}">
+      <button type="button" class="bh-sort${current ? " is-active" : ""}" data-action="users-sort" data-table="${table}"
+          data-key="${key}">${label}<span aria-hidden="true">${current ? (dir === "asc" ? "▲" : "▼") : "↕"}</span></button>
+    </th>`;
+}
+
+function filterBar(table, options, rows) {
+  const active = filterOf(table);
+  return html`<div class="bh-filters" role="group" aria-label="Filter">${joinHtml(
+    options.map(
+      option => html`<button type="button" class="bh-filter" data-action="users-filter" data-table="${table}"
+          data-filter="${option.id}" aria-pressed="${option.id === active}">${option.label}
+          <b>${rows.filter(option.test).length}</b></button>`
+    ),
+    ""
+  )}</div>`;
+}
+
+const ACCESS_LABEL = ["Geen account", "Uitgenodigd", "Account actief"];
+const ACCESS_CHIP = ["bh-chip-muted", "bh-chip-warn", "bh-chip-ok"];
+
+function familyRows() {
+  const lastLogin = new Map();
+  for (const user of accounts)
+    for (const link of user.families || [])
+      if (user.lastLoginAt) lastLogin.set(link.familyId, Math.max(lastLogin.get(link.familyId) || 0, user.lastLoginAt));
+  return allFamilies().map(family => {
+    const registration = state.registrations.find(item => item.familyId === family.id);
+    const members = registration?.members || family.registrations?.[0]?.members || [];
+    const users = accountsForFamily(family.id);
+    return {
+      id: family.id,
+      name: registration?.name || family.name,
+      members,
+      people: members.length,
+      registered: registration ? 1 : 0,
+      portions: registration ? familyPortions(registration) : 0,
+      access: users.some(user => user.status === "active") ? 2 : users.some(user => user.status === "invited") ? 1 : 0,
+      login: lastLogin.get(family.id) || 0
+    };
+  });
+}
+
+const FAMILY_FILTERS = [
+  { id: "all", label: "Alle", test: () => true },
+  { id: "registered", label: "Ingeschreven", test: row => row.registered },
+  { id: "not-registered", label: "Niet ingeschreven", test: row => !row.registered },
+  { id: "no-account", label: "Zonder account", test: row => row.access === 0 },
+  { id: "invited", label: "Nog niet aangemeld", test: row => row.access === 1 }
+];
+const FAMILY_SORT = {
+  name: row => row.name,
+  people: row => row.people,
+  registered: row => row.registered,
+  portions: row => row.portions,
+  access: row => row.access,
+  login: row => row.login
+};
+
 function renderUserFamilies() {
-  const list = allFamilies();
-  const rows = joinHtml(
-    list.map(family => {
-      const registration = state.registrations.find(item => item.familyId === family.id);
-      const members = registration?.members || family.registrations?.[0]?.members || [];
-      const editions = joinHtml(
-        (family.registrations || []).map(
-          reg =>
-            html`<span
-                class="bh-chip${reg.editionId === state.activeEditionId ? " bh-chip-info" : ""}">${reg.event + " " + reg.edition}</span>`
-        ),
-        ""
-      );
-      return html`<li>
-            <button type="button" class="bh-family-row bh-family-row-user" data-action="open-user-family"
-                data-id="${family.id}">
-              <span class="bh-avatar">${(family.name || "?").charAt(0).toUpperCase()}</span>
-              <span class="bh-family-name">
-                <strong>${registration?.name || family.name}</strong>
-                <small>${members.length ? countsText(members) : "Leden nog niet ingevuld"}</small>
-              </span>
-              <span class="bh-family-chips">${accessChip(family.id)}${
-                editions ||
-                html`<span class="bh-chip
-                  bh-chip-muted">Niet ingeschreven</span>`
-              }</span>
-              <i class="bh-chev" aria-hidden="true">›</i>
+  const all = familyRows();
+  const filter = FAMILY_FILTERS.find(option => option.id === filterOf("families")) || FAMILY_FILTERS[0];
+  const rows = sortRows(all.filter(filter.test), "families", FAMILY_SORT);
+  const body = joinHtml(
+    rows.map(
+      row => html`<tr>
+          <th scope="row">
+            <button type="button" class="bh-link bh-row-link" data-action="open-user-family" data-id="${row.id}">
+              <strong>${row.name}</strong>
+              <small>${row.members.length ? countsText(row.members) : "Leden nog niet ingevuld"}</small>
             </button>
-          </li>`;
-    }),
+          </th>
+          <td>${row.people || dash}</td>
+          <td>${row.registered ? html`<span class="bh-chip bh-chip-info">Ingeschreven</span>` : dash}</td>
+          <td>${row.registered ? row.portions || dash : dash}</td>
+          <td>
+            <span class="bh-chip ${ACCESS_CHIP[row.access]}">${ACCESS_LABEL[row.access]}</span>
+          </td>
+          <td>${loginDate(row.login) || dash}</td>
+        </tr>`
+    ),
     ""
   );
   return html`<section class="bh-card">
@@ -204,78 +281,126 @@ function renderUserFamilies() {
               : "Een nieuw gezin wordt meteen ingeschreven voor " + eventTitle() + "."
           }</small>
         </form>
-      </section>${
-        rows
-          ? html`<ul class="bh-family-list">${rows}</ul>`
-          : html`<p class="bh-empty">Nog geen
-          gezinnen.</p>`
-      }`;
+      </section>
+      <section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Gezinnen</h2>
+          <span class="bh-count">${all.length}</span>
+        </header>${filterBar("families", FAMILY_FILTERS, all)}<p class="bh-note">Ingeschreven en porties gelden voor
+          ${eventTitle()}. Klik op een kolomtitel om te sorteren.</p>${
+            rows.length
+              ? html`<div class="bh-table-wrap">
+          <table class="bh-table bh-table-list">
+            <thead>
+              <tr>${sortHeader("families", "name", "Gezin")}${sortHeader("families", "people", "Personen")}${sortHeader(
+                "families",
+                "registered",
+                "Ingeschreven"
+              )}${sortHeader("families", "portions", "Porties")}${sortHeader("families", "access", "Account")}${sortHeader(
+                "families",
+                "login",
+                "Laatst aangemeld"
+              )}</tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>`
+              : html`<p class="bh-empty">${all.length ? "Geen gezinnen voor deze filter." : "Nog geen gezinnen."}</p>`
+          }</section>`;
+}
+
+const STATUS_RANK = { active: 0, invited: 1, disabled: 2 };
+const STATUS_LABEL = { active: "Actief", invited: "Uitgenodigd", disabled: "Geblokkeerd" };
+const STATUS_CHIP = { active: "bh-chip-ok", invited: "bh-chip-warn", disabled: "bh-chip-due" };
+const ACCOUNT_FILTERS = [
+  { id: "all", label: "Alle", test: () => true },
+  { id: "active", label: "Actief", test: user => user.status === "active" },
+  { id: "invited", label: "Uitgenodigd", test: user => user.status === "invited" },
+  { id: "disabled", label: "Geblokkeerd", test: user => user.status === "disabled" }
+];
+const ACCOUNT_SORT = {
+  name: user => user.displayName || user.email,
+  email: user => user.email,
+  status: user => STATUS_RANK[user.status] ?? 3,
+  family: user => (user.families || [])[0]?.familyName || "",
+  login: user => user.lastLoginAt || 0
+};
+
+function accountActions(user) {
+  return html`${
+    user.status === "invited"
+      ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite"
+          data-user="${user.id}">Opnieuw sturen</button>`
+      : ""
+  }${
+    user.status === "active"
+      ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="${user.id}"
+          data-status="disabled">Blokkeren</button>
+        <button type="button" class="bh-btn bh-btn-sm" data-action="account-sessions" data-user="${user.id}">Afmelden
+            op alle toestellen</button>`
+      : ""
+  }${
+    user.status === "disabled"
+      ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="${user.id}"
+          data-status="active">Deblokkeren</button>`
+      : ""
+  }<button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="account-delete" data-user="${user.id}"
+      data-email="${user.email}">Verwijderen</button>`;
 }
 
 function renderAccounts() {
-  const rows = joinHtml(
-    accounts.map(user => {
-      const status =
-        user.status === "active"
-          ? html`<span class="bh-chip bh-chip-ok">Actief</span>`
-          : user.status === "disabled"
-            ? html`<span class="bh-chip bh-chip-due">Geblokkeerd</span>`
-            : html`<span class="bh-chip bh-chip-warn">Uitgenodigd</span>`;
-      const fams =
-        joinHtml(
-          (user.families || []).map(
-            link =>
-              html`<button type="button" class="bh-chip bh-chip-info" data-action="open-user-family"
-                  data-id="${link.familyId}">${link.familyName || "Gezin"}</button>`
-          ),
-          ""
-        ) || html`<span class="bh-chip bh-chip-muted">Geen gezin</span>`;
-      const actions = html`${
-        user.status === "invited"
-          ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite"
-              data-user="${user.id}">Opnieuw sturen</button>`
-          : ""
-      }${
-        user.status === "active"
-          ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="${user.id}"
-              data-status="disabled">Blokkeren</button>
-            <button type="button" class="bh-btn bh-btn-sm" data-action="account-sessions" data-user="${user.id}">Afmelden
-                op alle toestellen</button>`
-          : ""
-      }${
-        user.status === "disabled"
-          ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="${user.id}"
-              data-status="active">Deblokkeren</button>`
-          : ""
-      }<button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="account-delete" data-user="${user.id}"
-          data-email="${user.email}">Verwijderen</button>`;
-      return html`<li class="bh-account">
-            <div class="bh-account-main">
-              <strong>${user.displayName || user.email}</strong>
-              <small>${user.email}${
-                user.lastLoginAt
-                  ? " · laatst aangemeld " + new Date(user.lastLoginAt * 1000).toLocaleDateString("nl-BE")
-                  : ""
-              }</small>
-              <div class="bh-family-chips">${status}${fams}</div>
-            </div>
-            <div class="bh-actions">${actions}</div>
-          </li>`;
-    }),
+  const filter = ACCOUNT_FILTERS.find(option => option.id === filterOf("accounts")) || ACCOUNT_FILTERS[0];
+  const rows = sortRows(accounts.filter(filter.test), "accounts", ACCOUNT_SORT);
+  const body = joinHtml(
+    rows.map(
+      user => html`<tr>
+          <th scope="row">${user.displayName || dash}</th>
+          <td>${user.email}</td>
+          <td>
+            <span class="bh-chip ${STATUS_CHIP[user.status] || "bh-chip-muted"}">${
+              STATUS_LABEL[user.status] || user.status
+            }</span>
+          </td>
+          <td>${
+            joinHtml(
+              (user.families || []).map(
+                link => html`<button type="button" class="bh-chip bh-chip-info" data-action="open-user-family"
+                    data-id="${link.familyId}">${link.familyName || "Gezin"}</button>`
+              ),
+              ""
+            ) || html`<span class="bh-chip bh-chip-muted">Geen gezin</span>`
+          }</td>
+          <td>${loginDate(user.lastLoginAt) || dash}</td>
+          <td>
+            <div class="bh-cell-actions">${accountActions(user)}</div>
+          </td>
+        </tr>`
+    ),
     ""
   );
   return html`<section class="bh-card">
         <header class="bh-card-head">
           <h2>Accounts</h2>
           <span class="bh-count">${accounts.length}</span>
-        </header>
-        <p class="bh-note">Uitnodigen doe je bij het gezin (Gezinnen → gezin → Toegang). Een account hoort bij een gezin,
-            niet bij één editie.</p>${
-              rows
-                ? html`<ul class="bh-accounts">${rows}</ul>`
-                : html`<p class="bh-empty">Nog
-            geen accounts.</p>`
-            }</section>`;
+        </header>${filterBar("accounts", ACCOUNT_FILTERS, accounts)}<p class="bh-note">Uitnodigen doe je bij het gezin
+          (Gezinnen → gezin → Toegang). Een account hoort bij een gezin, niet bij één editie.</p>${
+            rows.length
+              ? html`<div class="bh-table-wrap">
+          <table class="bh-table bh-table-list">
+            <thead>
+              <tr>${sortHeader("accounts", "name", "Naam")}${sortHeader("accounts", "email", "E-mail")}${sortHeader(
+                "accounts",
+                "status",
+                "Status"
+              )}${sortHeader("accounts", "family", "Gezin")}${sortHeader("accounts", "login", "Laatst aangemeld")}<th>
+                  Acties</th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>`
+              : html`<p class="bh-empty">${accounts.length ? "Geen accounts voor deze filter." : "Nog geen accounts."}</p>`
+          }</section>`;
 }
 
 export const USERS_TABS = [

@@ -6,7 +6,7 @@
 // last saw; a guard failure aborts the whole batch (nothing is written) and returns 409.
 
 import { withDiet } from "../../src/utils/diet.js";
-import { esc } from "../../src/utils/html.js";
+import { esc, formatDate } from "../../src/utils/html.js";
 import { SHARED_FUND } from "../../src/utils/finance.js";
 import { isMemberType, EVENING } from "../../src/utils/member-types.js";
 import { parseReceiptKey } from "./receipts.js";
@@ -76,6 +76,8 @@ export async function loadEditionState(env, editionId) {
     endsAt: edition.ends_at,
     catalog: Array.isArray(config.catalog) ? config.catalog : [],
     orderDeadline: typeof config.orderDeadline === "string" ? config.orderDeadline : null,
+    butcherEmail: typeof config.butcherEmail === "string" ? config.butcherEmail : "",
+    butcherSentAt: Number(config.butcherSentAt) || null,
     registrations,
     expenses: parse(snapshot?.expenses_json, []) || [],
     payments: parse(snapshot?.payments_json, []) || [],
@@ -487,6 +489,7 @@ export async function startNextEdition(env, editionId, body, now) {
   if (duplicate) return { status: 409, error: "Er bestaat al een editie met deze naam." };
   const config = parse(current.config_json, {}) || {};
   const newConfig = body?.copyCatalog === false ? {} : { catalog: Array.isArray(config.catalog) ? config.catalog : [] };
+  if (typeof config.butcherEmail === "string" && config.butcherEmail) newConfig.butcherEmail = config.butcherEmail;
   const id = "edition-" + crypto.randomUUID();
   await env.DB.batch([
     env.DB.prepare("UPDATE event_editions SET status = 'archived', updated_at = ? WHERE id = ?").bind(now, editionId),
@@ -560,11 +563,96 @@ export function messageHtml({ displayName, subject, message, eventTitle }) {
   );
 }
 
+// Meat order for the butcher: totals per product over everyone at dinner (no names), from the
+// saved registrations of this edition.
+export async function butcherOrder(env, editionId) {
+  const edition = await env.DB.prepare(
+    "SELECT d.label, d.starts_at, d.config_json, e.name FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?"
+  )
+    .bind(editionId)
+    .first();
+  if (!edition) return null;
+  const config = parse(edition.config_json, {}) || {};
+  const catalog = Array.isArray(config.catalog) ? config.catalog : [];
+  const rows = await env.DB.prepare(
+    "SELECT data_json FROM event_registrations WHERE edition_id = ? AND status = 'active'"
+  )
+    .bind(editionId)
+    .all();
+  const counts = new Map();
+  for (const row of rows.results || []) {
+    const members = parse(row.data_json, {})?.members || [];
+    for (const person of members) {
+      if (person?.type === EVENING) continue;
+      for (const [productId, qty] of Object.entries(person?.orders || {})) {
+        const n = Math.max(0, Math.floor(Number(qty) || 0));
+        if (n) counts.set(productId, (counts.get(productId) || 0) + n);
+      }
+    }
+  }
+  const lines = catalog
+    .filter(product => counts.get(product.id))
+    .map(product => ({ name: String(product.name || product.id), count: counts.get(product.id) }));
+  return {
+    config,
+    eventTitle: edition.name + " " + edition.label,
+    partyDate: formatDate(edition.starts_at || ""),
+    lines,
+    total: lines.reduce((sum, line) => sum + line.count, 0)
+  };
+}
+
+export function butcherMailHtml({ eventTitle, partyDate, lines, total, note }) {
+  const cell = "padding:8px 12px;border-bottom:1px solid #e6e1d8";
+  const rows = lines
+    .map(
+      line =>
+        '<tr><td style="' +
+        cell +
+        '">' +
+        esc(line.name) +
+        '</td><td style="' +
+        cell +
+        ';text-align:right;font-weight:700">' +
+        line.count +
+        "</td></tr>"
+    )
+    .join("");
+  const noteHtml = note
+    ? note
+        .replace(/\r\n/g, "\n")
+        .split(/\n{2,}/)
+        .map(block => "<p>" + esc(block).replace(/\n/g, "<br>") + "</p>")
+        .join("")
+    : "";
+  return (
+    '<div style="font-family:Arial,sans-serif;color:#1b2a3b;line-height:1.6;max-width:560px">' +
+    "<p>Beste,</p><p>Hierbij onze bestelling voor <strong>" +
+    esc(eventTitle) +
+    "</strong>" +
+    (partyDate ? " (feest op " + esc(partyDate) + ")" : "") +
+    ':</p><table style="border-collapse:collapse;min-width:280px;margin:8px 0 16px">' +
+    '<tr><th style="' +
+    cell +
+    ';text-align:left">Product</th><th style="' +
+    cell +
+    ';text-align:right">Porties</th></tr>' +
+    rows +
+    '<tr><td style="padding:8px 12px;font-weight:700">Totaal</td><td style="padding:8px 12px;text-align:right;font-weight:700">' +
+    total +
+    "</td></tr></table>" +
+    noteHtml +
+    "<p>Met vriendelijke groeten,<br>De organisatie van " +
+    esc(eventTitle) +
+    "</p></div>"
+  );
+}
+
 export async function handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession, sendGraphMail }) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
   if (!(await adminSession(request, env))) return json({ error: "Niet aangemeld." }, 401);
   if (request.method !== "GET" && !sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
-  const match = url.pathname.match(/^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next|message)$/);
+  const match = url.pathname.match(/^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next|message|butcher)$/);
   if (!match) return null;
   const [, editionId, action] = match;
   const now = Math.floor(Date.now() / 1000);
@@ -618,6 +706,30 @@ export async function handleAdminEditionState(request, env, url, { json, sameOri
       }
     }
     return json({ sent, failed }, failed.length && !sent ? 502 : 200);
+  }
+
+  if (action === "butcher" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    const recipient = typeof body?.recipient === "string" ? body.recipient.trim().toLowerCase() : "";
+    const note = typeof body?.note === "string" ? body.note.trim() : "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient) || recipient.length > 254)
+      return json({ error: "Vul een geldig e-mailadres van de slager in." }, 400);
+    if (note.length > 2000) return json({ error: "Het bericht mag maximaal 2000 tekens bevatten." }, 400);
+    const order = await butcherOrder(env, editionId);
+    if (!order) return json({ error: "Editie niet gevonden." }, 404);
+    if (!order.total) return json({ error: "Er is nog niets besteld." }, 400);
+    try {
+      await sendGraphMail(env, recipient, "Bestelling " + order.eventTitle, butcherMailHtml({ ...order, note }));
+    } catch (error) {
+      console.error("Butcher mail failed:", error?.message);
+      return json({ error: error?.message || "De mail kon niet worden verstuurd." }, 502);
+    }
+    // Remember the address and the moment (not part of the edition's revision: no save conflicts).
+    const config = { ...order.config, butcherEmail: recipient, butcherSentAt: now };
+    await env.DB.prepare("UPDATE event_editions SET config_json = ? WHERE id = ?")
+      .bind(JSON.stringify(config), editionId)
+      .run();
+    return json({ sent: true, total: order.total, lines: order.lines, sentAt: now });
   }
 
   if (action === "next" && request.method === "POST") {

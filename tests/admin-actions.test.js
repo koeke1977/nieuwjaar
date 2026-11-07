@@ -142,3 +142,32 @@ test("admin actions change the state and every edition tab still renders", async
   for (const s of ["overview", "registrations", "order", "finance", "bar", "products", "edition"])
     step("render " + s, () => nav.clicks["edition-tab"](button({ tab: s })));
 });
+
+test("Gebruikers: families can be sorted by column and filtered", async () => {
+  const view = await import(root + "pages/beheer/beheer-view.js");
+  const nav = await import(root + "pages/beheer/actions/navigation.js");
+  view.setBeheerFamilies([
+    { id: "fa", name: "Jan", registrations: [], accounts: [{ id: "u1", status: "active" }] },
+    { id: "fz", name: "Anna", registrations: [], accounts: [] },
+    { id: "fm", name: "Mark", registrations: [], accounts: [{ id: "u2", status: "invited" }] }
+  ]);
+  view.setBeheerAccounts([
+    { id: "u1", email: "jan@x.be", status: "active", lastLoginAt: 1794000000, families: [{ familyId: "fa" }] },
+    { id: "u2", email: "mark@x.be", status: "invited", families: [{ familyId: "fm" }] }
+  ]);
+  Object.assign(state, { activeSection: "users", beheerUsersTab: "families", beheerUserFamilyId: null });
+  const order = () => [...rendered.matchAll(/data-action="open-user-family" data-id="([^"]+)"/g)].map(m => m[1]);
+  core.renderApp();
+  assert.deepEqual(order(), ["fz", "fa", "fm"], "by name: Anna, Jan, Mark");
+  nav.clicks["users-sort"]({ dataset: { table: "families", key: "access" } });
+  assert.deepEqual(order(), ["fa", "fm", "fz"], "account: active, invited, none");
+  nav.clicks["users-sort"]({ dataset: { table: "families", key: "access" } });
+  assert.deepEqual(order(), ["fz", "fm", "fa"], "same column again reverses");
+  nav.clicks["users-filter"]({ dataset: { table: "families", filter: "no-account" } });
+  assert.deepEqual(order(), ["fz"]);
+  nav.clicks["users-filter"]({ dataset: { table: "families", filter: "registered" } });
+  assert.deepEqual(order(), ["fa"], "only Jan is registered in the open edition");
+  nav.clicks["users-tab"]({ dataset: { tab: "accounts" } });
+  nav.clicks["users-sort"]({ dataset: { table: "accounts", key: "login" } });
+  assert.ok(rendered.indexOf("jan@x.be") < rendered.indexOf("mark@x.be"), "most recent login first");
+});

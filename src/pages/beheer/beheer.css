@@ -1386,3 +1386,93 @@ button.bh-kpi:hover {
 .bh-card-head {
   flex-wrap: wrap;
 }
+
+/* Gebruikers: sortable tables with filter buttons */
+.bh-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.bh-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--bh-line);
+  border-radius: 999px;
+  background: var(--bh-card);
+  color: var(--bh-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bh-filter b {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bh-soft);
+  color: var(--bh-muted);
+  font-size: 12px;
+}
+.bh-filter[aria-pressed="true"] {
+  border-color: var(--bh-navy);
+  background: var(--bh-navy);
+  color: #fff;
+}
+.bh-filter[aria-pressed="true"] b {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.bh-table-list th,
+.bh-table-list td {
+  text-align: left;
+  vertical-align: middle;
+}
+.bh-table-list tbody tr:hover th,
+.bh-table-list tbody tr:hover td {
+  background: var(--bh-soft);
+}
+.bh-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.bh-sort span {
+  opacity: 0.45;
+  font-size: 10px;
+}
+.bh-sort.is-active {
+  color: var(--bh-ink);
+}
+.bh-sort.is-active span {
+  opacity: 1;
+}
+.bh-row-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+}
+.bh-row-link small {
+  color: var(--bh-muted);
+  font-weight: 500;
+}
+.bh-cell-actions {
+  display: flex;
+  gap: 6px;
+}
+.bh-butcher {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--bh-line);
+}

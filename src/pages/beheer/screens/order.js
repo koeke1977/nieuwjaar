@@ -77,6 +77,26 @@ function orderForFamilyCard() {
       </section>`;
 }
 
+// Mail the totals per product (no names) to the butcher, from registratie@datuur.be.
+function butcherForm(total) {
+  const sentAt = state.butcherSentAt
+    ? new Date(state.butcherSentAt * 1000).toLocaleString("nl-BE", { dateStyle: "medium", timeStyle: "short" })
+    : "";
+  return html`<form id="butcher-mail-form" class="bh-form-grid bh-form-compact bh-butcher">
+      <label>E-mail van de slager<input name="recipient" type="email" maxlength="254" autocomplete="email"
+          value="${state.butcherEmail || ""}" placeholder="slager@voorbeeld.be" required>
+      </label>
+      <label class="bh-span-2">Bericht (optioneel)<textarea name="note" rows="3" maxlength="2000"
+          placeholder="Bijvoorbeeld: we halen af op 31 december om 10 uur."></textarea>
+      </label>
+      <div class="bh-actions bh-span-2">
+        <button type="submit" class="bh-btn bh-btn-primary"${total ? "" : " disabled"}>✉ Bestelling mailen</button>
+        <small class="bh-muted">Alleen de totalen per product, zonder namen. Verstuurd vanuit
+          registratie@datuur.be.${sentAt ? " Laatst verstuurd op " + sentAt + "." : ""}</small>
+      </div>
+    </form>`;
+}
+
 export function renderOrder() {
   const regs = state.registrations || [];
   const products = state.catalog.filter(
@@ -176,7 +196,7 @@ export function renderOrder() {
         <header class="bh-card-head">
           <h2>Voor de slager</h2>
         </header>
-        <div class="bh-products">${cards || html`<p class="bh-empty">Geen producten.</p>`}</div>
+        <div class="bh-products">${cards || html`<p class="bh-empty">Geen producten.</p>`}</div>${butcherForm(total)}
       </section>
       <section class="bh-card">
         <header class="bh-card-head">

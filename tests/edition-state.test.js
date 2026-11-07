@@ -369,3 +369,50 @@ test("the meat reminder skips families that only come after dinner", async () =>
     ["u2@x.be"]
   );
 });
+
+test("butcher mail: totals per product without names, evening guests left out, address remembered", async () => {
+  const { handleAdminEditionState } = await import("../worker/modules/admin-edition-state.js");
+  const DB = setup();
+  DB.raw.prepare("UPDATE event_registrations SET data_json = ? WHERE id = 'rb'").run(
+    JSON.stringify({
+      name: "Gezin fb",
+      members: [
+        { id: "b1", name: "Piet", type: "Volwassene", orders: { steak: 2, kip: 3 } },
+        { id: "b2", name: "Tom", type: "Avondgast", orders: { steak: 5 } }
+      ]
+    })
+  );
+  const mails = [];
+  const tools = {
+    json: (body, status = 200) => ({ status, body }),
+    sameOrigin: () => true,
+    adminSession: async () => true,
+    sendGraphMail: async (env, to, subject, html) => mails.push({ to, subject, html })
+  };
+  const call = body => {
+    const url = new URL("https://nieuwjaar.datuur.be/api/admin/editions/ed1/butcher");
+    return handleAdminEditionState(
+      new Request(url, { method: "POST", body: JSON.stringify(body) }),
+      { DB },
+      url,
+      tools
+    );
+  };
+  assert.equal((await call({ recipient: "geen-adres" })).status, 400);
+  const result = await call({ recipient: "Slager@Voorbeeld.be", note: "Afhalen om 10 uur\n<b>graag</b>" });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.total, 6, "1 + 2 steak and 3 kip; the evening guest's 5 steak do not count");
+  assert.deepEqual(result.body.lines, [
+    { name: "Steak", count: 3 },
+    { name: "Kip", count: 3 }
+  ]);
+  assert.equal(mails.length, 1);
+  assert.equal(mails[0].to, "slager@voorbeeld.be");
+  assert.match(mails[0].subject, /Bestelling Nieuwjaar 2026–2027/);
+  assert.ok(!/Piet|Tom|Gezin/.test(mails[0].html), "no names in the mail");
+  assert.ok(!mails[0].html.includes("<b>graag"), "note is escaped");
+  const state = await loadEditionState({ DB }, "ed1");
+  assert.equal(state.butcherEmail, "slager@voorbeeld.be");
+  assert.equal(state.configRevision, 10, "sending does not change the edition revision (no save conflicts)");
+  assert.equal(state.catalog.length, 2, "catalog untouched");
+});

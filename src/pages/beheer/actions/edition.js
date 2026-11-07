@@ -1,11 +1,13 @@
 // Edition settings, products and photos, next edition, new event, message to families.
 import { state } from "../../../data/admin-store.js";
+import { EVENING } from "../../../utils/member-types.js";
+import { ordersClosed } from "../../../utils/time.js";
 import { loadEvents, startNextEdition, createEvent } from "../../../services/admin-state.js";
 import { MESSAGE_TEMPLATES } from "../beheer-view.js";
 import { renderApp, flushAdminState, loadFamiliesAndAccounts, rememberEdition, adminApi } from "../admin-core.js";
 
 export const clicks = {
-  print: action => {
+  print: () => {
     window.print();
   },
   "message-template": action => {
@@ -102,6 +104,54 @@ export const forms = {
       window.alert(error.message);
     }
     return;
+  },
+  "butcher-mail-form": async (form, event) => {
+    event.preventDefault();
+    const recipient = form.elements.recipient.value.trim(),
+      note = form.elements.note.value.trim();
+    if (!recipient) return;
+    const counts = new Map();
+    for (const reg of state.registrations || [])
+      for (const person of reg.members || [])
+        if (person.type !== EVENING)
+          for (const [id, qty] of Object.entries(person.orders || {}))
+            counts.set(id, (counts.get(id) || 0) + (Number(qty) || 0));
+    const lines = (state.catalog || [])
+      .filter(product => counts.get(product.id) > 0)
+      .map(product => "• " + product.name + ": " + counts.get(product.id));
+    if (!lines.length) {
+      window.alert("Er is nog niets besteld.");
+      return;
+    }
+    const stillOpen = state.orderDeadline && !ordersClosed(state.orderDeadline);
+    if (
+      !window.confirm(
+        "Deze bestelling mailen naar " +
+          recipient +
+          "?\n\n" +
+          lines.join("\n") +
+          (stillOpen ? "\n\nLet op: gezinnen kunnen nog bestellen, de aantallen kunnen nog wijzigen." : "")
+      )
+    )
+      return;
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = "Versturen…";
+    try {
+      await flushAdminState(); // the server mails what is saved
+      const result = await adminApi("/api/admin/editions/" + encodeURIComponent(state.activeEditionId) + "/butcher", {
+        recipient,
+        note
+      });
+      state.butcherEmail = recipient.toLowerCase();
+      state.butcherSentAt = result.sentAt;
+      renderApp();
+      window.alert("De bestelling (" + result.total + " porties) is gemaild naar " + recipient + ".");
+    } catch (error) {
+      window.alert(error.message);
+      button.disabled = false;
+      button.textContent = "✉ Bestelling mailen";
+    }
   },
   "family-message-form": async (form, event) => {
     event.preventDefault();
