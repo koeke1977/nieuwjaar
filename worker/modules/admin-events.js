@@ -143,11 +143,19 @@ export async function handleAdminEvents(request, env, url, dependencies) {
       const states = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state ORDER BY environment").all();
       const links = await env.DB.prepare("SELECT user_id, edition_id, registration_id, created_at FROM family_user_registrations ORDER BY id").all();
       const linkRows = links.results || [];
-      const linkUsers = new Set(linkRows.map(row => row.user_id));
       const users = await env.DB.prepare("SELECT id FROM family_users").all();
       const knownUsers = new Set((users.results || []).map(row => row.id));
       if (linkRows.some(row => !knownUsers.has(row.user_id))) {
         return json({ error: "Er bestaan accountkoppelingen naar ontbrekende accounts. Herstel die eerst; er is niets gewijzigd." }, 409);
+      }
+      const stateByEnvironment = new Map((states.results || []).map(row => [row.environment, row]));
+      for (const link of linkRows) {
+        const source = stateByEnvironment.get(link.edition_id);
+        let parsed;
+        try { parsed = source ? JSON.parse(source.data_json) : null; } catch { parsed = null; }
+        if (!parsed || !(parsed.registrations || []).some(item => item.id === link.registration_id)) {
+          return json({ error: "Er bestaat een accountkoppeling naar een ontbrekende inschrijving (" + link.edition_id + "). Herstel die eerst; er is niets gewijzigd." }, 409);
+        }
       }
       const statements = [];
       const now = Math.floor(Date.now() / 1000);
