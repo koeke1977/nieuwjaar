@@ -175,43 +175,68 @@ export function initAdminEventsSection() {
         await loadEvents();
       } catch (error) { feedback(error.message, true); }
     }
-    if (eventButton && !eventButton.hasAttribute("data-edit-edition")) {
-      const events = await api("/api/admin/events");
-      const item = (events.events || []).find(row => row.id === eventButton.dataset.editEvent);
-      if (!item) return;
-      const name = window.prompt("Naam evenement:", item.name);
-      if (name === null) return;
-      const description = window.prompt("Beschrijving:", item.description || "");
-      if (description === null) return;
-      const financeStrategy = window.prompt("Financiële strategie (nieuwjaar, per_person, per_adult, per_order, none):", item.financeStrategy);
-      if (financeStrategy === null) return;
-      const status = window.prompt("Status (draft, active, archived):", item.status);
-      if (status === null) return;
+    if (event.target.closest("[data-cancel-inline-edit]")) {
+      event.target.closest(".admin-inline-editor")?.remove();
+      return;
+    }
+    if (eventButton) {
+      const card = eventButton.closest(".admin-event-card");
+      card.querySelector(".admin-inline-editor")?.remove();
       try {
-        await api("/api/admin/events/"+encodeURIComponent(item.id), {method:"PATCH",body:JSON.stringify({name,description,financeStrategy,status})});
-        feedback("Evenement bijgewerkt."); await loadEvents();
-      } catch (error) { feedback(error.message,true); }
+        const result = await api("/api/admin/events");
+        const item = (result.events || []).find(row => row.id === eventButton.dataset.editEvent);
+        if (!item) return;
+        const editor = document.createElement("form");
+        editor.className = "admin-inline-editor";
+        editor.dataset.updateEvent = item.id;
+        editor.innerHTML = '<label>Naam evenement<input name="name" maxlength="100" required value="'+escapeHtml(item.name)+'"></label><label>Beschrijving<textarea name="description" maxlength="1000" rows="2">'+escapeHtml(item.description || "")+'</textarea></label><label>Financiële verdeelmethode<select name="financeStrategy"><option value="nieuwjaar">Nieuwjaar · bestaande afrekening</option><option value="per_person">Gelijk per deelnemer</option><option value="per_adult">Per volwassene</option><option value="per_order">Per bestelling/portie</option><option value="none">Geen financiële afrekening</option></select></label><label>Status<select name="status"><option value="draft">Concept</option><option value="active">Actief</option><option value="archived">Gearchiveerd</option></select></label><div class="admin-inline-actions"><button class="button button-small button-dark" type="submit">Wijzigingen opslaan</button><button class="button button-small button-outline" type="button" data-cancel-inline-edit>Annuleren</button></div>';
+        editor.querySelector('[name="financeStrategy"]').value = item.financeStrategy;
+        editor.querySelector('[name="status"]').value = item.status;
+        card.append(editor);
+      } catch (error) { feedback(error.message, true); }
+      return;
     }
     if (editionButton) {
-      const events = await api("/api/admin/events");
-      const item = (events.events || []).find(row => row.id === editionButton.dataset.parentEvent);
-      const edition = item?.editions.find(row => row.id === editionButton.dataset.editionId);
-      if (!edition) return;
-      const label = window.prompt("Naam editie:", edition.label);
-      if (label === null) return;
-      const startsAt = window.prompt("Startdatum (YYYY-MM-DD, leeg = geen datum):", edition.startsAt || "");
-      if (startsAt === null) return;
-      const endsAt = window.prompt("Einddatum (YYYY-MM-DD, leeg = geen datum):", edition.endsAt || "");
-      if (endsAt === null) return;
-      const status = window.prompt("Status (draft, open, closed, archived):", edition.status);
-      if (status === null) return;
+      const card = editionButton.closest(".admin-event-card");
+      card.querySelector(".admin-inline-editor")?.remove();
       try {
-        await api("/api/admin/events/"+encodeURIComponent(item.id)+"/editions/"+encodeURIComponent(edition.id), {method:"PATCH",body:JSON.stringify({label,startsAt,endsAt,status})});
-        feedback("Editie bijgewerkt."); await loadEvents();
-      } catch (error) { feedback(error.message,true); }
+        const result = await api("/api/admin/events");
+        const item = (result.events || []).find(row => row.id === editionButton.dataset.parentEvent);
+        const edition = item?.editions.find(row => row.id === editionButton.dataset.editEdition);
+        if (!edition) { feedback("Editie niet gevonden. Vernieuw de pagina en probeer opnieuw.", true); return; }
+        const editor = document.createElement("form");
+        editor.className = "admin-inline-editor";
+        editor.dataset.updateEdition = edition.id;
+        editor.dataset.parentEvent = item.id;
+        editor.innerHTML = '<label>Naam editie<input name="label" maxlength="100" required value="'+escapeHtml(edition.label)+'"></label><label>Startdatum<input name="startsAt" type="date" value="'+escapeHtml(edition.startsAt || "")+'"></label><label>Einddatum<input name="endsAt" type="date" value="'+escapeHtml(edition.endsAt || "")+'"></label><label>Status<select name="status"><option value="draft">Concept</option><option value="open">Open</option><option value="closed">Gesloten</option><option value="archived">Gearchiveerd</option></select></label><div class="admin-inline-actions"><button class="button button-small button-dark" type="submit">Wijzigingen opslaan</button><button class="button button-small button-outline" type="button" data-cancel-inline-edit>Annuleren</button></div>';
+        editor.querySelector('[name="status"]').value = edition.status;
+        card.append(editor);
+      } catch (error) { feedback(error.message, true); }
+      return;
     }
   });
   root.querySelector("[data-admin-events-list]").addEventListener("submit", async event => {
+    const eventEditor = event.target.closest("[data-update-event]");
+    const editionEditor = event.target.closest("[data-update-edition]");
+    if (eventEditor || editionEditor) {
+      event.preventDefault();
+      const form = event.target;
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const values = Object.fromEntries(new FormData(form).entries());
+        const path = eventEditor
+          ? "/api/admin/events/"+encodeURIComponent(form.dataset.updateEvent)
+          : "/api/admin/events/"+encodeURIComponent(form.dataset.parentEvent)+"/editions/"+encodeURIComponent(form.dataset.updateEdition);
+        await api(path, {method:"PATCH", body:JSON.stringify(values)});
+        feedback(eventEditor ? "Evenement bijgewerkt." : "Editie bijgewerkt.");
+        await loadEvents();
+      } catch (error) {
+        feedback(error.message, true);
+        button.disabled = false;
+      }
+      return;
+    }
     const form = event.target.closest("[data-create-edition]");
     if (!form) return;
     event.preventDefault();
