@@ -84,3 +84,40 @@ test("Nieuwjaar baseline: member-level allocation retains adult and meat eligibi
     { id: "a3", name: "Kind", cents: 0 }
   ]);
 });
+
+
+test("Nieuwjaar baseline: largest-remainder ties retain registration order", () => {
+  const equalFamilies = [
+    { id: "first", members: [{ id: "one", type: "Volwassene", orders: {} }] },
+    { id: "second", members: [{ id: "two", type: "Volwassene", orders: {} }] },
+    { id: "third", members: [{ id: "three", type: "Volwassene", orders: {} }] }
+  ];
+  assert.deepEqual(
+    getExpenseShares({ amountCents: 2, method: "general" }, equalFamilies, { strict: true }),
+    [{ id: "first", cents: 1 }, { id: "second", cents: 1 }, { id: "third", cents: 0 }]
+  );
+});
+
+test("Nieuwjaar baseline: adult-only expense rejects an edition without adults in strict mode", () => {
+  const childrenOnly = [{ id: "children", members: [{ id: "c1", type: "Kind", orders: {} }] }];
+  assert.throws(
+    () => getExpenseShares({ amountCents: 1250, method: "adults" }, childrenOnly, { strict: true }),
+    /geen deelnemers of porties/
+  );
+});
+
+test("Nieuwjaar baseline: aggregate registrations preserve their declared counts", () => {
+  const aggregate = [{
+    id: "aggregate-family",
+    aggregateCounts: { people: 5, adults: 2, children: 3, meat: 7 }
+  }];
+  assert.deepEqual(getExpenseShares({ amountCents: 777, method: "general" }, aggregate), [
+    { id: "aggregate-family", cents: 777 }
+  ]);
+  assert.deepEqual(getExpenseShares({ amountCents: 777, method: "adults" }, aggregate), [
+    { id: "aggregate-family", cents: 777 }
+  ]);
+  assert.deepEqual(getExpenseShares({ amountCents: 777, method: "meat" }, aggregate), [
+    { id: "aggregate-family", cents: 777 }
+  ]);
+});
