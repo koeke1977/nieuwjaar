@@ -99,11 +99,16 @@ test("family session includes a finance breakdown limited to the own registratio
   const DB = createD1();
   const db = DB.raw;
   const now = Math.floor(Date.now() / 1000);
-  const data = { activeEvent: { name: "Nieuwjaar" }, catalog: [{ id: "p1", name: "Biefstuk", active: true }], registrations, expenses, payments, costsFinalized: false };
-  db.prepare("INSERT INTO app_state (environment, data_json, updated_at) VALUES ('live', ?, 1)").run(JSON.stringify(data));
+  db.prepare("INSERT INTO events (id, slug, name, finance_strategy, created_at, updated_at) VALUES ('ev', 'nieuwjaar', 'Nieuwjaar', 'nieuwjaar', 1, 1)").run();
+  db.prepare("INSERT INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES ('ed', 'ev', '2026–2027', 'open', ?, 1, 1)").run(JSON.stringify({ catalog: [{ id: "p1", name: "Biefstuk", active: true }] }));
+  db.prepare("INSERT INTO edition_finance_snapshots (edition_id, expenses_json, payments_json, created_at, updated_at) VALUES ('ed', ?, ?, 1, 1)").run(JSON.stringify(expenses), JSON.stringify(payments));
+  for (const reg of registrations) {
+    db.prepare("INSERT INTO families (id, display_name, created_at, updated_at) VALUES (?, ?, 1, 1)").run("f" + reg.id, reg.name);
+    db.prepare("INSERT INTO event_registrations (id, edition_id, family_id, data_json, created_at, updated_at) VALUES (?, 'ed', ?, ?, 1, 1)").run(reg.id, "f" + reg.id, JSON.stringify({ name: reg.name, members: reg.members }));
+  }
   db.prepare("INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES ('u1', 'jan@example.be', 'Jan', 'active', 1, 1)").run();
   db.prepare("INSERT INTO family_user_sessions (user_id, token_hash, created_at, expires_at) VALUES ('u1', ?, ?, ?)").run(await sha256("tok"), now, now + 3600);
-  db.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES ('u1', 'live', 'a', 1)").run();
+  db.prepare("INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES ('m1', 'fa', 'u1', 'owner', 1)").run();
 
   const url = new URL("https://nieuwjaar.datuur.be/api/family-account/session");
   const response = await handleFamilyAccountApi(new Request(url, { headers: { Cookie: "ny_family_account=tok" } }), { DB }, url, deps);

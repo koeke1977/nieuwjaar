@@ -1,6 +1,7 @@
 import { handleFamilyAccountApi } from "./modules/family-account.js";
 import { handleAdminFamilyUsers } from "./modules/admin-family-users.js";
 import { handleAdminEvents } from "./modules/admin-events.js";
+import { handleAdminEditionState } from "./modules/admin-edition-state.js";
 const SESSION_COOKIE = "ny_admin";
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
 const encoder = new TextEncoder();
@@ -116,156 +117,12 @@ async function adminSession(request, env) {
   return row || null;
 }
 
-async function encryptInviteToken(token, env) {
-  const keyBytes = await crypto.subtle.digest("SHA-256", encoder.encode(env.ADMIN_PASSWORD_HASH || ""));
-  const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt"]);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(token));
-  return `${base64Url(iv)}.${base64Url(new Uint8Array(encrypted))}`;
-}
-
-async function decryptInviteToken(value, env) {
-  if (!value || !env.ADMIN_PASSWORD_HASH) return "";
-  try {
-    const [ivPart, dataPart] = value.split(".");
-    const keyBytes = await crypto.subtle.digest("SHA-256", encoder.encode(env.ADMIN_PASSWORD_HASH));
-    const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
-    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromBase64Url(ivPart) }, key, fromBase64Url(dataPart));
-    return new TextDecoder().decode(plain);
-  } catch { return ""; }
-}
-
-
-async function handleFamilyApi(request, env, url) {
-  if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
-  if (url.pathname === "/api/family/session" && request.method === "POST") {
-    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
-    const body = await request.json().catch(() => null);
-    const token = typeof body?.token === "string" ? body.token : "";
-    if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) return json({ error: "Deze gezinslink is ongeldig of ingetrokken." }, 401);
-    const invite = await env.DB.prepare(
-      "SELECT id, edition_id, registration_id FROM family_invites WHERE token_hash = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)"
-    ).bind(await sha256(token), Math.floor(Date.now() / 1000)).first();
-    if (!invite) return json({ error: "Deze gezinslink is ongeldig of ingetrokken." }, 401);
-    const tokenBytes = crypto.getRandomValues(new Uint8Array(32));
-    const sessionToken = base64Url(tokenBytes);
-    const now = Math.floor(Date.now() / 1000);
-    await env.DB.prepare("INSERT INTO family_sessions (token_hash, invite_id, edition_id, registration_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(await sha256(sessionToken), invite.id, invite.edition_id, invite.registration_id, now, now + 30 * 24 * 60 * 60).run();
-    await env.DB.prepare("UPDATE family_invites SET last_used_at = ? WHERE id = ?").bind(now, invite.id).run();
-    return json({ authenticated: true }, 200, {
-      "Set-Cookie": `ny_family=${sessionToken}; HttpOnly; Secure; SameSite=Strict; Path=/api/family; Max-Age=${30 * 24 * 60 * 60}`
-    });
-  }
-  if (url.pathname === "/api/family/session" && request.method === "GET") {
-    const token = cookieValue(request, "ny_family");
-    if (!token) return json({ authenticated: false }, 200);
-    const session = await env.DB.prepare(
-      "SELECT s.edition_id, s.registration_id, s.invite_id FROM family_sessions s JOIN family_invites i ON i.id = s.invite_id WHERE s.token_hash = ? AND s.expires_at > ? AND i.revoked_at IS NULL AND (i.expires_at IS NULL OR i.expires_at > ?)"
-    ).bind(await sha256(token), Math.floor(Date.now() / 1000), Math.floor(Date.now() / 1000)).first();
-    if (!session) return json({ authenticated: false }, 200, {
-      "Set-Cookie": "ny_family=; HttpOnly; Secure; SameSite=Strict; Path=/api/family; Max-Age=0"
-    });
-    const row = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(session.edition_id).first();
-    if (!row) return json({ error: "De editie is niet beschikbaar." }, 404);
-    let data;
-    try { data = JSON.parse(row.data_json); } catch { return json({ error: "De inschrijving kon niet worden gelezen." }, 500); }
-    const registration = (data.registrations || []).find(item => item.id === session.registration_id);
-    if (!registration) return json({ error: "Deze inschrijving bestaat niet meer." }, 404);
-    const catalog = (data.catalog || []).filter(item => item.active).map(({ id, name, image }) => ({ id, name, image: image || null, active: true }));
-    const safeRegistrations = (data.registrations || []).map((item, index) => {
-      if (item.id === registration.id) return registration;
-      const sourceMembers = Array.isArray(item.members) ? item.members : [];
-      const adults = sourceMembers.length
-        ? sourceMembers.filter(person => person.type === "Volwassene").length
-        : Math.max(0, Number(item.adults) || 0);
-      const children = sourceMembers.length
-        ? sourceMembers.filter(person => person.type === "Kind").length
-        : Math.max(0, Number(item.children) || 0);
-      const meat = sourceMembers.reduce((sum, person) =>
-        sum + Object.values(person.orders || {}).reduce((memberSum, quantity) => memberSum + Math.max(0, Number(quantity) || 0), 0), 0);
-      return {
-        id: `anonymous-registration-${index}`,
-        name: "",
-        adults,
-        children,
-        members: [],
-        aggregateCounts: { people: adults + children, adults, children, meat }
-      };
-    });
-    return json({
-      authenticated: true,
-      edition: data.activeEvent,
-      registration,
-      registrations: safeRegistrations,
-      expenses: (data.expenses || []).map(expense => ({
-        amountCents: expense.amountCents,
-        method: expense.method,
-        advancedBy: expense.advancedBy === registration.id ? registration.id : null
-      })),
-      payments: (data.payments || []).filter(payment => payment.registrationId === registration.id),
-      catalog,
-      costsFinalized: Boolean(data.costsFinalized),
-      revision: row.updated_at
-    });
-  }
-  if (url.pathname === "/api/family/registration" && request.method === "PUT") {
-    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
-    const token = cookieValue(request, "ny_family");
-    if (!token) return json({ error: "Gezinssessie verlopen." }, 401);
-    const now = Math.floor(Date.now() / 1000);
-    const session = await env.DB.prepare(
-      "SELECT s.edition_id, s.registration_id FROM family_sessions s JOIN family_invites i ON i.id = s.invite_id WHERE s.token_hash = ? AND s.expires_at > ? AND i.revoked_at IS NULL AND (i.expires_at IS NULL OR i.expires_at > ?)"
-    ).bind(await sha256(token), now, now).first();
-    if (!session) return json({ error: "Deze gezinslink is niet langer geldig." }, 401);
-    const body = await request.json().catch(() => null);
-    if (!Array.isArray(body?.members) || body.members.length > 30 || !Number.isSafeInteger(body.revision)) return json({ error: "Ongeldige ledenlijst of verouderde versie." }, 400);
-    const stateRow = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(session.edition_id).first();
-    if (!stateRow) return json({ error: "De editie is niet beschikbaar." }, 404);
-    if (stateRow.updated_at !== body.revision) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de persoonlijke link en probeer opnieuw." }, 409);
-    let data;
-    try { data = JSON.parse(stateRow.data_json); } catch { return json({ error: "De editiegegevens zijn ongeldig." }, 500); }
-    const registration = (data.registrations || []).find(item => item.id === session.registration_id);
-    if (!registration) return json({ error: "Deze inschrijving bestaat niet meer." }, 404);
-    const catalogIds = new Set((data.catalog || []).map(item => item.id));
-    const members = [];
-    for (const person of body.members) {
-      if (!person || typeof person.name !== "string" || !person.name.trim() || person.name.trim().length > 80 ||
-          !["Volwassene", "Kind"].includes(person.type) || typeof person.id !== "string" || person.id.length > 100) {
-        return json({ error: "Controleer de namen en categorieën van alle gezinsleden." }, 400);
-      }
-      const orders = {};
-      for (const productId of catalogIds) {
-        const quantity = Number(person.orders?.[productId] || 0);
-        if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) return json({ error: "Ongeldig aantal in de vleesbestelling." }, 400);
-        orders[productId] = quantity;
-      }
-      members.push({ id: person.id, name: person.name.trim(), type: person.type, orders });
-    }
-    registration.members = members;
-    registration.adults = members.filter(person => person.type === "Volwassene").length;
-    registration.children = members.filter(person => person.type === "Kind").length;
-    data.costsFinalized = false;
-    data.costsFinalizedAt = null;
-    const updatedRow = await env.DB.prepare("UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ? RETURNING updated_at")
-      .bind(JSON.stringify(data), now, session.edition_id, body.revision).first();
-    if (!updatedRow) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de persoonlijke link en probeer opnieuw." }, 409);
-    return json({ saved: true, registration, revision: updatedRow.updated_at });
-  }
-
-  if (url.pathname === "/api/family/logout" && request.method === "POST") {
-    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
-    const token = cookieValue(request, "ny_family");
-    if (token) await env.DB.prepare("DELETE FROM family_sessions WHERE token_hash = ?").bind(await sha256(token)).run();
-    return json({ authenticated: false }, 200, {
-      "Set-Cookie": "ny_family=; HttpOnly; Secure; SameSite=Strict; Path=/api/family; Max-Age=0"
-    });
-  }
-  return json({ error: "Niet gevonden." }, 404);
-}
-
 async function handleAdminApi(request, env, url) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
+
+  if (url.pathname.startsWith("/api/admin/editions/")) {
+    return (await handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession })) || json({ error: "Niet gevonden." }, 404);
+  }
 
   if (url.pathname === "/api/admin/events" || url.pathname.startsWith("/api/admin/events/")) {
     return handleAdminEvents(request, env, url, { json, sameOrigin, adminSession });
@@ -327,72 +184,6 @@ async function handleAdminApi(request, env, url) {
     return json({ authenticated: false }, 200, { "Set-Cookie": cookieHeader("", 0) });
   }
 
-  if (url.pathname === "/api/admin/family-invites" && request.method === "GET") {
-    const session = await adminSession(request, env);
-    if (!session) return json({ error: "Niet aangemeld." }, 401);
-    const environment = url.searchParams.get("environment");
-    if (environment !== "live") return json({ error: "Ongeldige omgeving." }, 400);
-    let rows;
-    let hasTokenColumn = true;
-    try {
-      rows = await env.DB.prepare(
-        "SELECT id, edition_id, registration_id, token_value, created_at, expires_at, revoked_at, last_used_at FROM family_invites WHERE edition_id = ? ORDER BY created_at DESC"
-      ).bind(environment).all();
-    } catch {
-      hasTokenColumn = false;
-      rows = await env.DB.prepare(
-        "SELECT id, edition_id, registration_id, created_at, expires_at, revoked_at, last_used_at FROM family_invites WHERE edition_id = ? ORDER BY created_at DESC"
-      ).bind(environment).all();
-    }
-    const invites = await Promise.all((rows.results || []).map(async row => ({ ...row, token_value: hasTokenColumn ? await decryptInviteToken(row.token_value, env) : "" })));
-    return json({ invites, migrationRequired: !hasTokenColumn });
-  }
-
-  if (url.pathname === "/api/admin/family-invites" && request.method === "POST") {
-    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
-    const session = await adminSession(request, env);
-    if (!session) return json({ error: "Niet aangemeld." }, 401);
-    const body = await request.json().catch(() => null);
-    const edition = body?.edition;
-    const registrationId = typeof body?.registrationId === "string" ? body.registrationId : "";
-    if (edition !== "live" || !registrationId || registrationId.length > 160) {
-      return json({ error: "Ongeldige editie of inschrijving." }, 400);
-    }
-    const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(edition).first();
-    if (!stateRow) return json({ error: "Er zijn nog geen gegevens voor deze editie opgeslagen." }, 404);
-    let appState;
-    try { appState = JSON.parse(stateRow.data_json); } catch { return json({ error: "De editiegegevens zijn ongeldig." }, 500); }
-    const registration = (appState.registrations || []).find(item => item.id === registrationId);
-    if (!registration) return json({ error: "Deze inschrijving bestaat niet in de gekozen editie." }, 404);
-    const now = Math.floor(Date.now() / 1000);
-    const existing = await env.DB.prepare("SELECT id, edition_id, registration_id, token_value, created_at FROM family_invites WHERE edition_id = ? AND registration_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC LIMIT 1").bind(edition, registrationId, now).first();
-    if (existing?.token_value) {
-      const existingToken = await decryptInviteToken(existing.token_value, env);
-      if (existingToken) return json({ invite: { id: existing.id, edition_id: edition, registration_id: registrationId, created_at: existing.created_at }, url: `https://nieuwjaar.datuur.be/familie/${existingToken}`, reused: true });
-    }
-    if (existing) await env.DB.prepare("UPDATE family_invites SET revoked_at = ? WHERE id = ?").bind(now, existing.id).run();
-    const inviteId = crypto.randomUUID();
-    const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
-    const protectedToken = await encryptInviteToken(token, env);
-    await env.DB.prepare("INSERT INTO family_invites (id, edition_id, registration_id, token_hash, token_value, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(inviteId, edition, registrationId, await sha256(token), protectedToken, now).run();
-    return json({ invite: { id: inviteId, edition_id: edition, registration_id: registrationId, created_at: now }, url: `https://nieuwjaar.datuur.be/familie/${token}` }, 201);
-  }
-
-  if (url.pathname.startsWith("/api/admin/family-invites/") && request.method === "DELETE") {
-    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
-    const session = await adminSession(request, env);
-    if (!session) return json({ error: "Niet aangemeld." }, 401);
-    const inviteId = url.pathname.slice("/api/admin/family-invites/".length);
-    const environment = url.searchParams.get("environment");
-    if (!inviteId || inviteId.length > 80 || environment !== "live") return json({ error: "Ongeldige uitnodiging of omgeving." }, 400);
-    const now = Math.floor(Date.now() / 1000);
-    const result = await env.DB.prepare("UPDATE family_invites SET revoked_at = ? WHERE id = ? AND edition_id = ? AND revoked_at IS NULL")
-      .bind(now, inviteId, environment).run();
-    if (!result.meta?.changes) return json({ error: "Uitnodiging niet gevonden of al ingetrokken." }, 404);
-    await env.DB.prepare("DELETE FROM family_sessions WHERE invite_id = ?").bind(inviteId).run();
-    return json({ revoked: true });
-  }
-
   if (url.pathname === "/api/admin/product-image" && request.method === "POST") {
     if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
     if (!env.PHOTOS) return json({ error: "Foto-opslag is nog niet gekoppeld aan de Worker." }, 503);
@@ -401,15 +192,13 @@ async function handleAdminApi(request, env, url) {
     const form = await request.formData().catch(() => null);
     const file = form?.get("file");
     const productId = form?.get("productId");
-    const environment = form?.get("environment");
     if (!(file instanceof File) || !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
         file.size < 1 || file.size > 5 * 1024 * 1024 ||
-        typeof productId !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(productId) ||
-        environment !== "live") {
+        typeof productId !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(productId)) {
       return json({ error: "Ongeldig afbeeldingsbestand. Gebruik JPG, PNG of WebP tot 5 MB." }, 400);
     }
     const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
-    const key = `products/${environment}/${productId}-${crypto.randomUUID()}.${extension}`;
+    const key = `products/live/${productId}-${crypto.randomUUID()}.${extension}`;
     await env.PHOTOS.put(key, await file.arrayBuffer(), {
       httpMetadata: { contentType: file.type, cacheControl: "public, max-age=31536000, immutable" }
     });
@@ -427,48 +216,6 @@ async function handleAdminApi(request, env, url) {
     if (!match) return json({ error: "Ongeldige fotoverwijzing." }, 400);
     await env.PHOTOS.delete(match[1]);
     return json({ deleted: true });
-  }
-
-  if (url.pathname === "/api/admin/state" && request.method === "GET") {
-    const session = await adminSession(request, env);
-    if (!session) return json({ error: "Niet aangemeld." }, 401);
-    const rows = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state").all();
-    const environments = { live: null };
-    const revisions = { live: null };
-    for (const row of rows.results || []) {
-      if (row.environment === "live") {
-        revisions[row.environment] = row.updated_at;
-        try { environments[row.environment] = JSON.parse(row.data_json); }
-        catch (error) { console.error("Invalid stored app state:", row.environment, error); }
-      }
-    }
-    return json({ environments, revisions });
-  }
-
-  if (url.pathname === "/api/admin/state" && request.method === "PUT") {
-    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
-    const session = await adminSession(request, env);
-    if (!session) return json({ error: "Niet aangemeld." }, 401);
-    const body = await request.json().catch(() => null);
-    const environment = body?.environment;
-    const data = body?.data;
-    const revision = body?.revision;
-    if (environment !== "live" || !data || typeof data !== "object" || Array.isArray(data) ||
-        !data.activeEvent || typeof data.activeEvent !== "object" ||
-        !Array.isArray(data.registrations) || !Array.isArray(data.expenses) ||
-        !Array.isArray(data.payments) || !Array.isArray(data.catalog) ||
-        !Array.isArray(data.editionArchive) ||
-        !(revision === null || Number.isSafeInteger(revision))) {
-      return json({ error: "Ongeldige gegevensstructuur of opslagversie." }, 400);
-    }
-    const serialized = JSON.stringify(data);
-    if (serialized.length > 1_500_000) return json({ error: "De gegevens zijn te groot om op te slaan." }, 413);
-    const now = Math.floor(Date.now() / 1000);
-    const saved = await env.DB.prepare(
-      "INSERT INTO app_state (environment, data_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(environment) DO UPDATE SET data_json = excluded.data_json, updated_at = MAX(app_state.updated_at + 1, excluded.updated_at) WHERE app_state.updated_at = ? RETURNING updated_at"
-    ).bind(environment, serialized, now, revision).first();
-    if (!saved) return json({ error: "Deze editie is intussen gewijzigd. De lokale wijzigingen zijn niet opgeslagen. Herlaad de admin om conflicten te vermijden." }, 409);
-    return json({ saved: true, environment, revision: saved.updated_at });
   }
 
   if (url.pathname === "/api/admin/session" && request.method === "GET") {
@@ -508,10 +255,6 @@ export default {
 
       if (url.pathname.startsWith("/api/family-account/")) {
         return await handleFamilyAccountApi(request, env, url, { json, sameOrigin, cookieValue, sha256, base64Url, fromBase64Url, sendGraphMail });
-      }
-
-      if (url.pathname.startsWith("/api/family/")) {
-        return await handleFamilyApi(request, env, url);
       }
 
       if (url.pathname.startsWith("/api/admin/")) {

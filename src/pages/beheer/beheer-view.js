@@ -23,12 +23,19 @@ const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖" };
 const METHOD_HINT = { general: "Iedereen, ook kinderen (bv. zaal, decoratie, frisdrank)", adults: "Alleen volwassenen (bv. alcohol, cava)", meat: "Volgens bestelde porties" };
 
 // ---- External data provided by app.js (accounts and personal links) ----
+let families = [];
 let accounts = [];
-let invites = [];
+export function setBeheerFamilies(list) { families = Array.isArray(list) ? list : []; }
 export function setBeheerAccounts(list) { accounts = Array.isArray(list) ? list : []; }
-export function setBeheerInvites(list) { invites = Array.isArray(list) ? list : []; }
-const accountsFor = registrationId => accounts.filter(user => (user.registrations || []).some(link => link.registrationId === registrationId));
-const activeInviteFor = registrationId => invites.find(invite => invite.edition_id === "live" && invite.registration_id === registrationId && !invite.revoked_at);
+// Families of the loaded edition that the server list does not know yet (just added) are
+// shown from the edition state until the next reload.
+function allFamilies() {
+  const known = new Set(families.map(family => family.id));
+  const pending = (state.registrations || []).filter(reg => reg.familyId && !known.has(reg.familyId))
+    .map(reg => ({ id: reg.familyId, name: reg.name, registrations: [{ id: reg.id, editionId: state.activeEditionId, edition: editionName(), event: eventName(), editionStatus: state.editionStatus, members: reg.members || [] }], accounts: [] }));
+  return [...families, ...pending];
+}
+const accountsForFamily = familyId => allFamilies().find(family => family.id === familyId)?.accounts || [];
 
 // Layers: Evenementen (each event has editions; all event work happens inside an edition),
 // Gebruikers (families, their members and accounts) and global Instellingen.
@@ -95,12 +102,11 @@ function familyBalanceChip(row) {
   return '<span class="bh-chip">Geen saldo</span>';
 }
 
-function accessChip(registrationId) {
-  const users = accountsFor(registrationId);
+function accessChip(familyId) {
+  const users = accountsForFamily(familyId);
   if (users.some(user => user.status === "active")) return '<span class="bh-chip bh-chip-ok">Account actief</span>';
   if (users.some(user => user.status === "invited")) return '<span class="bh-chip bh-chip-warn">Uitgenodigd</span>';
-  if (activeInviteFor(registrationId)) return '<span class="bh-chip">Oude link</span>';
-  return '<span class="bh-chip bh-chip-muted">Geen toegang</span>';
+  return '<span class="bh-chip bh-chip-muted">Geen account</span>';
 }
 
 // ---------------- Dashboard ----------------
@@ -113,7 +119,7 @@ function renderOverview() {
     const reasons = [];
     if (!(reg.members || []).length) reasons.push("nog geen gezinsleden");
     else if (!familyPortions(reg)) reasons.push("nog geen vleesbestelling");
-    if (!accountsFor(reg.id).length) reasons.push("geen account");
+    if (!accountsForFamily(reg.familyId).length) reasons.push("geen account");
     if (row?.remainingCents > 0) reasons.push(euro(row.remainingCents) + " openstaand");
     if (reasons.length) attention.push('<li><button type="button" data-action="open-family" data-id="' + esc(reg.id) + '"><strong>' + esc(reg.name) + '</strong><span>' + esc(reasons.join(" · ")) + '</span><i aria-hidden="true">›</i></button></li>');
   }
@@ -143,6 +149,14 @@ function renderOverview() {
 }
 
 // ---------------- Gezinnen ----------------
+function registerExistingFamily() {
+  if (state.editionStatus === "archived") return '<p class="bh-alert bh-alert-info">Deze editie is afgesloten. Je kan ze nog aanpassen, maar nieuwe inschrijvingen horen bij de actieve editie.</p>';
+  const registered = new Set((state.registrations || []).map(reg => reg.familyId));
+  const options = allFamilies().filter(family => !registered.has(family.id));
+  if (!options.length) return "";
+  return '<section class="bh-card"><form id="register-family-form" class="bh-inline-form"><label for="bh-existing-family">Bestaand gezin inschrijven</label><div><select id="bh-existing-family" name="familyId" required><option value="">Kies een gezin</option>' + options.map(family => '<option value="' + esc(family.id) + '">' + esc(family.name) + '</option>').join("") + '</select><button type="submit" class="bh-btn bh-btn-primary">Inschrijven</button></div><small class="bh-muted">De gezinsleden van hun vorige inschrijving worden overgenomen; de bestelling start leeg.</small></form></section>';
+}
+
 function renderFamilyList() {
   const t = eventTotals();
   const regs = state.registrations || [];
@@ -153,11 +167,11 @@ function renderFamilyList() {
       '<span class="bh-avatar">' + esc((reg.name || "?").charAt(0).toUpperCase()) + '</span>' +
       '<span class="bh-family-name"><strong>' + esc(reg.name) + '</strong><small>' + ((reg.members || []).length ? counts.adults + " volw. · " + counts.children + " kind. · " + plural(familyPortions(reg), "portie", "porties") : "Gezin nog niet ingevuld") + '</small></span>' +
       '<span class="bh-family-money"><b>' + euro(row?.shareCents || 0) + '</b><small>aandeel</small></span>' +
-      '<span class="bh-family-chips">' + familyBalanceChip(row) + accessChip(reg.id) + '</span>' +
+      '<span class="bh-family-chips">' + familyBalanceChip(row) + accessChip(reg.familyId) + '</span>' +
       '<i class="bh-chev" aria-hidden="true">›</i></button></li>';
   }).join("");
   return pageHead("Inschrijvingen", plural(regs.length, "gezin", "gezinnen") + " ingeschreven · " + t.people + " deelnemers (" + t.adults + " volwassenen, " + t.children + " kinderen)") +
-    '<section class="bh-card"><form id="add-registration-form" class="bh-inline-form"><label for="bh-new-family">Gezin inschrijven</label><div><input id="bh-new-family" name="registrationName" maxlength="80" placeholder="Bijvoorbeeld: Jan & Els" required><button type="submit" class="bh-btn bh-btn-primary">+ Gezin toevoegen</button></div></form></section>' +
+    registerExistingFamily() + '<section class="bh-card"><form id="add-registration-form" class="bh-inline-form"><label for="bh-new-family">Nieuw gezin inschrijven</label><div><input id="bh-new-family" name="registrationName" maxlength="80" placeholder="Bijvoorbeeld: Jan & Els" required><button type="submit" class="bh-btn bh-btn-primary">+ Gezin toevoegen</button></div></form></section>' +
     (rows ? '<ul class="bh-family-list">' + rows + '</ul>' : '<p class="bh-empty">Nog geen inschrijvingen voor deze editie.</p>');
 }
 
@@ -177,24 +191,15 @@ function renderMemberEditor(registration) {
   }).join("");
 }
 
-function accessData(registration) {
-  const users = accountsFor(registration.id);
-  const invite = activeInviteFor(registration.id);
-  const inviteUrl = invite?.token_value ? "https://nieuwjaar.datuur.be/familie/" + encodeURIComponent(invite.token_value) : "";
-  return { users, invite, inviteUrl };
+function accessData(familyId) {
+  return { users: accountsForFamily(familyId) };
 }
 
-function renderAccess(registration) {
-  const { users, invite, inviteUrl } = accessData(registration);
-  const accountRows = users.map(user => '<li><span><strong>' + esc(user.displayName || user.email) + '</strong><small>' + esc(user.email) + '</small></span><span class="bh-line-end">' + (user.status === "active" ? '<span class="bh-chip bh-chip-ok">Actief</span>' : user.status === "disabled" ? '<span class="bh-chip bh-chip-due">Geblokkeerd</span>' : '<span class="bh-chip bh-chip-warn">Uitgenodigd</span><button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite" data-user="' + esc(user.id) + '">Opnieuw sturen</button>') + '</span></li>').join("");
-  const access = (accountRows ? '<ul class="bh-lines">' + accountRows + '</ul>' : '<p class="bh-note">Dit gezin heeft nog geen account. Stuur een uitnodiging: ze kiezen zelf een wachtwoord en beheren daarna hun gezin en bestelling.</p>') +
-    '<form data-invite-account="' + esc(registration.id) + '" class="bh-form-grid bh-form-compact"><label>Naam<input name="displayName" maxlength="100" placeholder="Naam contactpersoon" required></label><label>E-mailadres<input name="email" type="email" maxlength="254" placeholder="naam@voorbeeld.be" required></label><button type="submit" class="bh-btn bh-btn-primary">' + (users.length ? "Extra account uitnodigen" : "Uitnodiging versturen") + '</button></form>' +
-    '<details class="bh-subtle"><summary>Persoonlijke link (oude manier)</summary>' +
-      (inviteUrl ? '<div class="bh-copy"><input readonly value="' + esc(inviteUrl) + '" aria-label="Persoonlijke link"><button type="button" class="bh-btn bh-btn-sm" data-action="copy-family-invite-url" data-url="' + esc(inviteUrl) + '">Kopiëren</button><button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="revoke-family-invite" data-id="' + esc(invite.id) + '">Intrekken</button></div>'
-        : invite ? '<p class="bh-note">Er is een oude link actief waarvan de code niet meer zichtbaar is.</p><button type="button" class="bh-btn bh-btn-sm" data-action="create-family-invite" data-id="' + esc(registration.id) + '">Nieuwe link maken</button>'
-        : '<p class="bh-note">Geen actieve link. Families stappen over op een account.</p><button type="button" class="bh-btn bh-btn-sm" data-action="create-family-invite" data-id="' + esc(registration.id) + '">Toch een link maken</button>') +
-    '</details>';
-  return access;
+function renderAccess(familyId) {
+  const { users } = accessData(familyId);
+  const accountRows = users.map(user => '<li><span><strong>' + esc(user.displayName || user.email) + '</strong><small>' + esc(user.email) + ' · ' + (user.role === "owner" ? "beheerder" : user.role === "viewer" ? "lezer" : "bewerker") + '</small></span><span class="bh-line-end">' + (user.status === "active" ? '<span class="bh-chip bh-chip-ok">Actief</span>' : user.status === "disabled" ? '<span class="bh-chip bh-chip-due">Geblokkeerd</span>' : '<span class="bh-chip bh-chip-warn">Uitgenodigd</span><button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite" data-user="' + esc(user.id) + '">Opnieuw sturen</button>') + '</span></li>').join("");
+  return (accountRows ? '<ul class="bh-lines">' + accountRows + '</ul>' : '<p class="bh-note">Dit gezin heeft nog geen account. Stuur een uitnodiging: ze kiezen zelf een wachtwoord en beheren daarna hun gezin, bestelling en afrekening.</p>') +
+    '<form data-invite-account="' + esc(familyId) + '" class="bh-form-grid bh-form-compact"><label>Naam<input name="displayName" maxlength="100" placeholder="Naam contactpersoon" required></label><label>E-mailadres<input name="email" type="email" maxlength="254" placeholder="naam@voorbeeld.be" required></label><button type="submit" class="bh-btn bh-btn-primary">' + (users.length ? "Extra account uitnodigen" : "Uitnodiging versturen") + '</button></form>';
 }
 
 function renderFamilyDetail(registration) {
@@ -224,7 +229,7 @@ function renderFamilyDetail(registration) {
       (state.beheerRenaming ? '<form id="rename-registration-form" data-id="' + esc(registration.id) + '" class="bh-rename"><input name="registrationName" maxlength="80" value="' + esc(registration.name) + '" aria-label="Naam gezin" required><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-rename">Annuleren</button></form>'
         : '<h1>' + esc(registration.name) + ' <button type="button" class="bh-icon-btn" data-action="rename-registration" aria-label="Naam wijzigen">✎</button></h1>') +
       '<p>' + counts.adults + ' volwassenen · ' + counts.children + ' kinderen · ' + plural(familyPortions(registration), "portie", "porties") + '</p></div>' +
-      '<div class="bh-page-actions">' + accessChip(registration.id) + familyBalanceChip(getFinancialSummary(state.registrations, state.expenses, state.payments).find(row => row.id === registration.id)) + '</div></header>' +
+      '<div class="bh-page-actions">' + accessChip(registration.familyId) + familyBalanceChip(getFinancialSummary(state.registrations, state.expenses, state.payments).find(row => row.id === registration.id)) + '</div></header>' +
     '<div class="bh-grid-2">' +
       '<section class="bh-card"><header class="bh-card-head"><h2>Gezinsleden & bestelling</h2><span class="bh-count">' + (registration.members || []).length + '</span></header>' +
         ((registration.members || []).length ? '<div class="bh-members">' + renderMemberEditor(registration) + '</div>' : '<p class="bh-empty">Nog geen gezinsleden. Het gezin kan ze zelf toevoegen, of je voegt ze hier toe.</p>') +
@@ -233,7 +238,7 @@ function renderFamilyDetail(registration) {
       '<div class="bh-stack">' +
         '<section class="bh-card"><header class="bh-card-head"><h2>Afrekening</h2>' + statusChip() + '</header>' + settlement + '</section>' +
         '<section class="bh-card"><header class="bh-card-head"><h2>Betalingen</h2><span class="bh-count">' + payments.length + '</span></header>' + (paymentList || (t.remainingCents ? "" : '<p class="bh-empty">Geen betalingen nodig.</p>')) + paymentForm + '</section>' +
-        '<section class="bh-card"><header class="bh-card-head"><h2>Gezin & toegang</h2>' + accessChip(registration.id) + '</header><p class="bh-note">Namen, accounts en uitnodigingen beheer je bij het gezin onder Gebruikers.</p><button type="button" class="bh-btn" data-action="open-user-family" data-id="' + esc(registration.id) + '">Gezin openen in Gebruikers ›</button></section>' +
+        '<section class="bh-card"><header class="bh-card-head"><h2>Gezin & toegang</h2>' + accessChip(registration.familyId) + '</header><p class="bh-note">Namen, accounts en uitnodigingen beheer je bij het gezin onder Gebruikers.</p><button type="button" class="bh-btn" data-action="open-user-family" data-id="' + esc(registration.familyId) + '">Gezin openen in Gebruikers ›</button></section>' +
       '</div>' +
     '</div>';
 }
@@ -340,20 +345,16 @@ function renderProducts() {
 }
 
 function renderEventSettings() {
-  const archives = [...(state.editionArchive || [])].reverse();
-  const headcount = row => (row.members || []).length || (Number(row.adults) || 0) + (Number(row.children) || 0);
-  const archiveCards = archives.map(edition => {
-    const regs = edition.registrations || [];
-    const people = regs.reduce((sum, row) => sum + headcount(row), 0);
-    const costs = (edition.expenses || []).reduce((sum, item) => sum + (Number(item.amountCents) || 0), 0);
-    return '<details class="bh-subtle"><summary><strong>' + esc(eventName()) + ' ' + esc(edition.event?.name || "Editie") + '</strong> · ' + plural(regs.length, "gezin", "gezinnen") + ' · ' + people + ' deelnemers · ' + euro(costs) + '</summary><ul class="bh-lines">' + regs.map(row => '<li><span>' + esc(row.name) + '</span><b>' + headcount(row) + '</b></li>').join("") + '</ul></details>';
-  }).join("");
-  return '<section class="bh-card"><header class="bh-card-head"><h2>Evenement & huidige editie</h2><span class="bh-chip bh-chip-ok">Actief</span></header>' +
-      '<p class="bh-note">Een evenement komt elk jaar terug met een nieuwe <strong>editie</strong>. Gezinnen, bestellingen, kosten en betalingen horen altijd bij één editie.</p>' +
-      '<form id="event-settings-form" class="bh-form-grid"><label>Evenement<input name="eventName" maxlength="80" value="' + esc(eventName()) + '" placeholder="Bijvoorbeeld: Nieuwjaar" required></label><label>Huidige editie<input name="editionName" maxlength="80" value="' + esc(editionName()) + '" placeholder="Bijvoorbeeld: 2026–2027" required></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Namen bewaren</button></div></form>' +
+  const event = (state.events || []).find(item => item.id === state.activeEventId);
+  const others = (event?.editions || []).filter(edition => edition.id !== state.activeEditionId);
+  const archived = state.editionStatus === "archived";
+  const otherRows = others.map(edition => '<li><span><strong>' + esc(edition.label) + '</strong><small>' + (edition.status === "archived" ? "Afgesloten" : "Actief") + '</small></span><button type="button" class="bh-btn bh-btn-sm" data-action="open-edition" data-id="' + esc(edition.id) + '">Openen ›</button></li>').join("");
+  return '<section class="bh-card"><header class="bh-card-head"><h2>Evenement & editie</h2>' + (archived ? '<span class="bh-chip">Afgesloten</span>' : '<span class="bh-chip bh-chip-ok">Actief</span>') + '</header>' +
+      '<p class="bh-note">Een evenement komt terug in <strong>edities</strong>. Gezinnen en hun accounts blijven bestaan; per editie schrijven ze zich opnieuw in, met hun eigen bestellingen, kosten en betalingen.</p>' +
+      '<form id="event-settings-form" class="bh-form-grid"><label>Evenement<input name="eventName" maxlength="80" value="' + esc(eventName()) + '" placeholder="Bijvoorbeeld: Nieuwjaar" required></label><label>Deze editie<input name="editionName" maxlength="80" value="' + esc(editionName()) + '" placeholder="Bijvoorbeeld: 2026–2027" required></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Namen bewaren</button></div></form>' +
       '<p class="bh-note">' + plural((state.registrations || []).length, "gezin", "gezinnen") + ' · ' + plural((state.expenses || []).length, "kost", "kosten") + ' · ' + plural((state.payments || []).length, "betaling", "betalingen") + ' in deze editie.</p></section>' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Volgende editie starten</h2></header><p class="bh-note">Doe dit pas als ' + esc(eventTitle()) + ' volledig is afgerond. De huidige editie gaat dan naar het archief, en de nieuwe editie start zonder gezinnen, kosten en betalingen.</p><form id="new-edition-form" class="bh-form-grid"><label class="bh-span-2">Naam nieuwe editie<input name="editionName" maxlength="80" placeholder="Bijvoorbeeld: 2027–2028" required></label><label class="bh-check bh-span-2"><input type="checkbox" name="copyCatalog" checked> Producten en foto\'s overnemen</label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-danger">Archiveren & nieuwe editie starten</button></div></form></section>' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Vorige edities</h2><span class="bh-count">' + archives.length + '</span></header>' + (archiveCards || '<p class="bh-empty">Nog geen vorige edities. Ze verschijnen hier zodra je een nieuwe editie start.</p>') + '</section>';
+    (archived ? "" : '<section class="bh-card"><header class="bh-card-head"><h2>Volgende editie starten</h2></header><p class="bh-note">Doe dit pas als ' + esc(eventTitle()) + ' volledig is afgerond. Deze editie wordt dan afgesloten (je kan ze nog altijd openen). Gezinnen en accounts blijven bestaan en kunnen zich inschrijven voor de nieuwe editie.</p><form id="new-edition-form" class="bh-form-grid"><label class="bh-span-2">Naam nieuwe editie<input name="editionName" maxlength="80" placeholder="Bijvoorbeeld: 2027–2028" required></label><label class="bh-check bh-span-2"><input type="checkbox" name="copyCatalog" checked> Producten en foto\'s overnemen</label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-danger">Afsluiten & nieuwe editie starten</button></div></form></section>') +
+    '<section class="bh-card"><header class="bh-card-head"><h2>Andere edities van ' + esc(eventName()) + '</h2><span class="bh-count">' + others.length + '</span></header>' + (otherRows ? '<ul class="bh-lines">' + otherRows + '</ul>' : '<p class="bh-empty">Nog geen andere edities.</p>') + '</section>';
 }
 
 function renderMail() {
@@ -362,22 +363,23 @@ function renderMail() {
 
 // ---------------- Evenementen ----------------
 function renderEvents() {
-  const t = eventTotals();
-  const archives = [...(state.editionArchive || [])].reverse();
-  const archiveRows = archives.map(edition => {
-    const regs = edition.registrations || [];
-    return '<li><span><strong>' + esc(edition.event?.name || "Editie") + '</strong><small>Afgesloten · ' + plural(regs.length, "gezin", "gezinnen") + '</small></span><span class="bh-chip">Archief</span></li>';
+  const events = state.events || [];
+  const cards = events.map(event => {
+    const editions = event.editions || [];
+    const rows = editions.map(edition => {
+      const loaded = edition.id === state.activeEditionId;
+      const t = loaded ? eventTotals() : null;
+      const stats = t ? '<span class="bh-edition-stats"><span><b>' + t.families + '</b> gezinnen</span><span><b>' + t.people + '</b> deelnemers</span><span><b>' + t.portions + '</b> porties</span><span><b>' + euro(t.outstanding) + '</b> open</span></span>' : '<span class="bh-edition-stats"></span>';
+      return '<button type="button" class="bh-edition-row' + (edition.status === "archived" ? " bh-edition-archived" : "") + '" data-action="open-edition" data-id="' + esc(edition.id) + '">' +
+        '<span class="bh-edition-label"><strong>' + esc(edition.label) + '</strong><small>' + (edition.status === "archived" ? "Afgesloten editie" : "Actieve editie") + (loaded ? " · geopend" : "") + '</small></span>' + stats +
+        '<span class="bh-btn' + (edition.status === "archived" ? "" : " bh-btn-primary") + '">Openen ›</span></button>';
+    }).join("");
+    return '<article class="bh-card bh-event-card"><header class="bh-card-head"><div><h2 class="bh-event-name">' + esc(event.name) + '</h2><small class="bh-muted">' + plural(editions.length, "editie", "edities") + '</small></div>' + (event.status === "archived" ? '<span class="bh-chip">Afgesloten</span>' : '<span class="bh-chip bh-chip-ok">Actief</span>') + '</header>' +
+      (rows || '<p class="bh-empty">Nog geen edities.</p>') + '</article>';
   }).join("");
   return pageHead("Evenementen", "Elk evenement komt terug in edities. Open een editie om inschrijvingen, bestellingen en financiën te beheren.") +
-    '<article class="bh-card bh-event-card">' +
-      '<header class="bh-card-head"><div><h2 class="bh-event-name">' + esc(eventName()) + '</h2><small class="bh-muted">' + plural(1 + archives.length, "editie", "edities") + '</small></div><span class="bh-chip bh-chip-ok">Actief</span></header>' +
-      '<button type="button" class="bh-edition-row" data-action="open-edition">' +
-        '<span class="bh-edition-label"><strong>' + esc(editionName() || "Huidige editie") + '</strong><small>Huidige editie · ' + (state.costsFinalized ? "kosten definitief" : "kosten voorlopig") + '</small></span>' +
-        '<span class="bh-edition-stats"><span><b>' + t.families + '</b> gezinnen</span><span><b>' + t.people + '</b> deelnemers</span><span><b>' + t.portions + '</b> porties</span><span><b>' + euro(t.outstanding) + '</b> open</span></span>' +
-        '<span class="bh-btn bh-btn-primary">Openen ›</span></button>' +
-      (archiveRows ? '<ul class="bh-lines bh-archive-list">' + archiveRows + '</ul>' : "") +
-    '</article>' +
-    '<section class="bh-card bh-card-dashed"><h2>Nieuw evenement</h2><p class="bh-note">Andere evenementen (bijvoorbeeld een BBQ of schoolfeest) kunnen hier straks naast ' + esc(eventName()) + ' staan. Dat komt na de omzetting van de gegevens, zodat gezinnen en accounts gedeeld worden over alle evenementen.</p></section>';
+    (cards || '<p class="bh-empty">Nog geen evenementen.</p>') +
+    '<details class="bh-card bh-card-dashed bh-add"><summary>+ Nieuw evenement</summary><p class="bh-note">Bijvoorbeeld een BBQ of schoolfeest. Gezinnen en accounts worden gedeeld over alle evenementen; per editie schrijven ze zich in.</p><form id="create-event-form" class="bh-form-grid"><label>Naam evenement<input name="eventName" maxlength="80" placeholder="Bijvoorbeeld: Zomer-BBQ" required></label><label>Eerste editie<input name="editionName" maxlength="80" placeholder="Bijvoorbeeld: 2027" required></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Evenement aanmaken</button></div></form></details>';
 }
 
 function renderEdition() {
@@ -385,52 +387,81 @@ function renderEdition() {
   const body = tab === "registrations" ? renderFamilies() : tab === "order" ? renderOrder() : tab === "finance" ? renderFinance()
     : tab === "products" ? renderProducts() : tab === "edition" ? renderEventSettings() : renderOverview();
   return '<nav class="bh-crumbs" aria-label="Kruimelpad"><button type="button" class="bh-link" data-action="close-edition">Evenementen</button><span aria-hidden="true">›</span><span>' + esc(eventName()) + '</span><span aria-hidden="true">›</span><strong>' + esc(editionName()) + '</strong></nav>' +
-    '<header class="bh-edition-head"><div><p class="bh-eyebrow">' + esc(eventName()) + '</p><h1>Editie ' + esc(editionName()) + '</h1></div>' + statusChip() + '</header>' +
+    '<header class="bh-edition-head"><div><p class="bh-eyebrow">' + esc(eventName()) + '</p><h1>Editie ' + esc(editionName()) + '</h1></div><div class="bh-page-actions">' + (state.editionStatus === "archived" ? '<span class="bh-chip">Afgesloten editie</span>' : "") + statusChip() + '</div></header>' +
     '<nav class="bh-subtabs bh-subtabs-sticky" aria-label="Editie">' + EDITION_TABS.map(entry => '<button type="button" data-action="edition-tab" data-tab="' + entry.id + '" aria-current="' + (entry.id === tab) + '">' + esc(entry.label) + '</button>').join("") + '</nav>' +
     body;
 }
 
 // ---------------- Gebruikers ----------------
-function participationRow(registration) {
-  const row = getFinancialSummary(state.registrations, state.expenses, state.payments).find(item => item.id === registration.id);
-  return '<li><span><strong>' + esc(eventTitle()) + '</strong><small>' + plural(familyPortions(registration), "portie", "porties") + ' · aandeel ' + euro(row?.shareCents || 0) + '</small></span><span class="bh-line-end">' + familyBalanceChip(row) + '<button type="button" class="bh-btn bh-btn-sm" data-action="open-family" data-id="' + esc(registration.id) + '">Inschrijving ›</button></span></li>';
+function participationRow(family) {
+  const rows = (family.registrations || []).map(reg => {
+    const loaded = reg.editionId === state.activeEditionId;
+    const live = loaded ? state.registrations.find(item => item.id === reg.id) : null;
+    const summary = live ? getFinancialSummary(state.registrations, state.expenses, state.payments).find(item => item.id === reg.id) : null;
+    return '<li><span><strong>' + esc(reg.event) + ' ' + esc(reg.edition) + '</strong><small>' + (reg.editionStatus === "archived" ? "Afgesloten editie" : "Actieve editie") + (live ? ' · ' + plural(familyPortions(live), "portie", "porties") + ' · aandeel ' + euro(summary?.shareCents || 0) : "") + '</small></span><span class="bh-line-end">' + (summary ? familyBalanceChip(summary) : "") +
+      (loaded ? '<button type="button" class="bh-btn bh-btn-sm" data-action="open-family" data-id="' + esc(reg.id) + '">Inschrijving ›</button>' : '<button type="button" class="bh-btn bh-btn-sm" data-action="open-edition" data-id="' + esc(reg.editionId) + '">Editie openen ›</button>') + '</span></li>';
+  }).join("");
+  return rows || '<li><span class="bh-muted">Nog nergens ingeschreven.</span></li>';
 }
 
-function renderUserFamily(registration) {
-  state.managingRegistrationId = registration.id; // member handlers act on this
-  const members = registration.members || [];
-  const rows = members.map((person, index) => state.editingAdminMemberIndex === index
+function renderUserFamily(family) {
+  const registration = state.registrations.find(item => item.familyId === family.id);
+  const latest = (family.registrations || [])[0];
+  if (registration) state.managingRegistrationId = registration.id; // member handlers act on this
+  const members = registration ? registration.members || [] : (latest?.members || []);
+  const rows = members.map((person, index) => registration && state.editingAdminMemberIndex === index
     ? '<li><form id="edit-admin-member-form" data-index="' + index + '" class="bh-member-edit"><input name="memberName" maxlength="80" value="' + esc(person.name) + '" aria-label="Naam" required><select name="memberType" aria-label="Categorie"><option value="Volwassene"' + (person.type === "Volwassene" ? " selected" : "") + '>Volwassene (18+)</option><option value="Kind"' + (person.type === "Kind" ? " selected" : "") + '>Kind</option></select><div class="bh-actions"><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-edit-admin-member">Annuleren</button></div></form></li>'
-    : '<li><span class="bh-person"><span class="bh-avatar bh-avatar-sm">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(person.name) + '</strong><small>' + (person.type === "Kind" ? "Kind" : "Volwassene (18+)") + '</small></span></span><span class="bh-line-end"><button type="button" class="bh-btn bh-btn-sm" data-action="edit-member" data-index="' + index + '">Wijzigen</button><button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-member" data-index="' + index + '">Verwijderen</button></span></li>').join("");
-  const counts = getRegistrationCounts(registration);
+    : '<li><span class="bh-person"><span class="bh-avatar bh-avatar-sm">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(person.name) + '</strong><small>' + (person.type === "Kind" ? "Kind" : "Volwassene (18+)") + '</small></span></span>' +
+      (registration ? '<span class="bh-line-end"><button type="button" class="bh-btn bh-btn-sm" data-action="edit-member" data-index="' + index + '">Wijzigen</button><button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-member" data-index="' + index + '">Verwijderen</button></span>' : "") + '</li>').join("");
+  const adults = members.filter(p => p.type === "Volwassene").length;
+  const name = registration?.name || family.name;
+  const membersCard = '<section class="bh-card"><header class="bh-card-head"><h2>Gezinsleden</h2><span class="bh-count">' + members.length + '</span></header>' +
+    (registration ? "" : '<p class="bh-note">' + (latest ? "Zoals bij de laatste inschrijving (" + esc(latest.event) + " " + esc(latest.edition) + "). " : "") + 'Niet ingeschreven voor ' + esc(eventTitle()) + '.</p>') +
+    (members.length ? '<ul class="bh-lines bh-people">' + rows + '</ul>' : '<p class="bh-empty">Nog geen gezinsleden.</p>') +
+    (registration ? '<form id="add-member-form" class="bh-form-grid bh-form-compact"><label>Naam<input name="memberName" maxlength="80" placeholder="Voornaam en naam" required></label><label>Categorie<select name="memberType"><option value="Volwassene">Volwassene (18+)</option><option value="Kind">Kind</option></select></label><button type="submit" class="bh-btn">+ Persoon toevoegen</button></form>'
+      : (state.editionStatus === "archived" ? "" : '<button type="button" class="bh-btn bh-btn-primary" data-action="register-family" data-id="' + esc(family.id) + '">Inschrijven voor ' + esc(eventTitle()) + '</button>')) + '</section>';
   return '<button type="button" class="bh-back" data-action="close-user-family">‹ Alle gezinnen</button>' +
     '<header class="bh-page-head"><div>' +
-      (state.beheerRenaming ? '<form id="rename-registration-form" data-id="' + esc(registration.id) + '" class="bh-rename"><input name="registrationName" maxlength="80" value="' + esc(registration.name) + '" aria-label="Naam gezin" required><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-rename">Annuleren</button></form>'
-        : '<h1>' + esc(registration.name) + ' <button type="button" class="bh-icon-btn" data-action="rename-registration" aria-label="Naam wijzigen">✎</button></h1>') +
-      '<p>' + counts.adults + ' volwassenen · ' + counts.children + ' kinderen</p></div><div class="bh-page-actions">' + accessChip(registration.id) + '</div></header>' +
-    '<div class="bh-grid-2">' +
-      '<section class="bh-card"><header class="bh-card-head"><h2>Gezinsleden</h2><span class="bh-count">' + members.length + '</span></header>' +
-        (members.length ? '<ul class="bh-lines bh-people">' + rows + '</ul>' : '<p class="bh-empty">Nog geen gezinsleden. Het gezin kan ze zelf toevoegen, of je voegt ze hier toe.</p>') +
-        '<form id="add-member-form" class="bh-form-grid bh-form-compact"><label>Naam<input name="memberName" maxlength="80" placeholder="Voornaam en naam" required></label><label>Categorie<select name="memberType"><option value="Volwassene">Volwassene (18+)</option><option value="Kind">Kind</option></select></label><button type="submit" class="bh-btn">+ Persoon toevoegen</button></form></section>' +
+      (registration && state.beheerRenaming ? '<form id="rename-registration-form" data-id="' + esc(registration.id) + '" class="bh-rename"><input name="registrationName" maxlength="80" value="' + esc(name) + '" aria-label="Naam gezin" required><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-rename">Annuleren</button></form>'
+        : '<h1>' + esc(name) + (registration ? ' <button type="button" class="bh-icon-btn" data-action="rename-registration" aria-label="Naam wijzigen">✎</button>' : "") + '</h1>') +
+      '<p>' + plural(adults, "volwassene", "volwassenen") + ' · ' + plural(members.length - adults, "kind", "kinderen") + '</p></div><div class="bh-page-actions">' + accessChip(family.id) + '</div></header>' +
+    '<div class="bh-grid-2">' + membersCard +
       '<div class="bh-stack">' +
-        '<section class="bh-card"><header class="bh-card-head"><h2>Toegang</h2></header>' + renderAccess(registration) + '</section>' +
-        '<section class="bh-card"><header class="bh-card-head"><h2>Deelname aan evenementen</h2></header><ul class="bh-lines">' + participationRow(registration) + '</ul></section>' +
+        '<section class="bh-card"><header class="bh-card-head"><h2>Toegang</h2></header>' + renderAccess(family.id) + '</section>' +
+        '<section class="bh-card"><header class="bh-card-head"><h2>Deelname aan evenementen</h2></header><ul class="bh-lines">' + participationRow(family) + '</ul></section>' +
       '</div>' +
     '</div>';
 }
 
 function renderUserFamilies() {
-  const regs = state.registrations || [];
-  const rows = regs.map(reg => {
-    const counts = getRegistrationCounts(reg);
-    return '<li><button type="button" class="bh-family-row bh-family-row-user" data-action="open-user-family" data-id="' + esc(reg.id) + '">' +
-      '<span class="bh-avatar">' + esc((reg.name || "?").charAt(0).toUpperCase()) + '</span>' +
-      '<span class="bh-family-name"><strong>' + esc(reg.name) + '</strong><small>' + ((reg.members || []).length ? counts.adults + " volwassenen · " + counts.children + " kinderen" : "Leden nog niet ingevuld") + '</small></span>' +
-      '<span class="bh-family-chips">' + accessChip(reg.id) + '<span class="bh-chip bh-chip-info">' + esc(eventTitle()) + '</span></span>' +
+  const list = allFamilies();
+  const rows = list.map(family => {
+    const registration = state.registrations.find(item => item.familyId === family.id);
+    const members = registration?.members || family.registrations?.[0]?.members || [];
+    const adults = members.filter(p => p.type === "Volwassene").length;
+    const editions = (family.registrations || []).map(reg => '<span class="bh-chip' + (reg.editionId === state.activeEditionId ? " bh-chip-info" : "") + '">' + esc(reg.event + " " + reg.edition) + '</span>').join("");
+    return '<li><button type="button" class="bh-family-row bh-family-row-user" data-action="open-user-family" data-id="' + esc(family.id) + '">' +
+      '<span class="bh-avatar">' + esc((family.name || "?").charAt(0).toUpperCase()) + '</span>' +
+      '<span class="bh-family-name"><strong>' + esc(registration?.name || family.name) + '</strong><small>' + (members.length ? plural(adults, "volwassene", "volwassenen") + " · " + plural(members.length - adults, "kind", "kinderen") : "Leden nog niet ingevuld") + '</small></span>' +
+      '<span class="bh-family-chips">' + accessChip(family.id) + (editions || '<span class="bh-chip bh-chip-muted">Niet ingeschreven</span>') + '</span>' +
       '<i class="bh-chev" aria-hidden="true">›</i></button></li>';
   }).join("");
-  return '<section class="bh-card"><form id="add-registration-form" data-context="users" class="bh-inline-form"><label for="bh-new-user-family">Nieuw gezin</label><div><input id="bh-new-user-family" name="registrationName" maxlength="80" placeholder="Bijvoorbeeld: Jan & Els" required><button type="submit" class="bh-btn bh-btn-primary">+ Gezin toevoegen</button></div><small class="bh-muted">Een nieuw gezin wordt meteen ingeschreven voor ' + esc(eventTitle()) + '.</small></form></section>' +
+  return '<section class="bh-card"><form id="add-registration-form" data-context="users" class="bh-inline-form"><label for="bh-new-user-family">Nieuw gezin</label><div><input id="bh-new-user-family" name="registrationName" maxlength="80" placeholder="Bijvoorbeeld: Jan & Els" required><button type="submit" class="bh-btn bh-btn-primary">+ Gezin toevoegen</button></div><small class="bh-muted">' + (state.editionStatus === "archived" ? "Open eerst een actieve editie om een nieuw gezin in te schrijven." : "Een nieuw gezin wordt meteen ingeschreven voor " + esc(eventTitle()) + ".") + '</small></form></section>' +
     (rows ? '<ul class="bh-family-list">' + rows + '</ul>' : '<p class="bh-empty">Nog geen gezinnen.</p>');
+}
+
+function renderAccounts() {
+  const rows = accounts.map(user => {
+    const status = user.status === "active" ? '<span class="bh-chip bh-chip-ok">Actief</span>' : user.status === "disabled" ? '<span class="bh-chip bh-chip-due">Geblokkeerd</span>' : '<span class="bh-chip bh-chip-warn">Uitgenodigd</span>';
+    const fams = (user.families || []).map(link => '<button type="button" class="bh-chip bh-chip-info" data-action="open-user-family" data-id="' + esc(link.familyId) + '">' + esc(link.familyName || "Gezin") + '</button>').join("") || '<span class="bh-chip bh-chip-muted">Geen gezin</span>';
+    const actions = (user.status === "invited" ? '<button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite" data-user="' + esc(user.id) + '">Opnieuw sturen</button>' : "") +
+      (user.status === "active" ? '<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="' + esc(user.id) + '" data-status="disabled">Blokkeren</button><button type="button" class="bh-btn bh-btn-sm" data-action="account-sessions" data-user="' + esc(user.id) + '">Afmelden op alle toestellen</button>' : "") +
+      (user.status === "disabled" ? '<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="' + esc(user.id) + '" data-status="active">Deblokkeren</button>' : "") +
+      '<button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="account-delete" data-user="' + esc(user.id) + '" data-email="' + esc(user.email) + '">Verwijderen</button>';
+    return '<li class="bh-account"><div class="bh-account-main"><strong>' + esc(user.displayName || user.email) + '</strong><small>' + esc(user.email) + (user.lastLoginAt ? " · laatst aangemeld " + new Date(user.lastLoginAt * 1000).toLocaleDateString("nl-BE") : "") + '</small><div class="bh-family-chips">' + status + fams + '</div></div><div class="bh-actions">' + actions + '</div></li>';
+  }).join("");
+  return '<section class="bh-card"><header class="bh-card-head"><h2>Accounts</h2><span class="bh-count">' + accounts.length + '</span></header><p class="bh-note">Uitnodigen doe je bij het gezin (Gezinnen → gezin → Toegang). Een account hoort bij een gezin, niet bij één editie.</p>' +
+    (rows ? '<ul class="bh-accounts">' + rows + '</ul>' : '<p class="bh-empty">Nog geen accounts.</p>') + '</section>';
 }
 
 export const USERS_TABS = [
@@ -438,13 +469,13 @@ export const USERS_TABS = [
   { id: "accounts", label: "Accounts" }
 ];
 
-function renderUsers(platformHtml) {
-  const registration = (state.registrations || []).find(item => item.id === state.beheerUserFamilyId);
-  if (registration) return renderUserFamily(registration);
+function renderUsers() {
+  const family = allFamilies().find(item => item.id === state.beheerUserFamilyId);
+  if (family) return renderUserFamily(family);
   const tab = USERS_TABS.some(entry => entry.id === state.beheerUsersTab) ? state.beheerUsersTab : "families";
-  return pageHead("Gebruikers", "Gezinnen, hun leden en de accounts waarmee ze aanmelden.") +
+  return pageHead("Gebruikers", "Gezinnen, hun leden en de accounts waarmee ze aanmelden. Een gezin bestaat één keer en kan deelnemen aan alle evenementen.") +
     '<nav class="bh-subtabs" aria-label="Gebruikers">' + USERS_TABS.map(entry => '<button type="button" data-action="users-tab" data-tab="' + entry.id + '" aria-current="' + (entry.id === tab) + '">' + esc(entry.label) + '</button>').join("") + '</nav>' +
-    (tab === "accounts" ? platformHtml("accounts") : renderUserFamilies());
+    (tab === "accounts" ? renderAccounts() : renderUserFamilies());
 }
 
 // ---------------- Instellingen (global) ----------------
@@ -455,7 +486,7 @@ function renderSettings() {
 
 export function renderBeheer({ section, notice = "", platformHtml }) {
   const active = normalizeSection(section);
-  const content = active === "users" ? renderUsers(platformHtml) : active === "settings" ? renderSettings()
+  const content = active === "users" ? renderUsers() : active === "settings" ? renderSettings()
     : state.beheerEventView === "edition" ? renderEdition() : renderEvents();
   const nav = SECTIONS.map(entry => '<button type="button" data-section="' + entry.id + '" aria-current="' + (entry.id === active ? "page" : "false") + '"><span aria-hidden="true">' + entry.icon + '</span>' + esc(entry.label) + '</button>').join("");
   return '<div class="bh-app">' +

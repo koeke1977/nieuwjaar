@@ -1,76 +1,85 @@
 import { state } from "./demo-data.js";
 
-// Production only: the admin works on exactly one edition, stored as app_state "live".
-export const LIVE = "live";
+// The admin works on one event edition at a time (state.activeEditionId), loaded from
+// /api/admin/editions/:id/state. This module maps between that API shape and the admin
+// state the screens use, and produces the payload that is saved back.
 
-const clone = value => JSON.parse(JSON.stringify(value));
-// Persisted edition fields. UI selection (active/managing registration) is deliberately
-// not persisted: saving it made merely browsing the admin bump the shared revision.
-const fields = [
-  "eventName",
-  "activeEvent",
-  "expenses",
-  "editionArchive",
-  "costsFinalized",
-  "costsFinalizedAt",
-  "registrations",
-  "payments",
-  "catalog"
-];
+const clone = value => JSON.parse(JSON.stringify(value ?? null));
 
-const emptyLiveData = {
-  eventName: "Nieuwjaar",
-  activeEvent: { id: "nieuwjaar-2026-2027-live", name: "2026–2027", status: "active" },
-  expenses: [],
-  editionArchive: [],
-  costsFinalized: false,
-  costsFinalizedAt: null,
-  registrations: [],
-  payments: [],
-  catalog: clone(state.catalog)
-};
+const memberPayload = person => ({ id: person.id, name: person.name, type: person.type, orders: { ...(person.orders || {}) } });
+const registrationPayload = reg => ({
+  id: reg.id, familyId: reg.familyId || null, name: reg.name,
+  members: (reg.members || []).map(memberPayload), revision: Number(reg.revision) || 0
+});
+const productPayload = product => ({ id: product.id, name: product.name, image: product.image || null, active: product.active !== false });
 
-state.activeEnvironment = LIVE;
-state.environmentData = { live: clone(emptyLiveData) };
+// Canonical payload: fixed field order so it can be compared as text.
+export function payloadFrom(source) {
+  return {
+    editionId: source.editionId,
+    eventName: source.eventName,
+    editionLabel: source.editionLabel,
+    catalog: (source.catalog || []).map(productPayload),
+    registrations: (source.registrations || []).map(registrationPayload),
+    expenses: clone(source.expenses || []),
+    payments: clone(source.payments || []),
+    costsFinalized: Boolean(source.costsFinalized),
+    costsFinalizedAt: source.costsFinalizedAt || null,
+    financeRevision: Number(source.financeRevision) || 0,
+    configRevision: Number(source.configRevision) || 0
+  };
+}
 
-function captureEnvironment() {
-  return Object.fromEntries(fields.map(field => [field, clone(state[field])]));
+// Payload of what the admin currently has on screen.
+export function currentPayload() {
+  return payloadFrom({
+    editionId: state.activeEditionId,
+    eventName: state.eventName,
+    editionLabel: state.activeEvent?.name,
+    catalog: state.catalog,
+    registrations: state.registrations,
+    expenses: state.expenses,
+    payments: state.payments,
+    costsFinalized: state.costsFinalized,
+    costsFinalizedAt: state.costsFinalizedAt,
+    financeRevision: state.financeRevision,
+    configRevision: state.configRevision
+  });
 }
 
 function keepSelectionValid() {
   const ids = new Set((state.registrations || []).map(item => item.id));
-  if (!ids.has(state.activeRegistrationId)) state.activeRegistrationId = state.registrations[0]?.id || null;
   if (!ids.has(state.managingRegistrationId)) state.managingRegistrationId = state.registrations[0]?.id || null;
   if (state.beheerFamilyId && !ids.has(state.beheerFamilyId)) state.beheerFamilyId = null;
   if (state.editingExpenseId && !(state.expenses || []).some(item => item.id === state.editingExpenseId)) state.editingExpenseId = null;
 }
 
-const safeImage = image => typeof image === "string" && (image.startsWith("/images/") || image.startsWith("/media/")) ? image : null;
-
-export function getPersistableEnvironmentData() {
-  state.environmentData.live = captureEnvironment();
-  const snapshot = clone(state.environmentData);
-  snapshot.live.catalog = (snapshot.live.catalog || []).map(product => ({ ...product, image: safeImage(product.image) }));
-  snapshot.live.editionArchive = (snapshot.live.editionArchive || []).map(edition => ({ ...edition, catalog: (edition.catalog || []).map(product => ({ ...product, image: safeImage(product.image) })) }));
-  return snapshot;
-}
-
-// Replace the edition data with a newer server version, keeping the admin's UI state
-// (open family, edit forms) intact where it still makes sense.
-export function applyLatestEnvironmentData(environment, data) {
-  if (environment !== LIVE || !data || typeof data !== "object") return;
-  state.environmentData.live = clone(data);
-  fields.forEach(field => { if (field in data) state[field] = clone(data[field]); });
-  keepSelectionValid();
-}
-
-export function restorePersistedEnvironmentData(environments) {
-  const data = environments?.live && typeof environments.live === "object" ? environments.live : emptyLiveData;
-  state.environmentData.live = clone(data);
-  fields.forEach(field => { state[field] = clone(data[field] ?? emptyLiveData[field]); });
-  state.editingMember = null;
-  state.editingOwnMemberIndex = null;
-  state.editingAdminMemberIndex = null;
-  state.editingExpenseId = null;
+// Apply an edition (API shape or payload) to the admin state.
+export function applyEdition(edition, { keepUi = true } = {}) {
+  const switching = state.activeEditionId !== edition.editionId;
+  state.activeEditionId = edition.editionId;
+  if (edition.eventId) state.activeEventId = edition.eventId;
+  state.eventName = edition.eventName;
+  state.activeEvent = { id: edition.editionId, name: edition.editionLabel, status: edition.editionStatus || state.activeEvent?.status || "open" };
+  if (edition.editionStatus) state.editionStatus = edition.editionStatus;
+  if (edition.financeStrategy) state.financeStrategy = edition.financeStrategy;
+  state.catalog = clone(edition.catalog || []);
+  state.registrations = clone(edition.registrations || []).map(reg => ({
+    ...reg,
+    adults: (reg.members || []).filter(p => p.type === "Volwassene").length || Number(reg.adults) || 0,
+    children: (reg.members || []).filter(p => p.type === "Kind").length || Number(reg.children) || 0
+  }));
+  state.expenses = clone(edition.expenses || []);
+  state.payments = clone(edition.payments || []);
+  state.costsFinalized = Boolean(edition.costsFinalized);
+  state.costsFinalizedAt = edition.costsFinalizedAt || null;
+  state.financeRevision = Number(edition.financeRevision) || 0;
+  state.configRevision = Number(edition.configRevision) || 0;
+  if (!keepUi || switching) {
+    state.beheerFamilyId = null;
+    state.editingAdminMemberIndex = null;
+    state.editingExpenseId = null;
+    state.beheerRenaming = false;
+  }
   keepSelectionValid();
 }
