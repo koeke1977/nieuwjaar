@@ -143,6 +143,7 @@ export const EDITION_TABS = [
   { id: "registrations", label: "Inschrijvingen" },
   { id: "order", label: "Bestelling" },
   { id: "finance", label: "Financiën" },
+  { id: "cash", label: "Kassa" },
   { id: "bar", label: "Bar" },
   { id: "products", label: "Producten" },
   { id: "edition", label: "Editie" }

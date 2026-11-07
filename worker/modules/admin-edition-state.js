@@ -220,7 +220,9 @@ function cleanFinance(data, registrationIds) {
       amountCents: item.amountCents,
       date: item.date,
       method: item.method,
-      ...(item.kind === "refund" ? { kind: "refund" } : {})
+      ...(item.kind === "refund" ? { kind: "refund" } : {}),
+      // Moment of entry (seconds), set by the Kassa; used to list the latest cash payments.
+      ...(Number.isInteger(item.at) && item.at > 0 ? { at: item.at } : {})
     });
   }
   return { expenses, payments };

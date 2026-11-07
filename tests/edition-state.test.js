@@ -492,3 +492,18 @@ test("settlement mail: own statement per family to its accounts; audience, test 
   assert.ok(state.settlementSentAt, "time of sending remembered");
   assert.equal(state.configRevision, 10, "no change to the edition revision");
 });
+
+test("a cash payment from the Kassa keeps its moment of entry", async () => {
+  const DB = setup();
+  const base = payload(await loadEditionState({ DB }, "ed1"));
+  const data = clone(base);
+  data.payments = [
+    { id: "p1", registrationId: "ra", amountCents: 500, date: "2026-12-31", method: "cash", at: 1798758000 },
+    { id: "p2", registrationId: "rb", amountCents: 100, date: "2026-12-31", method: "cash", at: "nope" }
+  ];
+  const saved = await saveEditionState({ DB }, "ed1", { base, data }, NOW);
+  assert.equal(saved.status, 200);
+  const state = await loadEditionState({ DB }, "ed1");
+  assert.equal(state.payments.find(p => p.id === "p1").at, 1798758000);
+  assert.equal(state.payments.find(p => p.id === "p2").at, undefined, "invalid values are dropped");
+});

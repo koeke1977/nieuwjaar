@@ -2,10 +2,59 @@
 import { state } from "../../../data/admin-store.js";
 import { euro } from "../../../utils/html.js";
 import { getExpenseShares, getFinancialSummary, SHARED_FUND } from "../../../utils/finance.js";
+import { today } from "../screens/shared.js";
 import { barBalance } from "../beheer-view.js";
 import { go, renderApp, makeId, markCostsProvisional, adminApi, flushAdminState } from "../admin-core.js";
 
+// ---- Kassa (screens/cash.js): cash received or given back on the night itself ----
+const balanceOf = id =>
+  getFinancialSummary(state.registrations, state.expenses, state.payments).find(row => row.id === id);
+const familyName = id => state.registrations.find(reg => reg.id === id)?.name || "dit gezin";
+function addCash(registrationId, amountCents, refund = false) {
+  state.payments.push({
+    id: makeId(refund ? "terugbetaling" : "betaling"),
+    registrationId,
+    amountCents,
+    date: today(),
+    method: "cash",
+    ...(refund ? { kind: "refund" } : {}),
+    at: Math.floor(Date.now() / 1000)
+  });
+  renderApp();
+}
+
 export const clicks = {
+  "cash-pay": action => {
+    const row = balanceOf(action.dataset.id);
+    if (!row || row.remainingCents <= 0) return;
+    if (!window.confirm(euro(row.remainingCents) + " cash ontvangen van " + familyName(row.id) + "?")) return;
+    addCash(row.id, row.remainingCents);
+  },
+  "cash-other": action => {
+    const row = balanceOf(action.dataset.id);
+    if (!row || row.remainingCents <= 0) return;
+    const input = window.prompt(
+      "Hoeveel cash ontving je van " + familyName(row.id) + "? (nog te betalen: " + euro(row.remainingCents) + ")",
+      ""
+    );
+    if (input == null || !input.trim()) return;
+    const cents = Math.round(Number(input.trim().replace(/\s|€/g, "").replace(",", ".")) * 100);
+    if (!Number.isInteger(cents) || cents <= 0) {
+      window.alert("Dat is geen geldig bedrag. Typ bijvoorbeeld 20 of 12,50.");
+      return;
+    }
+    if (cents > row.remainingCents) {
+      window.alert("Dat is meer dan het openstaande bedrag van " + euro(row.remainingCents) + ".");
+      return;
+    }
+    addCash(row.id, cents);
+  },
+  "cash-refund": action => {
+    const row = balanceOf(action.dataset.id);
+    if (!row || row.creditCents <= 0) return;
+    if (!window.confirm(euro(row.creditCents) + " cash teruggegeven aan " + familyName(row.id) + "?")) return;
+    addCash(row.id, row.creditCents, true);
+  },
   "edit-expense": action => {
     go({ editingExpenseId: action.dataset.id });
     return;

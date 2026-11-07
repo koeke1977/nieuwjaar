@@ -9,7 +9,8 @@ import {
   loadBackups,
   renderApp,
   renderSoon,
-  startLiveRefresh
+  startLiveRefresh,
+  hasUnsavedChanges
 } from "./pages/beheer/admin-core.js";
 import * as navigation from "./pages/beheer/actions/navigation.js";
 import * as registrations from "./pages/beheer/actions/registrations.js";
@@ -96,6 +97,12 @@ export async function startApp() {
     return;
   }
   document.addEventListener("click", handleClick);
+  // Warn before closing the page while changes (e.g. cash payments) are not saved yet.
+  window.addEventListener("beforeunload", event => {
+    if (!hasUnsavedChanges()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
   document.addEventListener("submit", handleSubmit);
   document.addEventListener("change", edition.handleImageUpload);
   document.addEventListener("change", registrations.handleBarInput);

@@ -191,3 +191,59 @@ test("Inschrijvingen: registrations table sorts by portions and filters families
   assert.deepEqual(order(), ["rz"]);
   assert.match(rendered, /Nog niets/);
 });
+
+test("Kassa: pay in cash (full or other amount), give money back, everything ends at zero", async () => {
+  const fin = await import(root + "pages/beheer/actions/finance.js");
+  const { getFinancialSummary } = await import(root + "utils/finance.js");
+  state.registrations = [
+    {
+      id: "ra",
+      familyId: "fa",
+      name: "Jan",
+      revision: 1,
+      members: [{ id: "j", name: "Jan", type: "Volwassene", orders: {} }]
+    },
+    {
+      id: "rz",
+      familyId: "fz",
+      name: "Anna",
+      revision: 1,
+      members: [{ id: "a", name: "Anna", type: "Volwassene", orders: {} }]
+    }
+  ];
+  // Anna advanced the hall (100 euro): both owe 50, so Jan pays 50 and Anna gets 50 back.
+  state.expenses = [
+    { id: "e", description: "Zaal", amountCents: 10000, date: "2026-12-01", method: "general", advancedBy: "rz" }
+  ];
+  state.payments = [];
+  Object.assign(state, {
+    activeSection: "events",
+    beheerEventView: "edition",
+    beheerEditionTab: "cash",
+    beheerTableFilter: {}
+  });
+  const balance = id => getFinancialSummary(state.registrations, state.expenses, state.payments).find(r => r.id === id);
+  core.renderApp();
+  assert.match(rendered, /data-action="cash-pay" data-id="ra"/);
+  window.prompt = () => "20";
+  fin.clicks["cash-other"]({ dataset: { id: "ra" } });
+  assert.equal(balance("ra").remainingCents, 3000);
+  fin.clicks["cash-pay"]({ dataset: { id: "ra" } });
+  assert.equal(balance("ra").remainingCents, 0);
+  fin.clicks["cash-refund"]({ dataset: { id: "rz" } });
+  assert.equal(balance("rz").creditCents, 0);
+  assert.deepEqual(
+    state.payments.map(p => [p.registrationId, p.amountCents, p.method, p.kind || "payment", typeof p.at]),
+    [
+      ["ra", 2000, "cash", "payment", "number"],
+      ["ra", 3000, "cash", "payment", "number"],
+      ["rz", 5000, "cash", "refund", "number"]
+    ]
+  );
+  assert.match(rendered, /Laatst in de kassa/);
+  window.prompt = () => "999";
+  fin.clicks["cash-other"]({ dataset: { id: "ra" } });
+  assert.equal(state.payments.length, 3, "nothing open any more: no extra payment");
+  fin.clicks["delete-payment"]({ dataset: { id: state.payments[2].id } });
+  assert.equal(balance("rz").creditCents, 5000, "undo brings the refund back");
+});

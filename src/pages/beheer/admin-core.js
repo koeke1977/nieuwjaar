@@ -54,10 +54,23 @@ export async function flushAdminState() {
   }
 }
 
+// fetch() rejects with a TypeError when there is no network; the server answering with an error is different.
+// (Chrome "Failed to fetch", Safari "Load failed", Firefox "NetworkError when attempting to fetch resource").
+const isNetworkError = error =>
+  (typeof navigator !== "undefined" && navigator.onLine === false) ||
+  (error instanceof TypeError && /fetch|network|load failed/i.test(error.message || ""));
+const OFFLINE_RETRY_MS = 5000;
+let retryTimer = null;
+
+// True while changes may not be on the server yet (used to warn before closing the page).
+export const hasUnsavedChanges = () => Boolean(session.offline || persistenceInFlight || persistenceTimer);
+
 export function scheduleAdminStateSave() {
   if (!session.authenticated || !statePersistenceReady) return;
   clearTimeout(persistenceTimer);
+  clearTimeout(retryTimer);
   persistenceTimer = setTimeout(async () => {
+    persistenceTimer = null;
     if (persistenceInFlight) {
       persistenceAgain = true;
       return;
@@ -73,7 +86,20 @@ export function scheduleAdminStateSave() {
       if (result?.conflicts?.length)
         console.warn("Admin save merged with conflicts (admin version kept):", result.conflicts);
       renderWhenIdle();
+      if (session.offline) {
+        session.offline = false;
+        liveRenderPending = true;
+        renderWhenIdle();
+      }
     } catch (error) {
+      if (isNetworkError(error)) {
+        // No connection (e.g. weak wifi at the party): keep every change and try again shortly.
+        const first = !session.offline;
+        session.offline = true;
+        if (first) renderApp();
+        retryTimer = setTimeout(scheduleAdminStateSave, OFFLINE_RETRY_MS);
+        return;
+      }
       session.error = error.message || "Opslaan is mislukt.";
       statePersistenceReady = false;
       console.error("Admin save failed:", error);
@@ -192,13 +218,16 @@ export function renderApp() {
     document.querySelector("#app").innerHTML = renderAdminLogin();
     return;
   }
-  const notice = session.error
-    ? String(session.error === true ? "De gegevens konden niet worden geladen." : session.error)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;") +
-      " Wijzigingen worden niet bewaard. Herlaad de pagina om de nieuwste gegevens op te halen."
-    : "";
+  const notice =
+    session.offline && !session.error
+      ? "📶 Geen verbinding. Je wijzigingen staan veilig op dit toestel en worden bewaard zodra er weer verbinding is. Sluit deze pagina niet."
+      : session.error
+        ? String(session.error === true ? "De gegevens konden niet worden geladen." : session.error)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;") +
+          " Wijzigingen worden niet bewaard. Herlaad de pagina om de nieuwste gegevens op te halen."
+        : "";
   state.activeSection = normalizeSection(state.activeSection);
   document.querySelector("#app").innerHTML = renderBeheer({ section: state.activeSection, notice });
   scheduleAdminStateSave();

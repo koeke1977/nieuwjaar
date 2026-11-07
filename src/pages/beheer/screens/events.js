@@ -7,6 +7,7 @@ import { renderOrder } from "./order.js";
 import { renderFinance } from "./finance.js";
 import { renderProducts, renderEventSettings } from "./edition.js";
 import { renderBar } from "./bar.js";
+import { renderCash } from "./cash.js";
 import { renderOverview } from "./overview.js";
 
 // ---------------- Evenementen ----------------
@@ -91,7 +92,9 @@ export function renderEdition() {
               ? renderEventSettings()
               : tab === "bar"
                 ? renderBar()
-                : renderOverview();
+                : tab === "cash"
+                  ? renderCash()
+                  : renderOverview();
   return html`<nav class="bh-crumbs" aria-label="Kruimelpad">
         <button type="button" class="bh-link" data-action="close-edition">Evenementen</button>
         <span aria-hidden="true">›</span>

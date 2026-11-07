@@ -1484,3 +1484,68 @@ button.bh-kpi:hover {
 .bh-settlement[open] summary {
   margin-bottom: 12px;
 }
+
+/* Kassa: one row per family, big buttons for the phone */
+.bh-cash-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bh-cash-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--bh-line);
+  border-radius: 14px;
+  background: var(--bh-card);
+}
+.bh-cash-family strong {
+  display: block;
+  font-size: 17px;
+}
+.bh-cash-status {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 2px;
+}
+.bh-cash-status small {
+  color: var(--bh-muted);
+}
+.bh-cash-amount {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.bh-cash-amount.is-due {
+  color: var(--bh-due);
+}
+.bh-cash-amount.is-credit {
+  color: var(--bh-info);
+}
+.bh-cash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+.bh-cash-btn {
+  min-height: 48px;
+  padding: 0 18px;
+  font-size: 16px;
+}
+@media (max-width: 560px) {
+  .bh-cash-row {
+    grid-template-columns: 1fr;
+  }
+  .bh-cash-actions {
+    justify-content: stretch;
+  }
+  .bh-cash-btn {
+    flex: 1 1 100%;
+  }
+}
