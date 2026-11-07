@@ -22,9 +22,17 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
   if (path === base && request.method === "GET") {
     const environment = url.searchParams.get("environment");
     if (!["test", "live"].includes(environment)) return json({ error: "Ongeldige omgeving." }, 400);
-    const result = await env.DB.prepare(
-      "SELECT u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at, r.id AS link_id, r.edition_id, r.registration_id, (SELECT fm.role FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id WHERE fm.user_id = u.id AND er.legacy_environment = r.edition_id AND er.legacy_registration_id = r.registration_id LIMIT 1) AS membership_role FROM family_users u LEFT JOIN family_user_registrations r ON r.user_id = u.id AND r.edition_id = ? ORDER BY u.email COLLATE NOCASE, r.registration_id"
-    ).bind(environment).all();
+    let result;
+    try {
+      result = await env.DB.prepare(
+        "SELECT u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at, r.id AS link_id, r.edition_id, r.registration_id, (SELECT fm.role FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id WHERE fm.user_id = u.id AND er.legacy_environment = r.edition_id AND er.legacy_registration_id = r.registration_id LIMIT 1) AS membership_role FROM family_users u LEFT JOIN family_user_registrations r ON r.user_id = u.id AND r.edition_id = ? ORDER BY u.email COLLATE NOCASE, r.registration_id"
+      ).bind(environment).all();
+    } catch (error) {
+      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+      result = await env.DB.prepare(
+        "SELECT u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at, r.id AS link_id, r.edition_id, r.registration_id, 'editor' AS membership_role FROM family_users u LEFT JOIN family_user_registrations r ON r.user_id = u.id AND r.edition_id = ? ORDER BY u.email COLLATE NOCASE, r.registration_id"
+      ).bind(environment).all();
+    }
     const users = new Map();
     for (const row of result.results || []) {
       if (!users.has(row.id)) users.set(row.id, {
