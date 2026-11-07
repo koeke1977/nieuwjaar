@@ -225,6 +225,31 @@ button.bh-kpi:hover { border-color: #cdd3dc; }
 .bh-product-thumb { display: grid; place-items: center; width: 56px; height: 56px; flex: 0 0 56px; border-radius: 12px; background: var(--bh-soft); overflow: hidden; font-size: 22px; }
 .bh-product-thumb img { width: 100%; height: 100%; object-fit: cover; }
 
+/* Evenementen → event → edition */
+.bh-muted { color: var(--bh-muted); font-size: 13px; }
+.bh-eyebrow { margin: 0 0 4px; color: var(--bh-gold); font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.bh-event-card { gap: 14px; }
+.bh-event-name { font-size: 22px !important; }
+.bh-edition-row { display: grid; grid-template-columns: minmax(140px, auto) minmax(0, 1fr) auto; align-items: center; gap: 16px; width: 100%; padding: 16px; border: 1px solid var(--bh-line); border-radius: 16px; background: var(--bh-soft); color: var(--bh-ink); text-align: left; cursor: pointer; }
+.bh-edition-row:hover { border-color: #cdd3dc; background: #fff; box-shadow: 0 4px 14px rgba(23, 38, 56, .06); }
+.bh-edition-row:focus-visible { outline: 3px solid rgba(201, 155, 67, .45); outline-offset: 2px; }
+.bh-edition-label { display: grid; gap: 2px; }
+.bh-edition-label strong { font-family: 'Manrope', sans-serif; font-size: 20px; }
+.bh-edition-label small { color: var(--bh-muted); font-size: 13px; }
+.bh-edition-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--bh-muted); font-size: 14px; }
+.bh-edition-stats b { color: var(--bh-ink); font-variant-numeric: tabular-nums; }
+.bh-archive-list { border-top: 1px solid var(--bh-line); }
+.bh-card-dashed { border-style: dashed; background: transparent; box-shadow: none; }
+.bh-card-dashed h2 { margin: 0; font-size: 16px; color: #4c5869; }
+.bh-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--bh-muted); font-size: 14px; }
+.bh-crumbs strong { color: var(--bh-ink); }
+.bh-edition-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.bh-edition-head h1 { margin: 0; font-size: clamp(24px, 3vw, 30px); letter-spacing: -.02em; }
+.bh-subtabs-sticky { position: sticky; top: 64px; z-index: 20; margin: 0 -4px; padding: 8px 4px; background: var(--bh-bg); }
+.bh-people .bh-person { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bh-people .bh-member-edit { width: 100%; padding: 4px 0; }
+.bh-family-row-user { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+
 /* Older platform pages embedded under Instellingen keep their own styles; soften their outer spacing. */
 .bh-main .page-heading { margin: 0; }
 .bh-main .panel { margin: 0; }
@@ -241,7 +266,11 @@ button.bh-kpi:hover { border-color: #cdd3dc; }
   .bh-app { grid-template-columns: 1fr; grid-template-areas: "top" "main"; }
   .bh-top { height: 56px; padding: 0 14px; }
   .bh-brand-mark { width: 32px; height: 32px; flex-basis: 32px; font-size: 17px; }
-  .bh-nav { position: fixed; inset: auto 0 0 0; top: auto; z-index: 40; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--bh-line); background: rgba(255, 255, 255, .97); backdrop-filter: blur(8px); }
+  .bh-subtabs-sticky { top: 56px; }
+  .bh-edition-row { grid-template-columns: 1fr; gap: 10px; }
+  .bh-family-row-user { grid-template-columns: auto minmax(0, 1fr); }
+  .bh-family-row-user .bh-family-chips { grid-column: 2; grid-row: 2; }
+  .bh-nav { position: fixed; inset: auto 0 0 0; top: auto; z-index: 40; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--bh-line); background: rgba(255, 255, 255, .97); backdrop-filter: blur(8px); }
   .bh-nav button { flex-direction: column; justify-content: center; gap: 2px; min-height: 52px; padding: 0 2px; border-radius: 10px; font-size: 11px; text-align: center; }
   .bh-nav button span { width: auto; font-size: 18px; }
   .bh-nav button[aria-current="page"] { background: var(--bh-gold-soft); box-shadow: none; }

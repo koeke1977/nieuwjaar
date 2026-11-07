@@ -1,8 +1,3 @@
-<section class="page-heading admin-platform-heading">
-  <p class="eyebrow">PLATFORMBEHEER · IDENTITEITEN</p>
-  <h1>Gebruikers & gezinnen</h1>
-  <p>Nodig gezinnen uit en beheer veilig hun toegang tot inschrijvingen.</p>
-</section>
 <section class="panel family-users-create">
   <div class="section-heading"><div><h2>Gezin uitnodigen</h2><p>De gebruiker ontvangt een eenmalige activatielink per e-mail.</p></div><span class="status neutral">Nieuwe uitnodiging</span></div>
   <form id="family-user-create-form" class="family-user-form">
@@ -18,27 +13,3 @@
   <div class="family-users-list" data-family-users-list><p class="catalog-note">Gebruikers laden…</p></div>
 </section>
 
-<section class="panel family-users-normalized-create">
-  <div class="section-heading"><div><h2>Nieuwe familie-inschrijving</h2><p>Maak een familie aan binnen een bestaande evenementeditie.</p></div></div>
-  <form data-create-normalized-family class="family-user-form">
-    <label>Familienaam<input name="name" maxlength="160" required></label>
-    <label>Contact e-mail<input name="contactEmail" type="email" maxlength="254"></label>
-    <label>Evenementeditie<select name="editionId" data-normalized-editions required><option value="">Edities laden…</option></select></label>
-    <label>Naam op inschrijving<input name="registrationName" maxlength="160" required></label>
-    <label>Naam eerste beheerder<input name="ownerDisplayName" maxlength="100" autocomplete="name" required></label>
-    <label>E-mailadres eerste beheerder<input name="ownerEmail" type="email" maxlength="254" autocomplete="email" required></label>
-    <button class="button button-dark" type="submit">Familie, inschrijving en beheerder aanmaken</button>
-  </form>
-  <form data-add-normalized-member class="family-user-form">
-    <label>Familie<select name="familyId" data-normalized-family-options required><option value="">Families laden…</option></select></label>
-    <label>Naam contactpersoon<input name="displayName" maxlength="100" required></label>
-    <label>E-mailadres<input name="email" type="email" maxlength="254" required></label>
-    <label>Toegangsrol<select name="role"><option value="owner">Beheerder</option><option value="editor" selected>Bewerker</option><option value="viewer">Lezer</option></select></label>
-    <button class="button button-outline" type="submit">Account koppelen / uitnodigen</button>
-  </form>
-  <p class="catalog-note" data-normalized-family-feedback aria-live="polite"></p>
-</section>
-<section class="panel family-users-normalized">
-  <div class="section-heading"><div><h2>Families en evenementtoegang</h2><p>Relationeel overzicht van families, gekoppelde accounts en hun inschrijvingen.</p></div><span class="status neutral" data-normalized-family-count>—</span></div>
-  <div data-normalized-families><p class="catalog-note">Relationele familiegegevens worden geladen zodra de migratie beschikbaar is.</p></div>
-</section>

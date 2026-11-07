@@ -42,7 +42,8 @@ export function archiveCurrentAndStartNewEdition(name, copyCatalog = true) {
   state.editingAdminMemberIndex = null;
   state.editingExpenseId = null;
   state.activeConsole = "admin";
-  state.activeSection = "settings";
-  state.beheerSettingsTab = "event";
+  state.activeSection = "events";
+  state.beheerEventView = "edition";
+  state.beheerEditionTab = "edition";
   return archive;
 }

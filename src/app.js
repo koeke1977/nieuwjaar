@@ -132,7 +132,7 @@ function renderBeheerApp() {
     platformHtml: tab => tab === "accounts" ? renderAdminUsersSection(state.registrations, "live") : ""
   });
   scheduleAdminStateSave();
-  if (state.activeSection === "settings" && state.beheerSettingsTab === "accounts") initAdminUsersSection();
+  if (state.activeSection === "users" && state.beheerUsersTab === "accounts" && !state.beheerUserFamilyId) initAdminUsersSection();
 }
 function renderApp() {
   if (state.activeConsole === "admin" && !adminAuthenticated) { document.querySelector("#app").innerHTML=renderAdminLogin(); return; }
@@ -140,12 +140,17 @@ function renderApp() {
 }
 function handleClick(event) {
   const sectionButton=event.target.closest("[data-section]");
-  if(sectionButton){state.activeSection=sectionButton.dataset.section;state.editingMember=null;state.beheerFamilyId=null;state.editingExpenseId=null;renderApp();window.scrollTo(0,0);return;}
+  if(sectionButton){state.activeSection=sectionButton.dataset.section;state.editingMember=null;state.beheerFamilyId=null;state.beheerUserFamilyId=null;state.beheerEventView=null;state.editingExpenseId=null;state.editingAdminMemberIndex=null;state.beheerRenaming=false;renderApp();window.scrollTo(0,0);return;}
   const action=event.target.closest("[data-action]");
   if(!action)return;
-  if(action.dataset.action==="open-family"){state.activeSection="families";state.beheerFamilyId=action.dataset.id;state.editingAdminMemberIndex=null;state.beheerRenaming=false;state.beheerOpenMembers=new Set();renderApp();window.scrollTo(0,0);return;}
+  if(action.dataset.action==="open-family"){state.activeSection="events";state.beheerEventView="edition";state.beheerEditionTab="registrations";state.beheerFamilyId=action.dataset.id;state.beheerUserFamilyId=null;state.editingAdminMemberIndex=null;state.beheerRenaming=false;state.beheerOpenMembers=new Set();renderApp();window.scrollTo(0,0);return;}
   if(action.dataset.action==="close-family"){state.beheerFamilyId=null;state.editingAdminMemberIndex=null;state.beheerRenaming=false;renderApp();return;}
-  if(action.dataset.action==="settings-tab"){state.beheerSettingsTab=action.dataset.tab;renderApp();return;}
+  if(action.dataset.action==="open-edition"){state.activeSection="events";state.beheerEventView="edition";state.beheerEditionTab="overview";state.beheerFamilyId=null;renderApp();window.scrollTo(0,0);return;}
+  if(action.dataset.action==="close-edition"){state.beheerEventView=null;state.beheerFamilyId=null;renderApp();window.scrollTo(0,0);return;}
+  if(action.dataset.action==="edition-tab"){state.activeSection="events";state.beheerEventView="edition";state.beheerEditionTab=action.dataset.tab;state.beheerFamilyId=null;state.editingExpenseId=null;state.editingAdminMemberIndex=null;state.beheerRenaming=false;renderApp();return;}
+  if(action.dataset.action==="users-tab"){state.beheerUsersTab=action.dataset.tab;state.beheerUserFamilyId=null;renderApp();return;}
+  if(action.dataset.action==="open-user-family"){state.activeSection="users";state.beheerUserFamilyId=action.dataset.id;state.beheerFamilyId=null;state.editingAdminMemberIndex=null;state.beheerRenaming=false;renderApp();window.scrollTo(0,0);return;}
+  if(action.dataset.action==="close-user-family"){state.beheerUserFamilyId=null;state.editingAdminMemberIndex=null;state.beheerRenaming=false;renderApp();return;}
   if(action.dataset.action==="rename-registration"){state.beheerRenaming=true;renderApp();document.querySelector("#rename-registration-form input")?.focus();return;}
   if(action.dataset.action==="cancel-rename"){state.beheerRenaming=false;renderApp();return;}
   if(action.dataset.action==="admin-quantity"){
@@ -254,7 +259,7 @@ async function handleSubmit(event){
   }
   if(event.target.id==="rename-registration-form"){
     event.preventDefault();
-    const registration=state.registrations.find(item=>item.id===state.beheerFamilyId);
+    const registration=state.registrations.find(item=>item.id===event.target.dataset.id);
     const name=event.target.elements.registrationName.value.trim();
     if(!registration||!name)return;
     registration.name=name;state.beheerRenaming=false;renderApp();return;
@@ -292,7 +297,7 @@ async function handleSubmit(event){
     return;
   }
 
-  if(event.target.id==="admin-login-form"){event.preventDefault();const form=event.target;const button=form.querySelector("button[type=submit]");button.disabled=true;button.textContent="Even controleren…";loginError="";try{const response=await fetch("/api/admin/login",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:form.elements.password.value})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||"Aanmelden is niet gelukt.");adminAuthenticated=true;try{await loadAdminState();statePersistenceReady=true;await Promise.all([loadFamilyInvites(),loadFamilyAccounts()]);}catch(loadError){console.error("Admin state load failed:",loadError);}state.activeConsole="admin";state.activeSection="overview";renderApp();}catch(error){loginError=error.message||"Aanmelden is niet gelukt.";renderApp();}return;}
+  if(event.target.id==="admin-login-form"){event.preventDefault();const form=event.target;const button=form.querySelector("button[type=submit]");button.disabled=true;button.textContent="Even controleren…";loginError="";try{const response=await fetch("/api/admin/login",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:form.elements.password.value})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||"Aanmelden is niet gelukt.");adminAuthenticated=true;try{await loadAdminState();statePersistenceReady=true;await Promise.all([loadFamilyInvites(),loadFamilyAccounts()]);}catch(loadError){console.error("Admin state load failed:",loadError);}state.activeConsole="admin";state.activeSection="events";renderApp();}catch(error){loginError=error.message||"Aanmelden is niet gelukt.";renderApp();}return;}
   if(event.target.id==="add-member-form"){event.preventDefault();const registration=state.registrations.find(item=>item.id===state.managingRegistrationId);if(!registration)return;const form=event.target;const name=form.elements.memberName.value.trim();const type=form.elements.memberType.value;if(!name)return;if(!registration.members?.length&&((Number(registration.adults)||0)+(Number(registration.children)||0))>0){const replace=window.confirm("Deze inschrijving bevat momenteel alleen historische aantallen, geen namen. De nieuwe ledenlijst vervangt die aantallen. Doorgaan?");if(!replace)return;}registration.members=registration.members||[];registration.members.push({id:makeId("lid"),name,type,orders:Object.fromEntries(state.catalog.map(product=>[product.id,0]))});markCostsProvisional();registration.adults=registration.members.filter(person=>person.type==="Volwassene").length;registration.children=registration.members.filter(person=>person.type==="Kind").length;renderApp();return;}
   if(event.target.id==="edit-own-member-form" || event.target.id==="edit-admin-member-form"){
     event.preventDefault();
@@ -371,7 +376,7 @@ async function handleSubmit(event){
     markCostsProvisional();
     renderApp();return;
   }
-  if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();if(!name){window.alert("Vul een naam voor het gezin of de deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults:0,children:0,members:[],financial:{advanced:0,share:0,bring:0}});state.activeRegistrationId=id;state.managingRegistrationId=id;state.beheerFamilyId=id;state.beheerOpenMembers=new Set();markCostsProvisional();renderApp();window.scrollTo(0,0);return;}
+  if(event.target.id==="add-registration-form"){event.preventDefault();const form=event.target;const name=form.elements.registrationName.value.trim();if(!name){window.alert("Vul een naam voor het gezin of de deelnemer in.");return;}const id=name.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);state.registrations.push({id,name,adults:0,children:0,members:[],financial:{advanced:0,share:0,bring:0}});state.activeRegistrationId=id;state.managingRegistrationId=id;if(form.dataset.context==="users"){state.beheerUserFamilyId=id;}else{state.beheerFamilyId=id;}state.beheerOpenMembers=new Set();markCostsProvisional();renderApp();window.scrollTo(0,0);return;}
   if(event.target.id==="new-edition-form"){
     event.preventDefault();
     const form=event.target;
@@ -433,7 +438,7 @@ export async function startApp(){
   if (path !== "/beheer") { renderLandingPage(); return; }
   state.activeEnvironment = "live";
   state.activeConsole = "admin";
-  state.activeSection = "overview";
+  state.activeSection = "events";
   document.addEventListener("click",handleClick);document.addEventListener("submit",handleSubmit);document.addEventListener("change",handleImageUpload);
   // Remember which family members are expanded across re-renders.
   document.addEventListener("toggle",event=>{const details=event.target.closest?.("[data-member-id]");if(!details)return;state.beheerOpenMembers=state.beheerOpenMembers||new Set();if(details.open)state.beheerOpenMembers.add(details.dataset.memberId);else state.beheerOpenMembers.delete(details.dataset.memberId);},true);
