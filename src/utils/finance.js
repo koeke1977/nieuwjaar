@@ -92,6 +92,25 @@ export function getFinancialSummary(registrations, expenses, payments = []) {
 
 // Verdeel het aandeel van een inschrijving verder over de individuele leden.
 // Eerst per inschrijving verdelen en daarna per lid voorkomt afrondingsverschillen met de afrekening.
+function memberPortions(member) {
+  return Object.values(member?.orders || {}).reduce((sum, qty) => sum + Math.max(0, Number(qty) || 0), 0);
+}
+
+function memberWeight(member, method) {
+  return method === "general" ? 1
+    : method === "adults" ? (member.type === "Volwassene" ? 1 : 0)
+    : method === "meat" ? memberPortions(member) : 0;
+}
+
+// Verdeel het aandeel van één inschrijving in één kost over haar leden.
+export function getMemberExpenseShares(registrationShareCents, members, method) {
+  if (!registrationShareCents || !Array.isArray(members) || !members.length) return [];
+  const weightedMembers = members.map(member => ({ id: member.id, weight: memberWeight(member, method) }))
+    .filter(row => row.weight > 0);
+  if (!weightedMembers.length) return [];
+  return splitCents(registrationShareCents, weightedMembers);
+}
+
 export function getMemberCostSummary(registration, registrations = [], expenses = []) {
   // Een nieuwe editie of een ongeldige actieve selectie heeft nog geen gekoppelde inschrijving.
   if (!registration) return [];
@@ -100,18 +119,83 @@ export function getMemberCostSummary(registration, registrations = [], expenses 
   for (const expense of expenses) {
     const registrationShares = getExpenseShares(expense, registrations);
     const registrationShare = registrationShares.find(share => share.id === registration.id)?.cents || 0;
-    if (!registrationShare || !members.length) continue;
-    const weightedMembers = members.map(member => {
-      const meat = Object.values(member.orders || {}).reduce((sum, qty) => sum + Math.max(0, Number(qty) || 0), 0);
-      const weight = expense.method === "general" ? 1
-        : expense.method === "adults" ? (member.type === "Volwassene" ? 1 : 0)
-        : expense.method === "meat" ? meat : 0;
-      return { id: member.id, weight };
-    }).filter(row => row.weight > 0);
-    if (!weightedMembers.length) continue;
-    for (const share of splitCents(registrationShare, weightedMembers)) {
+    for (const share of getMemberExpenseShares(registrationShare, members, expense.method)) {
       totals.set(share.id, (totals.get(share.id) || 0) + share.cents);
     }
   }
   return members.map(member => ({ id: member.id, name: member.name, cents: totals.get(member.id) || 0 }));
+}
+
+export const COST_METHODS = {
+  general: { label: "Algemene kosten", appliesTo: "Iedereen, ook kinderen", unit: ["persoon", "personen"] },
+  adults: { label: "Kosten voor volwassenen (18+)", appliesTo: "Alleen volwassenen", unit: ["volwassene", "volwassenen"] },
+  meat: { label: "Vlees", appliesTo: "Volgens het aantal bestelde porties", unit: ["portie", "porties"] }
+};
+
+// Volledige, uitlegbare afrekening van één inschrijving. Bevat alleen gegevens van
+// deze inschrijving plus totalen van het evenement; nooit namen of bedragen van andere gezinnen.
+export function getFamilyFinanceBreakdown(registration, registrations = [], expenses = [], payments = []) {
+  if (!registration) return null;
+  const members = Array.isArray(registration.members) ? registration.members : [];
+  const ownCounts = getRegistrationCounts(registration);
+  const eventCounts = registrations.reduce((sum, item) => {
+    const counts = getRegistrationCounts(item);
+    return { people: sum.people + counts.people, adults: sum.adults + counts.adults, meat: sum.meat + counts.meat };
+  }, { people: 0, adults: 0, meat: 0 });
+  const unitsFor = (counts, method) => method === "general" ? counts.people : method === "adults" ? counts.adults : method === "meat" ? counts.meat : 0;
+
+  const memberRows = new Map(members.map(member => [member.id, {
+    id: member.id, name: member.name, type: member.type, portions: memberPortions(member),
+    totalCents: 0, byMethod: { general: 0, adults: 0, meat: 0 }
+  }]));
+  const categories = new Map();
+  const expenseRows = [];
+  let advancedCents = 0;
+  for (const expense of Array.isArray(expenses) ? expenses : []) {
+    if (!expense || !COST_METHODS[expense.method]) continue;
+    const amountCents = Number(expense.amountCents) || 0;
+    if (expense.advancedBy === registration.id) advancedCents += amountCents;
+    const familyCents = getExpenseShares(expense, registrations).find(share => share.id === registration.id)?.cents || 0;
+    const memberShares = getMemberExpenseShares(familyCents, members, expense.method);
+    for (const share of memberShares) {
+      const row = memberRows.get(share.id);
+      if (!row) continue;
+      row.totalCents += share.cents;
+      row.byMethod[expense.method] += share.cents;
+    }
+    const familyUnits = unitsFor(ownCounts, expense.method);
+    const totalUnits = unitsFor(eventCounts, expense.method);
+    expenseRows.push({
+      id: expense.id, description: expense.description || COST_METHODS[expense.method].label,
+      date: expense.date || null, method: expense.method, amountCents, familyCents,
+      familyUnits, totalUnits, advancedByUs: expense.advancedBy === registration.id,
+      members: memberShares
+    });
+    const category = categories.get(expense.method) || { method: expense.method, ...COST_METHODS[expense.method], amountCents: 0, familyCents: 0, familyUnits, totalUnits };
+    category.amountCents += amountCents;
+    category.familyCents += familyCents;
+    categories.set(expense.method, category);
+  }
+  const paymentRows = (Array.isArray(payments) ? payments : [])
+    .filter(payment => payment && payment.registrationId === registration.id)
+    .map(payment => ({ id: payment.id, date: payment.date || null, amountCents: Number(payment.amountCents) || 0, method: payment.method || null }));
+  const summary = getFinancialSummary(registrations, expenses, payments).find(row => row.id === registration.id)
+    || { shareCents: 0, advancedCents, paidCents: 0, balanceCents: advancedCents, remainingCents: 0, overpaidCents: 0, amountDueCents: 0, paymentStatus: "Geen bedrag verschuldigd" };
+  return {
+    totals: {
+      shareCents: summary.shareCents,
+      advancedCents: summary.advancedCents,
+      paidCents: summary.paidCents,
+      amountDueCents: summary.amountDueCents,
+      remainingCents: summary.remainingCents,
+      // Tegoed: meer voorgeschoten dan het eigen aandeel, of meer betaald dan verschuldigd.
+      creditCents: Math.max(0, summary.balanceCents) + summary.overpaidCents,
+      paymentStatus: summary.paymentStatus
+    },
+    counts: { family: ownCounts, event: eventCounts },
+    categories: [...categories.values()],
+    expenses: expenseRows,
+    members: [...memberRows.values()],
+    payments: paymentRows
+  };
 }

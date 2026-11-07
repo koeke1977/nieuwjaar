@@ -1,3 +1,5 @@
+import { getFamilyFinanceBreakdown } from "../../src/utils/finance.js";
+
 const encoder = new TextEncoder();
 const FAMILY_ACCOUNT_COOKIE = "ny_family_account";
 const FAMILY_ACCOUNT_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -86,6 +88,27 @@ async function familyAccountSession(request, env, cookieValue, sha256) {
   ).bind(await sha256(token), Math.floor(Date.now() / 1000)).first();
 }
 
+// Family-facing finance for a normalized edition: shares are computed over all active
+// registrations of the edition, but only this registration's figures are returned.
+async function normalizedFamilyFinance(env, editionId, registration) {
+  const [rows, snapshot] = await Promise.all([
+    env.DB.prepare("SELECT id, data_json FROM event_registrations WHERE edition_id = ? AND status = 'active'").bind(editionId).all(),
+    env.DB.prepare("SELECT expenses_json, payments_json, costs_finalized, costs_finalized_at FROM edition_finance_snapshots WHERE edition_id = ?").bind(editionId).first()
+  ]);
+  const registrations = (rows.results || []).map(row => {
+    let data = {};
+    try { data = JSON.parse(row.data_json || "{}"); } catch { /* telt dan als lege inschrijving */ }
+    return row.id === registration.id ? registration : { id: row.id, members: Array.isArray(data.members) ? data.members : [], adults: data.adults, children: data.children };
+  });
+  let expenses = [], payments = [];
+  try { expenses = JSON.parse(snapshot?.expenses_json || "[]"); payments = JSON.parse(snapshot?.payments_json || "[]"); } catch { /* lege afrekening */ }
+  return {
+    finalized: Boolean(snapshot?.costs_finalized),
+    finalizedAt: snapshot?.costs_finalized_at || null,
+    ...getFamilyFinanceBreakdown(registration, registrations, expenses, payments)
+  };
+}
+
 export async function handleFamilyAccountApi(request, env, url, dependencies) {
   const { json, sameOrigin, cookieValue, sha256, base64Url, fromBase64Url, sendGraphMail } = dependencies;
 
@@ -142,7 +165,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     const normalizedOnly = [];
     try {
       const result = await env.DB.prepare(
-        "SELECT er.id AS registration_id, er.edition_id, er.data_json, er.updated_at, d.label AS edition_label, d.config_json, e.name AS event_name, fm.role AS membership_role FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE fm.user_id = ? AND er.legacy_environment IS NULL AND er.legacy_registration_id IS NULL AND er.status != 'deleted' ORDER BY d.starts_at, e.name, d.label"
+        "SELECT er.id AS registration_id, er.edition_id, er.data_json, er.updated_at, d.label AS edition_label, d.config_json, e.name AS event_name, e.finance_strategy, fm.role AS membership_role FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE fm.user_id = ? AND er.legacy_environment IS NULL AND er.legacy_registration_id IS NULL AND er.status != 'deleted' ORDER BY d.starts_at, e.name, d.label"
       ).bind(session.user_id).all();
       for (const row of result.results || []) {
         let registration, config;
@@ -164,7 +187,10 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
             }))
           },
           catalog: (Array.isArray(config.catalog) ? config.catalog : Array.isArray(registration.catalog) ? registration.catalog : []).filter(item => item && item.active !== false).map(item => ({ id: item.id, name: item.name, image: item.image || null })),
-          revision: Number(row.updated_at) || 0
+          revision: Number(row.updated_at) || 0,
+          finance: row.finance_strategy === "nieuwjaar"
+            ? await normalizedFamilyFinance(env, row.edition_id, { id: row.registration_id, ...registration, members })
+            : null
         });
       }
     } catch (error) {
@@ -199,7 +225,13 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
           }))
         },
         catalog: catalogByEdition[link.edition_id],
-        revision: stateRow.updated_at
+        revision: stateRow.updated_at,
+        // Legacy editions keep their costs and payments in app_state (edited by /beheer).
+        finance: {
+          finalized: Boolean(data.costsFinalized),
+          finalizedAt: data.costsFinalizedAt || null,
+          ...getFamilyFinanceBreakdown(registration, Array.isArray(data.registrations) ? data.registrations : [], data.expenses, data.payments)
+        }
       });
     }
     registrations.push(...normalizedOnly);
@@ -254,11 +286,20 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       registration.members = members;
       registration.adults = members.filter(person => person.type === "Volwassene").length;
       registration.children = members.filter(person => person.type === "Kind").length;
-      const updated = await env.DB.prepare(
-        "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND edition_id = ? AND updated_at = ? RETURNING updated_at"
-      ).bind(JSON.stringify(registration), now, registrationId, edition, body.revision).first();
-      if (!updated) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
-      return json({ saved: true, revision: updated.updated_at, registration });
+      // One transaction: save the registration and reopen finalized edition costs,
+      // the latter guarded on the exact row the first statement writes.
+      const serializedRegistration = JSON.stringify(registration);
+      const nextRevision = Math.max(body.revision + 1, now);
+      const results = await env.DB.batch([
+        env.DB.prepare(
+          "UPDATE event_registrations SET data_json = ?, updated_at = ? WHERE id = ? AND edition_id = ? AND updated_at = ?"
+        ).bind(serializedRegistration, nextRevision, registrationId, edition, body.revision),
+        env.DB.prepare(
+          "UPDATE edition_finance_snapshots SET costs_finalized = 0, costs_finalized_at = NULL, updated_at = MAX(updated_at + 1, ?) WHERE edition_id = ? AND costs_finalized = 1 AND EXISTS (SELECT 1 FROM event_registrations WHERE id = ? AND updated_at = ? AND data_json = ?)"
+        ).bind(now, edition, registrationId, nextRevision, serializedRegistration)
+      ]);
+      if (!Number(results?.[0]?.meta?.changes ?? 0)) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
+      return json({ saved: true, revision: nextRevision, registration });
     }
     if (!["test", "live"].includes(edition) || !registrationId || !Number.isSafeInteger(body?.revision) ||
         !Array.isArray(body?.members) || body.members.length < 1 || body.members.length > 30) {

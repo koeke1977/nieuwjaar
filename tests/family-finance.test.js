@@ -1,0 +1,117 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { getFamilyFinanceBreakdown, getFinancialSummary, getMemberCostSummary } from "../src/utils/finance.js";
+import { createD1 } from "./helpers/d1.js";
+import { handleFamilyAccountApi } from "../worker/modules/family-account.js";
+
+// Family A: 2 adults + 1 child, 10 portions. Family B: 1 adult, 90 portions. Total 100 portions.
+const familyA = { id: "a", name: "Familie A", members: [
+  { id: "a1", name: "Jan", type: "Volwassene", orders: { p1: 4 } },
+  { id: "a2", name: "Els", type: "Volwassene", orders: { p1: 4 } },
+  { id: "a3", name: "Kobe", type: "Kind", orders: { p1: 2 } }
+] };
+const familyB = { id: "b", name: "Familie B", members: [
+  { id: "b1", name: "Piet", type: "Volwassene", orders: { p1: 90 } }
+] };
+const registrations = [familyA, familyB];
+const expenses = [
+  { id: "e1", description: "Vlees", amountCents: 40000, method: "meat", advancedBy: "b", date: "2026-12-20" },
+  { id: "e2", description: "Zaalhuur", amountCents: 10000, method: "general", advancedBy: "a" },
+  { id: "e3", description: "Cava", amountCents: 3001, method: "adults", advancedBy: "b" }
+];
+const payments = [{ id: "pay1", registrationId: "a", amountCents: 1000, date: "2026-12-30", method: "bank" }];
+
+test("meat is split by the rule of three on ordered portions", () => {
+  const finance = getFamilyFinanceBreakdown(familyA, registrations, expenses, payments);
+  const meat = finance.categories.find(category => category.method === "meat");
+  assert.equal(meat.familyUnits, 10);
+  assert.equal(meat.totalUnits, 100);
+  assert.equal(meat.familyCents, 4000, "10 of 100 portions = 10% of €400");
+});
+
+test("children never carry adult-only costs", () => {
+  const finance = getFamilyFinanceBreakdown(familyA, registrations, expenses, payments);
+  const kobe = finance.members.find(member => member.id === "a3");
+  assert.equal(kobe.byMethod.adults, 0);
+  assert.ok(kobe.byMethod.general > 0, "children do share general costs");
+  const adults = finance.categories.find(category => category.method === "adults");
+  assert.equal(adults.familyUnits, 2);
+  assert.equal(adults.totalUnits, 3);
+});
+
+test("member amounts add up exactly to the family share and match the existing engine", () => {
+  const finance = getFamilyFinanceBreakdown(familyA, registrations, expenses, payments);
+  const memberTotal = finance.members.reduce((sum, member) => sum + member.totalCents, 0);
+  assert.equal(memberTotal, finance.totals.shareCents);
+  const engine = getFinancialSummary(registrations, expenses, payments).find(row => row.id === "a");
+  assert.equal(finance.totals.shareCents, engine.shareCents);
+  assert.equal(finance.totals.remainingCents, engine.remainingCents);
+  const legacyMembers = getMemberCostSummary(familyA, registrations, expenses);
+  assert.deepEqual(finance.members.map(member => member.totalCents), legacyMembers.map(member => member.cents));
+  const categorySum = finance.categories.reduce((sum, category) => sum + category.familyCents, 0);
+  assert.equal(categorySum, finance.totals.shareCents);
+});
+
+test("settlement: share minus advanced minus paid gives the amount still due", () => {
+  const t = getFamilyFinanceBreakdown(familyA, registrations, expenses, payments).totals;
+  assert.equal(t.advancedCents, 10000);
+  assert.equal(t.paidCents, 1000);
+  assert.equal(t.remainingCents, Math.max(0, t.shareCents - t.advancedCents - t.paidCents));
+  assert.equal(t.creditCents, 0);
+});
+
+test("a family that advanced more than its share gets a credit", () => {
+  const t = getFamilyFinanceBreakdown(familyB, registrations, expenses, payments).totals;
+  assert.equal(t.remainingCents, 0);
+  assert.equal(t.creditCents, t.advancedCents - t.shareCents);
+  assert.ok(t.creditCents > 0);
+});
+
+test("breakdown never exposes other families' names or payments", () => {
+  const finance = getFamilyFinanceBreakdown(familyA, registrations, expenses, payments.concat({ id: "pay2", registrationId: "b", amountCents: 5, method: "cash" }));
+  const text = JSON.stringify(finance);
+  assert.ok(!text.includes("Familie B") && !text.includes("Piet"));
+  assert.deepEqual(finance.payments.map(payment => payment.id), ["pay1"]);
+  assert.ok(!("advancedBy" in finance.expenses[0]));
+});
+
+test("no expenses yields an empty but valid breakdown", () => {
+  const finance = getFamilyFinanceBreakdown(familyA, registrations, [], []);
+  assert.equal(finance.expenses.length, 0);
+  assert.equal(finance.totals.shareCents, 0);
+  assert.equal(finance.totals.remainingCents, 0);
+});
+
+// ---- Route: GET /api/family-account/session returns the family's own finance ----
+
+const sha256 = async value => Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))).toString("hex");
+const deps = {
+  json: (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...headers } }),
+  sameOrigin: () => true,
+  cookieValue: (request, name) => (request.headers.get("Cookie") || "").split(/;\s*/).map(part => part.split("=")).find(([key]) => key === name)?.[1] || "",
+  sha256,
+  base64Url: bytes => Buffer.from(bytes).toString("base64url"),
+  fromBase64Url: text => new Uint8Array(Buffer.from(text, "base64url")),
+  sendGraphMail: async () => {}
+};
+
+test("family session includes a finance breakdown limited to the own registration", async () => {
+  const DB = createD1();
+  const db = DB.raw;
+  const now = Math.floor(Date.now() / 1000);
+  const data = { activeEvent: { name: "Nieuwjaar" }, catalog: [{ id: "p1", name: "Biefstuk", active: true }], registrations, expenses, payments, costsFinalized: false };
+  db.prepare("INSERT INTO app_state (environment, data_json, updated_at) VALUES ('live', ?, 1)").run(JSON.stringify(data));
+  db.prepare("INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES ('u1', 'jan@example.be', 'Jan', 'active', 1, 1)").run();
+  db.prepare("INSERT INTO family_user_sessions (user_id, token_hash, created_at, expires_at) VALUES ('u1', ?, ?, ?)").run(await sha256("tok"), now, now + 3600);
+  db.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES ('u1', 'live', 'a', 1)").run();
+
+  const url = new URL("https://nieuwjaar.datuur.be/api/family-account/session");
+  const response = await handleFamilyAccountApi(new Request(url, { headers: { Cookie: "ny_family_account=tok" } }), { DB }, url, deps);
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.registrations.length, 1);
+  const finance = body.registrations[0].finance;
+  assert.equal(finance.finalized, false);
+  assert.equal(finance.categories.find(category => category.method === "meat").familyCents, 4000);
+  assert.ok(!JSON.stringify(body).includes("Piet"), "other families' members are not exposed");
+});
