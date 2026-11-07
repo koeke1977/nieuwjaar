@@ -1,14 +1,16 @@
 import template from "./family-auth.html?raw";
 import "./family-auth.css";
+import "./family-account.css";
+import { renderAccount } from "./family-account-view.js";
 
 const root = () => document.querySelector("#app");
-const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const request = async (path, body, method = "POST") => {
   const response = await fetch(path, { method, credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Er liep iets mis. Probeer opnieuw.");
   return result;
 };
+const SAVE_DELAY_MS = 450;
 
 export async function startFamilyAuth() {
   root().innerHTML = template;
@@ -18,6 +20,11 @@ export async function startFamilyAuth() {
   const reset = path.match(/^\/familie\/wachtwoord-reset\/([^/]+)\/?$/);
   let token = activation?.[1] || reset?.[1] || "";
   let currentPanel = activation ? "activate" : reset ? "reset" : path === "/familie/wachtwoord-vergeten" ? "forgot" : "login";
+
+  // Signed-in state
+  const account = { user: null, items: [], activeId: null, view: { tab: "overview", editingMemberId: null, openPeople: null } };
+  const activeItem = () => account.items.find(item => item.registration.id === account.activeId) || account.items[0];
+
   const show = (name) => {
     currentPanel = name;
     view.querySelectorAll("[data-panel]").forEach(panel => { panel.hidden = panel.dataset.panel !== name; });
@@ -37,38 +44,151 @@ export async function startFamilyAuth() {
     finally { button.disabled = false; }
   };
 
+  function render() {
+    const target = view.querySelector("[data-account-registrations]");
+    if (!target) return;
+    target.innerHTML = renderAccount(account);
+  }
+
+  // ---- Saving: optimistic UI, debounced and serialized per registration ----
+  function scheduleSave(item, { immediate = false } = {}) {
+    clearTimeout(item.saveTimer);
+    item.dirty = true;
+    item.saveTimer = setTimeout(() => flushSave(item), immediate ? 0 : SAVE_DELAY_MS);
+  }
+  async function flushSave(item) {
+    if (item.saving) { item.saveAgain = true; return; }
+    if (!item.dirty) return;
+    item.saving = true; item.dirty = false;
+    feedback("Bewaren…", "success");
+    let failure = null;
+    try {
+      const result = await request("/api/family-account/registration", {
+        edition: item.edition, registrationId: item.registration.id,
+        revision: item.revision, members: item.registration.members
+      }, "PUT");
+      item.revision = result.revision;
+      // All legacy registrations of one edition share the app_state revision.
+      if (["test", "live"].includes(item.edition)) {
+        account.items.forEach(entry => { if (entry.edition === item.edition) entry.revision = result.revision; });
+      }
+    } catch (error) {
+      failure = error;
+      // Pending local edits are based on a rejected state: drop them and reload the server truth.
+      clearTimeout(item.saveTimer);
+      item.dirty = false; item.saveAgain = false;
+    }
+    item.saving = false;
+    if (item.saveAgain || item.dirty) { item.saveAgain = false; scheduleSave(item, { immediate: true }); return; }
+    // Reload so the cost breakdown reflects the new order (meat shares depend on all families).
+    await refreshAccount().catch(() => {});
+    feedback(failure ? (failure.message || "Opslaan is niet gelukt.") : "Alles is bewaard.", failure ? "error" : "success");
+  }
+
+  async function refreshAccount() {
+    const response = await fetch("/api/family-account/session", { credentials: "same-origin" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.authenticated) { show("login"); return false; }
+    account.user = result.user || null;
+    const previous = new Map(account.items.map(item => [item.registration.id, item]));
+    account.items = (result.registrations || []).map(item => {
+      const old = previous.get(item.registration.id);
+      // Keep local edits that are still waiting to be saved.
+      if (old && (old.dirty || old.saving)) return old;
+      return item;
+    });
+    if (!account.items.some(item => item.registration.id === account.activeId)) account.activeId = account.items[0]?.registration.id || null;
+    render();
+    return true;
+  }
+  async function loadAccount() {
+    if (await refreshAccount()) show("account");
+  }
+
   view.addEventListener("click", async event => {
-    const control = event.target.closest("[data-action]");
-    const action = control?.dataset.action;
+    const control = event.target.closest("[data-action], [data-tab], [data-tab-target], [data-switch-registration]");
+    if (!control) return;
+    if (control.dataset.tab || control.dataset.tabTarget) {
+      account.view.tab = control.dataset.tab || control.dataset.tabTarget;
+      account.view.editingMemberId = null;
+      render();
+      view.querySelector(".fa-tabs")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      return;
+    }
+    if (control.dataset.switchRegistration) {
+      account.activeId = control.dataset.switchRegistration;
+      account.view = { tab: "overview", editingMemberId: null, openPeople: null };
+      render(); return;
+    }
+    const action = control.dataset.action;
     if (action === "show-forgot") show("forgot");
     if (action === "show-login") show("login");
     if (action === "logout") {
-      try { await request("/api/family-account/logout", {}); token = ""; show("login"); }
+      try { await request("/api/family-account/logout", {}); token = ""; account.items = []; show("login"); }
       catch (error) { feedback(error.message); }
+      return;
     }
+    const item = activeItem();
+    if (!item || item.accessRole === "viewer") return;
+    const members = item.registration.members || (item.registration.members = []);
     if (action === "quantity") {
-      const card = control.closest("[data-registration]");
-      const item = (window.__familyRegistrations || []).find(entry => entry.registration.id === card?.dataset.registration);
-      const person = item?.registration.members.find(entry => entry.id === control.dataset.person);
+      const person = members.find(entry => entry.id === control.dataset.person);
       const product = control.dataset.product;
-      if (!item || !person || !item.catalog.some(entry => entry.id === product)) return;
+      if (!person || !item.catalog.some(entry => entry.id === product)) return;
       person.orders = person.orders || {};
       person.orders[product] = Math.max(0, Math.min(99, (Number(person.orders[product]) || 0) + Number(control.dataset.delta)));
-      await saveRegistration(item);
+      render();
+      scheduleSave(item);
+    }
+    if (action === "edit-member") { account.view.editingMemberId = control.dataset.person; render(); view.querySelector("[data-edit-member] input")?.focus(); }
+    if (action === "cancel-edit-member") { account.view.editingMemberId = null; render(); }
+    if (action === "remove-member") {
+      const index = Number(control.dataset.index);
+      const person = members[index];
+      if (!person || members.length <= 1) return;
+      const portions = Object.values(person.orders || {}).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
+      if (!window.confirm(person.name + " verwijderen uit jullie inschrijving?" + (portions ? " Ook de " + portions + " bestelde porties vervallen." : ""))) return;
+      members.splice(index, 1);
+      render();
+      scheduleSave(item, { immediate: true });
     }
   });
+
+  // Remember which people are expanded in the order tab across re-renders.
+  view.addEventListener("toggle", event => {
+    const details = event.target.closest?.("[data-order-person]");
+    if (!details) return;
+    if (!account.view.openPeople) {
+      account.view.openPeople = new Set([...view.querySelectorAll("[data-order-person][open]")].map(node => node.dataset.orderPerson));
+    }
+    if (details.open) account.view.openPeople.add(details.dataset.orderPerson);
+    else account.view.openPeople.delete(details.dataset.orderPerson);
+  }, true);
+
   view.addEventListener("submit", event => {
-    const form = event.target.closest("[data-add-member]");
-    if (!form) return;
+    const item = activeItem();
+    const addForm = event.target.closest("[data-add-member]");
+    const editForm = event.target.closest("[data-edit-member]");
+    if (!addForm && !editForm) return;
     event.preventDefault();
-    const item = (window.__familyRegistrations || []).find(entry => entry.registration.id === form.dataset.addMember);
-    const name = form.elements.memberName.value.trim();
-    const type = form.elements.memberType.value;
-    if (!item || item.accessRole === "viewer" || !name || !["Volwassene", "Kind"].includes(type)) return;
-    item.registration.members = item.registration.members || [];
-    item.registration.members.push({ id: crypto.randomUUID(), name, type, orders: {} });
-    saveRegistration(item);
+    if (!item || item.accessRole === "viewer") return;
+    const name = event.target.elements.memberName.value.trim();
+    const type = event.target.elements.memberType.value;
+    if (!name || !["Volwassene", "Kind"].includes(type)) return;
+    const members = item.registration.members || (item.registration.members = []);
+    if (addForm) {
+      if (members.length >= 30) { feedback("Een inschrijving kan maximaal 30 personen bevatten."); return; }
+      members.push({ id: crypto.randomUUID(), name, type, orders: {} });
+    } else {
+      const person = members.find(entry => entry.id === editForm.dataset.editMember);
+      if (!person) return;
+      person.name = name; person.type = type;
+      account.view.editingMemberId = null;
+    }
+    render();
+    scheduleSave(item, { immediate: true });
   });
+
   const updatePasswordHints = form => {
     if (!form || !["activate", "reset"].includes(form.dataset.form)) return;
     const password = form.elements.password?.value || "";
@@ -119,79 +239,6 @@ export async function startFamilyAuth() {
       token = ""; show("login"); feedback("Je wachtwoord is aangepast. Je kunt nu aanmelden.", "success");
     });
   });
-
-
-  function renderRegistrations(items) {
-    const target = view.querySelector("[data-account-registrations]");
-    if (!items.length) {
-      target.innerHTML = '<div class="family-auth-notice">Je account is actief, maar er is nog geen inschrijving aan gekoppeld. Neem contact op met de organisatie als je dit niet verwacht.</div>';
-      return;
-    }
-    const totalMembers = items.reduce((sum, item) => sum + (item.registration?.members?.length || 0), 0);
-    const activeProducts = items.reduce((sum, item) => sum + (item.catalog || []).filter(product => product.active !== false).length, 0);
-    const totalPortions = items.reduce((sum, item) => sum + (item.registration?.members || []).reduce((memberSum, person) => memberSum + Object.values(person.orders || {}).reduce((n, qty) => n + (Number(qty) || 0), 0), 0), 0);
-    const registrations = items.map(item => {
-      const registration = item.registration || {};
-      const members = Array.isArray(registration.members) ? registration.members : [];
-      const catalog = (Array.isArray(item.catalog) ? item.catalog : []).filter(product => product.active !== false);
-      const products = catalog.map(product => {
-        const count = members.reduce((sum, person) => sum + (Number(person.orders?.[product.id]) || 0), 0);
-        const image = product.image || product.photo || "";
-        return '<article class="family-account-meat-card"><div class="family-account-meat-image">'+(image ? '<img src="'+escapeHtml(image)+'" alt="'+escapeHtml(product.name)+'">' : '<span>♨</span>')+'</div><div class="family-account-meat-info"><strong>'+escapeHtml(product.name)+'</strong><small>'+count+' besteld voor het gezin</small></div></article>';
-      }).join("");
-      const people = members.map(person => {
-        const productControls = catalog.map(product => {
-          const quantity = Number(person.orders?.[product.id]) || 0;
-          const readOnly = item.accessRole === "viewer";
-          return '<div class="family-account-product"><span>'+escapeHtml(product.name)+'</span><div>'+(readOnly ? '<b>'+quantity+'</b>' : '<button type="button" data-action="quantity" data-person="'+escapeHtml(person.id)+'" data-product="'+escapeHtml(product.id)+'" data-delta="-1" aria-label="Minder" '+(quantity===0?'disabled':'')+'>−</button><b>'+quantity+'</b><button type="button" data-action="quantity" data-person="'+escapeHtml(person.id)+'" data-product="'+escapeHtml(product.id)+'" data-delta="1" aria-label="Meer">+</button>')+'</div></div>';
-        }).join("");
-        const portions = Object.values(person.orders || {}).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
-        return '<article class="family-account-member"><div class="family-account-person"><span class="family-account-avatar">'+escapeHtml((person.name || "?").charAt(0).toUpperCase())+'</span><div><strong>'+escapeHtml(person.name)+'</strong><small>'+escapeHtml(person.type || "Deelnemer")+' · '+portions+' porties</small></div></div><div class="family-account-products">'+(productControls || '<span class="family-auth-muted">Geen actieve producten.</span>')+'</div></article>';
-      }).join("");
-      return '<section class="family-account-registration" data-registration="'+escapeHtml(registration.id)+'"><div class="family-account-registration-heading"><div><p class="family-auth-eyebrow">'+escapeHtml(item.event || "Evenement")+' · '+escapeHtml(item.editionLabel || (item.edition==="test"?"Testeditie":"Live-editie"))+'</p><h2>'+escapeHtml(registration.name || "Jullie inschrijving")+'</h2><small>'+members.length+' deelnemers</small></div><span class="family-account-count">'+members.length+' deelnemers</span></div><div class="family-account-section-title"><div><h3>Vlees voor jullie gezin</h3><p>Het gezinstotaal wordt automatisch berekend.</p></div></div><div class="family-account-meat-grid">'+(products || '<p class="family-auth-notice">Er zijn nog geen actieve producten.</p>')+'</div><div class="family-account-section-title family-account-people-title"><div><h3>Bestelling per gezinslid</h3><p>Pas de aantallen eenvoudig aan met min en plus.</p></div></div><div class="family-account-members">'+(people || '<p class="family-auth-notice">Er zijn nog geen individuele deelnemers toegevoegd.</p>')+'</div>'+(item.accessRole === "viewer" ? '<p class="family-auth-muted">Je hebt leesrechten voor deze inschrijving.</p>' : '<form class="family-account-add" data-add-member="'+escapeHtml(registration.id)+'"><input name="memberName" aria-label="Naam gezinslid" placeholder="Naam gezinslid" maxlength="80" required><select name="memberType" aria-label="Categorie"><option value="Volwassene">Volwassene</option><option value="Kind">Kind</option></select><button type="submit">+ Persoon toevoegen</button></form>')+'</section>';
-    }).join("");
-    target.innerHTML = '<div class="family-account-shell"><header class="family-account-welcome"><div><p class="family-auth-eyebrow">PERSOONLIJKE OMGEVING</p><h1>'+escapeHtml(view.querySelector("[data-account-heading]").textContent.replace(/^Welkom,?\s*/,"").replace(/\.$/,""))+'</h1><p>Hier vinden jullie de inschrijvingen en gegevens van jullie evenementen.</p></div><span class="family-account-welcome-icon">🥂</span></header><div class="family-account-stats"><article><span>♧</span><strong>'+totalMembers+'</strong><small>Deelnemers</small></article><article><span>♨</span><strong>'+totalPortions+'</strong><small>Vleesporties</small></article><article><span>▦</span><strong>'+activeProducts+'</strong><small>Actieve producten</small></article></div>'+registrations+'</div>';
-  }
-  async function saveRegistration(item) {
-    if (item.saving) return;
-    item.saving = true;
-    const card = view.querySelector('[data-registration="' + CSS.escape(item.registration.id) + '"]');
-    card?.querySelectorAll("button, input, select").forEach(control => { control.disabled = true; });
-    feedback("");
-    try {
-      const result = await request("/api/family-account/registration", {
-        edition: item.edition, registrationId: item.registration.id,
-        revision: item.revision, members: item.registration.members
-      }, "PUT");
-      item.revision = result.revision;
-      item.registration = result.registration;
-      // Alle inschrijvingen van dezelfde editie delen één app_state-revisie.
-      // Werk die dus samen bij om onnodige conflicten bij een volgende save te vermijden.
-      if (["test", "live"].includes(item.edition)) {
-        (window.__familyRegistrations || []).forEach(entry => {
-          if (entry.edition === item.edition) entry.revision = result.revision;
-        });
-      }
-      renderRegistrations(window.__familyRegistrations || []);
-      feedback("De wijzigingen zijn bewaard.", "success");
-    } catch (error) {
-      feedback(error.message || "Opslaan is niet gelukt.");
-      if (error.message?.includes("gewijzigd")) await loadAccount();
-    } finally {
-      item.saving = false;
-      card?.querySelectorAll("button, input, select").forEach(control => { control.disabled = false; });
-    }
-  }
-  async function loadAccount() {
-    const response = await fetch("/api/family-account/session", { credentials: "same-origin" });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.authenticated) { show("login"); return; }
-    view.querySelector("[data-account-heading]").textContent = result.user?.displayName ? "Welkom, " + result.user.displayName + "." : "Welkom.";
-    view.querySelector("[data-account-email]").textContent = result.user?.email || "";
-    window.__familyRegistrations = result.registrations || [];
-    renderRegistrations(window.__familyRegistrations);
-    show("account");
-  }
 
   if (!activation && !reset && currentPanel !== "forgot") {
     try { await loadAccount(); } catch { show("login"); }
