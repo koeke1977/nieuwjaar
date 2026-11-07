@@ -1,6 +1,6 @@
 import { startFamilyAuth } from "./pages/family-auth/family-auth.js";
 import { state } from "./data/demo-data.js";
-import { renderBeheer, normalizeSection, setBeheerAccounts, setBeheerFamilies, MESSAGE_TEMPLATES } from "./pages/beheer/beheer-view.js";
+import { renderBeheer, normalizeSection, setBeheerAccounts, setBeheerFamilies, MESSAGE_TEMPLATES, barBalance } from "./pages/beheer/beheer-view.js";
 import "./pages/beheer/beheer.css";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
@@ -254,7 +254,10 @@ function handleClick(event) {
   // Finance
   if (type === "edit-expense") { go({ editingExpenseId: action.dataset.id }); return; }
   if (type === "cancel-edit-expense") { go({ editingExpenseId: null }); return; }
-  if (type === "finalize-costs") { if (!window.confirm("Bevestig je dat alle kosten en facturen voor deze editie zijn ontvangen en ingevoerd? Daarna worden de bedragen als definitief getoond.")) return; go({ costsFinalized: true, costsFinalizedAt: new Date().toISOString() }); return; }
+  if (type === "finalize-costs") {
+    const bar = barBalance();
+    if (bar.used && bar.difference && !window.confirm("Let op: de bar is niet sluitend. De barrekeningen samen (" + money(bar.charged / 100) + ") zijn niet gelijk aan de rekening van de drank (" + money(bar.purchases / 100) + "). Toch verdergaan?")) return;
+    if (!window.confirm("Bevestig je dat alle kosten en facturen voor deze editie zijn ontvangen en ingevoerd? Daarna worden de bedragen als definitief getoond.")) return; go({ costsFinalized: true, costsFinalizedAt: new Date().toISOString() }); return; }
   if (type === "reopen-costs") { if (!window.confirm("De eindafrekening opnieuw voorlopig maken?")) return; markCostsProvisional(); renderApp(); return; }
   if (type === "delete-expense") {
     const expense = state.expenses.find(item => item.id === action.dataset.id);

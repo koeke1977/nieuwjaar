@@ -318,3 +318,10 @@ button.bh-kpi:hover { border-color: #cdd3dc; }
 /* Personal bar bill per person */
 .bh-bar-amount { display: inline-flex; align-items: center; gap: 6px; color: var(--bh-muted); font-weight: 700; }
 .bh-app .bh-bar-amount input { width: 110px; min-height: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Bar balance: bar bills must equal the drinks bill */
+.bh-bar-check { background: var(--bh-ok-bg); border-color: #c9e6d5; }
+.bh-bar-check.is-off { background: var(--bh-due-bg); border-color: #f1c9b4; }
+.bh-bar-check h2 { margin: 0; font-size: 17px; }
+.bh-bar-check p { margin: 4px 0 0; color: #4c5869; font-size: 14px; line-height: 1.5; }
+.bh-card-head { flex-wrap: wrap; }
