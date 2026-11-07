@@ -53,3 +53,14 @@
 .family-registration-order{padding:3px 7px;border-radius:6px;background:var(--surface-soft,#f7f6f2);font-size:11px;color:var(--ink,#292720)}
 @media(max-width:520px){.family-registration-member{grid-template-columns:1fr;gap:5px}}
 
+.family-registration-editor{display:grid;gap:10px;margin-top:12px;padding:12px;border:1px solid var(--line,#e8e4dd);border-radius:10px;background:var(--surface-soft,#faf9f6)}
+.family-registration-editor>label,.family-registration-edit-person label,.family-registration-edit-orders label{display:grid;gap:4px;font-size:12px;color:var(--muted,#777)}
+.family-registration-editor input,.family-registration-editor select{width:100%;min-width:0;min-height:36px;padding:7px 9px;border:1px solid var(--line,#e2ded6);border-radius:7px;background:#fff;color:var(--ink,#292720);font:inherit}
+.family-registration-edit-member{display:grid;gap:8px;padding:10px;border:1px solid var(--line,#e8e4dd);border-radius:8px;background:#fff}
+.family-registration-edit-person{display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,.45fr);gap:8px}
+.family-registration-edit-orders{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:7px}
+.family-registration-edit-orders input{min-height:32px}
+.family-registration-edit-actions{display:flex;flex-wrap:wrap;gap:8px}
+.family-normalized-registration>[data-registration-editor-slot]:empty{display:none}
+@media(max-width:520px){.family-registration-edit-person{grid-template-columns:1fr}}
+
