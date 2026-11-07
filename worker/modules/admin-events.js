@@ -285,6 +285,11 @@ export async function handleAdminEvents(request, env, url, dependencies) {
         migrated.push({ environment: envId, registrations: registrations.length, accountLinks: linkRows.filter(item => item.edition_id === envId).length, sourceRevision: row.updated_at });
       }
       if (!migrated.length) return json({ error: "Geen bestaande omgevingen gevonden om over te nemen." }, 404);
+      // Keep one atomic D1 transaction comfortably bounded. Cloudflare applies a
+      // 30-second limit to the complete batch; large imports need a resumable design.
+      if (statements.length > 1000) {
+        return json({ error: "De overname bevat " + statements.length + " databasebewerkingen en is te groot voor één veilige transactie. Er is niets gewijzigd; hiervoor is een gefaseerde migratie nodig." }, 413);
+      }
       // D1 batch is transactional: all inserts succeed together or none are committed.
       await env.DB.batch(statements);
       return json({ migrated, statements: statements.length, sourceDataPreserved: true });
