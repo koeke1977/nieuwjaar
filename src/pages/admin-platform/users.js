@@ -64,9 +64,19 @@ async function loadNormalizedFamilies() {
       const accounts = family.accounts.map(account =>
         '<span class="family-user-link"><span>'+escapeHtml(account.displayName || account.email)+' · '+escapeHtml(account.email)+'</span><select aria-label="Familierol" data-normalized-membership-role data-family-id="'+escapeHtml(family.id)+'" data-user-id="'+escapeHtml(account.id)+'" data-previous-role="'+escapeHtml(account.role || "editor")+'"><option value="owner" '+(account.role==="owner"?"selected":"")+'>Beheerder</option><option value="editor" '+(account.role==="editor"?"selected":"")+'>Bewerker</option><option value="viewer" '+(account.role==="viewer"?"selected":"")+'>Lezer</option></select><button type="button" data-normalized-membership-remove data-family-id="'+escapeHtml(family.id)+'" data-user-id="'+escapeHtml(account.id)+'" aria-label="Account loskoppelen">×</button><small>'+escapeHtml(account.status || "")+'</small></span>'
       ).join("");
-      const registrations = family.registrations.map(item =>
-        '<div class="family-normalized-registration"><strong>'+escapeHtml(item.event || "Evenement")+'</strong><span>'+escapeHtml(item.edition || "Editie")+' · '+escapeHtml(item.name || "Inschrijving")+'</span><small>'+escapeHtml(item.status || "")+' · '+escapeHtml(item.financeStrategy || "geen financiële strategie")+(item.invalidData ? " · gegevens nakijken" : "")+'</small></div>'
-      ).join("");
+      const registrations = family.registrations.map(item => {
+        const catalog = Array.isArray(item.catalog) ? item.catalog : [];
+        const members = Array.isArray(item.members) ? item.members : [];
+        const memberRows = members.map(person => {
+          const orders = catalog.map(product => {
+            const quantity = Number(person.orders?.[product.id] || 0);
+            return Number.isInteger(quantity) && quantity > 0
+              ? '<span class="family-registration-order">'+escapeHtml(product.name)+': <b>'+quantity+'×</b></span>' : "";
+          }).filter(Boolean).join("");
+          return '<div class="family-registration-member"><span><strong>'+escapeHtml(person.name)+'</strong><small>'+escapeHtml(person.type)+'</small></span><div class="family-registration-orders">'+(orders || '<small>Geen bestelling</small>')+'</div></div>';
+        }).join("");
+        return '<div class="family-normalized-registration"><strong>'+escapeHtml(item.event || "Evenement")+'</strong><span>'+escapeHtml(item.edition || "Editie")+' · '+escapeHtml(item.name || "Inschrijving")+'</span><small>'+escapeHtml(item.status || "")+' · '+escapeHtml(item.financeStrategy || "geen financiële strategie")+(item.invalidData ? " · gegevens nakijken" : "")+'</small><div class="family-registration-details"><b>Gezin: '+members.length+' leden</b>'+(memberRows || '<small>Nog geen gezinsleden geregistreerd.</small>')+'</div></div>';
+      }).join("");
       return '<article class="family-user-row"><div class="family-user-main"><strong>'+escapeHtml(family.name || "Familie")+'</strong><small>'+escapeHtml(family.contactEmail || "Geen contactadres")+'</small><div class="family-user-links">'+(accounts || '<span>Geen accounts gekoppeld</span>')+'</div><div class="family-normalized-registrations">'+(registrations || '<span>Geen evenementinschrijvingen</span>')+'</div></div></article>';
     }).join("");
   } catch (error) {
