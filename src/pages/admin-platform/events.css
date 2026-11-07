@@ -50,3 +50,15 @@
 .admin-catalog-item-footer .admin-catalog-active{display:flex;grid-auto-flow:column;align-items:center;justify-content:start;gap:7px;font-weight:500}
 .admin-catalog-active input{width:16px;height:16px;margin:0}
 @media(max-width:700px){.admin-catalog-item-fields{grid-template-columns:1fr}.admin-catalog-item-footer{align-items:flex-start;flex-wrap:wrap}}
+
+
+.admin-finance-editor{margin-top:18px;scroll-margin-top:18px}
+.admin-finance-editor h3{margin:20px 0 8px;font-size:14px}
+.admin-finance-line{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line,#e8e4dd);font-size:13px}
+.admin-finance-line span{display:grid;gap:3px;min-width:0}
+.admin-finance-line small{color:var(--muted,#716c64);font-size:11px}
+.admin-finance-add-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}
+.admin-finance-add-grid form{display:grid;gap:9px;padding:14px;border:1px solid var(--line,#e8e4dd);border-radius:10px;background:#faf9f7}
+.admin-finance-add-grid h3{margin:0}
+.admin-finance-add-grid input,.admin-finance-add-grid select{width:100%;min-width:0;padding:10px;border:1px solid var(--line,#e8e4dd);border-radius:8px;background:#fff;font:inherit}
+@media(max-width:700px){.admin-finance-add-grid{grid-template-columns:1fr}.admin-finance-line{align-items:flex-start;flex-wrap:wrap}}
