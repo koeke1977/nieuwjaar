@@ -105,10 +105,12 @@ export function initAdminUsersSection() {
     button.disabled = true;
     try {
       const values = Object.fromEntries(new FormData(form).entries());
-      await api("/api/admin/families", { method: "POST", body: JSON.stringify(values) });
+      const result = await api("/api/admin/families", { method: "POST", body: JSON.stringify(values) });
       form.reset();
       const target = root.querySelector("[data-normalized-family-feedback]");
-      if (target) target.textContent = "Familie en inschrijving zijn aangemaakt.";
+      if (target) target.textContent = result.mailFailed
+        ? "Familie, inschrijving en beheerder zijn aangemaakt, maar de uitnodigingsmail is niet verzonden. Verstuur de uitnodiging opnieuw."
+        : "Familie en inschrijving zijn aangemaakt. De eerste beheerder is gekoppeld" + (result.invitePending ? " en ontvangt een activatiemail." : ".");
       await loadNormalizedFamilies();
     } catch (error) {
       const target = root.querySelector("[data-normalized-family-feedback]");
