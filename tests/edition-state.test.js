@@ -416,3 +416,79 @@ test("butcher mail: totals per product without names, evening guests left out, a
   assert.equal(state.configRevision, 10, "sending does not change the edition revision (no save conflicts)");
   assert.equal(state.catalog.length, 2, "catalog untouched");
 });
+
+test("settlement mail: own statement per family to its accounts; audience, test mail, no-account families", async () => {
+  const { handleAdminEditionState } = await import("../worker/modules/admin-edition-state.js");
+  const DB = setup();
+  // fa: 1 steak + bar for Jan; fb: 1 steak. Meat 20 euro, hall 30 euro (advanced by fb), fa paid 5 euro.
+  DB.raw.prepare("UPDATE event_registrations SET data_json = ? WHERE id = 'ra'").run(
+    JSON.stringify({
+      name: "Gezin fa",
+      members: [{ id: "jan", name: "Jan", type: "Volwassene", orders: { steak: 1 }, barCents: 1250 }]
+    })
+  );
+  DB.raw
+    .prepare("UPDATE edition_finance_snapshots SET expenses_json = ?, payments_json = ? WHERE edition_id = 'ed1'")
+    .run(
+      JSON.stringify([
+        { id: "e1", description: "Vlees", amountCents: 2000, date: "2026-12-20", method: "meat", advancedBy: "kas" },
+        { id: "e2", description: "Zaal", amountCents: 3000, date: "2026-12-01", method: "general", advancedBy: "rb" }
+      ]),
+      JSON.stringify([{ id: "p1", registrationId: "ra", amountCents: 500, date: "2027-01-02", method: "cash" }])
+    );
+  DB.raw
+    .prepare(
+      "INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES ('u1', 'jan@x.be', 'Jan', 'active', 1, 1)"
+    )
+    .run();
+  DB.raw
+    .prepare(
+      "INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES ('m1', 'fa', 'u1', 'owner', 1)"
+    )
+    .run();
+  const mails = [];
+  const tools = {
+    json: (body, status = 200) => ({ status, body }),
+    sameOrigin: () => true,
+    adminSession: async () => true,
+    sendGraphMail: async (env, to, subject, html) => mails.push({ to, subject, html })
+  };
+  const call = body => {
+    const url = new URL("https://nieuwjaar.datuur.be/api/admin/editions/ed1/settlement");
+    return handleAdminEditionState(
+      new Request(url, { method: "POST", body: JSON.stringify(body) }),
+      { DB },
+      url,
+      tools
+    );
+  };
+
+  const test1 = await call({ audience: "all", testRecipient: "Koen@X.be", note: "Cash op het feest" });
+  assert.equal(test1.status, 200);
+  assert.equal(mails.length, 1);
+  assert.equal(mails[0].to, "koen@x.be");
+  assert.match(mails[0].subject, /^\[Proef\] Voorlopige afrekening Nieuwjaar 2026–2027 – Gezin fa$/);
+
+  mails.length = 0;
+  const sent = await call({ audience: "all", note: "Cash op het feest\n<b>x</b>" });
+  assert.equal(sent.status, 200);
+  assert.equal(sent.body.sent, 1, "only fa has an account");
+  assert.deepEqual(sent.body.withoutAccount, ["Gezin fb"]);
+  const html = mails[0].html;
+  assert.equal(mails[0].to, "jan@x.be");
+  assert.match(html, /Dag Jan,/);
+  assert.match(html, /Voorlopige afrekening voor Gezin fa/);
+  // fa: meat 10 + hall 15 + bar 12,50 = 37,50 share; paid 5 → 32,50 to pay.
+  assert.match(html, /€\s?37,50/);
+  assert.match(html, /Min: al betaald/);
+  assert.match(html, /Nog te betalen<\/td><td[^>]*>€\s?32,50/);
+  assert.match(html, /Jan €\s?12,50/, "bar per person");
+  assert.ok(!html.includes("<b>x</b>"), "note is escaped");
+  assert.ok(!/Gezin fb/.test(html), "no other family in the mail");
+
+  const credit = await call({ audience: "credit" });
+  assert.equal(credit.status, 400, "fb gets money back but has no account");
+  const state = await loadEditionState({ DB }, "ed1");
+  assert.ok(state.settlementSentAt, "time of sending remembered");
+  assert.equal(state.configRevision, 10, "no change to the edition revision");
+});

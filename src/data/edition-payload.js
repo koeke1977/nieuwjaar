@@ -93,6 +93,7 @@ export function applyEdition(edition, { keepUi = true } = {}) {
   state.orderDeadline = edition.orderDeadline || null;
   state.butcherEmail = edition.butcherEmail || "";
   state.butcherSentAt = edition.butcherSentAt || null;
+  state.settlementSentAt = edition.settlementSentAt || null;
   state.catalog = clone(edition.catalog || []);
   state.registrations = clone(edition.registrations || []).map(reg => ({
     ...reg,

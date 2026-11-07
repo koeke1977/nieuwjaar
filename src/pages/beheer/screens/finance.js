@@ -60,6 +60,47 @@ function renderExpenseForm(expense = null) {
       </form>`;
 }
 
+// Mail every family its own statement (worker/modules/settlement-mail.js); a test goes to one address.
+function settlementCard() {
+  const rows = eventTotals().summary || [];
+  const due = rows.filter(row => row.remainingCents > 0).length;
+  const credit = rows.filter(row => row.creditCents > 0).length;
+  const sentAt = state.settlementSentAt
+    ? new Date(state.settlementSentAt * 1000).toLocaleString("nl-BE", { dateStyle: "medium", timeStyle: "short" })
+    : "";
+  return html`<details class="bh-card bh-settlement">
+      <summary>✉ Afrekening mailen naar de gezinnen${
+        sentAt
+          ? html` <small class="bh-muted">· laatst verstuurd op
+            ${sentAt}</small>`
+          : ""
+      }</summary>
+      <form id="settlement-mail-form" class="bh-form-grid">
+        <p class="bh-note bh-span-2">Elk gezin krijgt zijn eigen overzicht: aandeel per soort kost (de bar per persoon),
+          wat het voorschoot en betaalde, en wat er nog te betalen of terug te krijgen is. Verstuurd vanuit
+          registratie@datuur.be naar de accounts van het gezin.${
+            state.costsFinalized ? "" : " De kosten zijn nog voorlopig: de mail vermeldt dat ook."
+          }</p>
+        <label>Naar<select name="audience">
+            <option value="all">Alle ingeschreven gezinnen</option>
+            <option value="due">Alleen wie nog moet betalen (${due})</option>
+            <option value="credit">Alleen wie geld terugkrijgt (${credit})</option>
+          </select>
+        </label>
+        <label>Proefmail naar (optioneel)<input name="testRecipient" type="email" maxlength="254"
+            placeholder="jouw@adres.be" autocomplete="email">
+        </label>
+        <label class="bh-span-2">Jouw bericht (optioneel)<textarea name="note" rows="4" maxlength="3000"
+            placeholder="Bijvoorbeeld: betalen kan cash op het feest of bij Koen."></textarea>
+        </label>
+        <div class="bh-actions bh-span-2">
+          <button type="submit" name="mode" value="test" class="bh-btn">Proefmail sturen</button>
+          <button type="submit" name="mode" value="send" class="bh-btn bh-btn-primary">Afrekening versturen</button>
+        </div>
+      </form>
+    </details>`;
+}
+
 export function renderFinance() {
   const t = eventTotals();
   const regs = state.registrations || [];
@@ -155,7 +196,7 @@ export function renderFinance() {
             ? html`<button type="button" class="bh-btn" data-action="reopen-costs">Terug naar voorlopig</button>`
             : html`<button type="button" class="bh-btn bh-btn-primary" data-action="finalize-costs">Alle kosten zijn
                 binnen</button>`
-        }</section>
+        }</section>${settlementCard()}
       <div class="bh-grid-2">
         <section class="bh-card">
           <header class="bh-card-head">

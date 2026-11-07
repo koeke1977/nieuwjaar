@@ -10,6 +10,7 @@ import { esc, formatDate } from "../../src/utils/html.js";
 import { SHARED_FUND } from "../../src/utils/finance.js";
 import { isMemberType, EVENING } from "../../src/utils/member-types.js";
 import { parseReceiptKey } from "./receipts.js";
+import { handleSettlementMail } from "./settlement-mail.js";
 import { isLocalDateTime } from "../../src/utils/time.js";
 
 const METHODS = ["general", "adults", "meat", "bar"];
@@ -78,6 +79,7 @@ export async function loadEditionState(env, editionId) {
     orderDeadline: typeof config.orderDeadline === "string" ? config.orderDeadline : null,
     butcherEmail: typeof config.butcherEmail === "string" ? config.butcherEmail : "",
     butcherSentAt: Number(config.butcherSentAt) || null,
+    settlementSentAt: Number(config.settlementSentAt) || null,
     registrations,
     expenses: parse(snapshot?.expenses_json, []) || [],
     payments: parse(snapshot?.payments_json, []) || [],
@@ -652,7 +654,9 @@ export async function handleAdminEditionState(request, env, url, { json, sameOri
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
   if (!(await adminSession(request, env))) return json({ error: "Niet aangemeld." }, 401);
   if (request.method !== "GET" && !sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
-  const match = url.pathname.match(/^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next|message|butcher)$/);
+  const match = url.pathname.match(
+    /^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next|message|butcher|settlement)$/
+  );
   if (!match) return null;
   const [, editionId, action] = match;
   const now = Math.floor(Date.now() / 1000);
@@ -708,6 +712,8 @@ export async function handleAdminEditionState(request, env, url, { json, sameOri
     return json({ sent, failed }, failed.length && !sent ? 502 : 200);
   }
 
+  if (action === "settlement" && request.method === "POST")
+    return handleSettlementMail(request, env, editionId, { json, sendGraphMail, now });
   if (action === "butcher" && request.method === "POST") {
     const body = await request.json().catch(() => null);
     const recipient = typeof body?.recipient === "string" ? body.recipient.trim().toLowerCase() : "";

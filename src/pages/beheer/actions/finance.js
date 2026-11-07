@@ -3,7 +3,7 @@ import { state } from "../../../data/admin-store.js";
 import { euro } from "../../../utils/html.js";
 import { getExpenseShares, getFinancialSummary, SHARED_FUND } from "../../../utils/finance.js";
 import { barBalance } from "../beheer-view.js";
-import { go, renderApp, makeId, markCostsProvisional } from "../admin-core.js";
+import { go, renderApp, makeId, markCostsProvisional, adminApi, flushAdminState } from "../admin-core.js";
 
 export const clicks = {
   "edit-expense": action => {
@@ -67,6 +67,66 @@ export const clicks = {
 };
 
 export const forms = {
+  // Statement per family by mail; "Proefmail sturen" sends one example to the test address.
+  "settlement-mail-form": async (form, event) => {
+    event.preventDefault();
+    const test = event.submitter?.value === "test";
+    const audience = form.elements.audience.value,
+      note = form.elements.note.value.trim(),
+      testRecipient = form.elements.testRecipient.value.trim();
+    if (test && !testRecipient) {
+      window.alert("Vul eerst het adres voor de proefmail in.");
+      form.elements.testRecipient.focus();
+      return;
+    }
+    const label = form.elements.audience.selectedOptions[0]?.textContent || "";
+    if (
+      !test &&
+      !window.confirm(
+        "Afrekening versturen naar: " +
+          label.toLowerCase() +
+          "?" +
+          (state.costsFinalized
+            ? ""
+            : "\n\nLet op: de kosten zijn nog voorlopig. De gezinnen krijgen een voorlopige afrekening.")
+      )
+    )
+      return;
+    const buttons = [...form.querySelectorAll('button[type="submit"]')];
+    buttons.forEach(button => (button.disabled = true));
+    try {
+      await flushAdminState(); // the server mails what is saved
+      const result = await adminApi(
+        "/api/admin/editions/" + encodeURIComponent(state.activeEditionId) + "/settlement",
+        { audience, note, testRecipient: test ? testRecipient : undefined }
+      );
+      if (test) {
+        window.alert("Proefmail (afrekening van " + result.family + ") verstuurd naar " + testRecipient + ".");
+      } else {
+        state.settlementSentAt = result.sentAt || state.settlementSentAt;
+        renderApp();
+        window.alert(
+          "Afrekening verstuurd: " +
+            result.sent +
+            " " +
+            (result.sent === 1 ? "mail" : "mails") +
+            " naar " +
+            result.families +
+            " " +
+            (result.families === 1 ? "gezin" : "gezinnen") +
+            "." +
+            (result.withoutAccount?.length
+              ? "\n\nZonder account (niet gemaild): " + result.withoutAccount.join(", ")
+              : "") +
+            (result.failed?.length ? "\nNiet gelukt voor: " + result.failed.join(", ") : "")
+        );
+      }
+    } catch (error) {
+      window.alert(error.message);
+    } finally {
+      buttons.forEach(button => (button.disabled = false));
+    }
+  },
   "expense-form": async (form, event, id) => {
     event.preventDefault();
     const description = form.elements.description.value.trim();

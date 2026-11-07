@@ -1476,3 +1476,11 @@ button.bh-kpi:hover {
   padding-top: 16px;
   border-top: 1px solid var(--bh-line);
 }
+.bh-settlement summary {
+  color: var(--bh-navy);
+  font-weight: 800;
+  cursor: pointer;
+}
+.bh-settlement[open] summary {
+  margin-bottom: 12px;
+}
