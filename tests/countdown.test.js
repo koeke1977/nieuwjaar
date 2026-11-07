@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { countdownState, calendarUrl } from "../src/pages/family-auth/countdown.js";
+import { countdownState } from "../src/pages/family-auth/countdown.js";
 
 const at = text => new Date(text);
 
@@ -21,8 +21,3 @@ test("on the day it shows hours and minutes, then celebrates, then disappears", 
   assert.equal(countdownState(null, "Nieuwjaar"), null, "no date, no countdown");
 });
 
-test("the calendar file contains the event", () => {
-  const ics = decodeURIComponent(calendarUrl("2026-12-31T20:00", "Nieuwjaar 2026–2027").split(",")[1]);
-  assert.match(ics, /DTSTART:20261231T200000/);
-  assert.match(ics, /SUMMARY:Nieuwjaar 2026–2027/);
-});

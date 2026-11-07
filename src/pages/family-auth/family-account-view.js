@@ -13,7 +13,7 @@ const formatDate = value => {
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("nl-BE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 };
 import { DIET_OPTIONS, NOTE_MAX, hasDiet } from "../../utils/diet.js";
-import { countdownState, calendarUrl, formatEventDate } from "./countdown.js";
+import { countdownState, formatEventDate } from "./countdown.js";
 
 // Countdown card on the overview; numbers are refreshed every second by family-auth.js.
 function countdownCard(item) {
@@ -21,10 +21,8 @@ function countdownCard(item) {
   if (!state || state.phase === "over") return "";
   const p = state.parts;
   const clock = p ? '<div class="fa-count-clock" aria-hidden="true">' + [[p.days, "dagen"], [p.hours, "uur"], [p.minutes, "min"], [p.seconds, "sec"]].map(([n, label], i) => '<span><b data-count-part="' + i + '">' + String(n).padStart(i ? 2 : 1, "0") + '</b><small>' + label + '</small></span>').join("") + '</div>' : "";
-  const calendar = calendarUrl(item.startsAt, (item.event || "Feest") + " " + (item.editionLabel || ""));
   return '<section class="fa-countdown fa-countdown-' + state.phase + '" data-countdown="' + esc(item.startsAt) + '" data-countdown-event="' + esc(item.event || "het feest") + '">' +
-    '<p class="fa-eyebrow">' + esc(formatEventDate(item.startsAt)) + '</p><h3 data-count-text>' + esc(state.text) + '</h3>' + clock +
-    (state.phase === "now" ? "" : '<a class="fa-btn fa-btn-small" href="' + calendar + '" download="' + esc((item.event || "feest").toLowerCase().replace(/[^a-z0-9]+/g, "-")) + '.ics">📅 In mijn agenda zetten</a>') + '</section>';
+    '<p class="fa-eyebrow">' + esc(formatEventDate(item.startsAt)) + '</p><h3 data-count-text>' + esc(state.text) + '</h3>' + clock + '</section>';
 }
 function countdownChip(item) {
   const state = countdownState(item.startsAt, item.event || "het feest");
