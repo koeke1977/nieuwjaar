@@ -54,6 +54,8 @@ export function initAdminEventsSection() {
   root = document.querySelector(".content");
   if (!root?.querySelector("#admin-event-create-form")) return;
   loadEvents();
+  const migrateButton = root.querySelector("[data-backfill-run]");
+  let migrationPreviewSafe = false;
 
   root.querySelector("[data-backfill-preview]")?.addEventListener("click", async event => {
     const button = event.currentTarget;
@@ -64,17 +66,40 @@ export function initAdminEventsSection() {
     try {
       const result = await api("/api/admin/events/backfill-preview");
       const totals = result.totals || {};
+      migrationPreviewSafe = result.readOnly === true && Number(totals.orphanedRegistrationLinks || 0) === 0;
+      if (migrateButton) migrateButton.disabled = !migrationPreviewSafe;
       const rows = (result.environments || []).map(row =>
         '<div class="admin-backfill-row"><strong>'+escapeHtml(row.eventName)+' · '+escapeHtml(row.environment)+'</strong><span>'+row.registrations+' inschrijvingen</span><span>'+row.registrationsWithAccounts+' met account</span><span>'+row.accountLinks+' accountkoppelingen</span><span>'+row.orphanedRegistrationLinks+' verweesde koppelingen</span></div>'
       ).join("");
       target.innerHTML = '<div class="admin-backfill-totals"><strong>'+Number(totals.familyAccounts||0)+' accounts</strong><strong>'+Number(totals.registrations||0)+' inschrijvingen</strong><strong>'+Number(totals.registrationsWithoutAccounts||0)+' zonder account</strong><strong>'+Number(totals.orphanedRegistrationLinks||0)+' verweesde koppelingen</strong></div>'+rows+'<p class="catalog-note">Alleen-lezen controle. Er zijn geen gegevens aangemaakt, aangepast of verwijderd.</p>';
       feedback("Controle afgerond. Er is niets gewijzigd.");
     } catch (error) {
+      migrationPreviewSafe = false;
+      if (migrateButton) migrateButton.disabled = true;
       target.textContent = error.message;
       feedback(error.message, true);
     } finally {
       button.disabled = false;
       button.textContent = "Controle opnieuw uitvoeren";
+    }
+  });
+
+  migrateButton?.addEventListener("click", async () => {
+    if (!migrationPreviewSafe) return;
+    const confirmation = window.prompt("Deze stap kopieert de huidige test- en livegegevens naar de nieuwe evenemententabellen. De oude gegevens blijven behouden. Er worden geen testgegevens verwijderd. Typ exact MIGRATE LEGACY DATA om te bevestigen:");
+    if (confirmation !== "MIGRATE LEGACY DATA") return;
+    migrateButton.disabled = true;
+    feedback("Gegevens worden transactioneel overgenomen…");
+    try {
+      const result = await api("/api/admin/events/backfill", { method:"POST", body:JSON.stringify({confirm:confirmation}) });
+      feedback("Overname afgerond: "+(result.migrated || []).map(row => row.environment+": "+row.registrations+" inschrijvingen").join(" · "));
+      migrationPreviewSafe = false;
+      const previewButton = root.querySelector("[data-backfill-preview]");
+      previewButton?.click();
+      await loadEvents();
+    } catch (error) {
+      feedback(error.message, true);
+      migrateButton.disabled = false;
     }
   });
   root.querySelector("#admin-event-create-form").addEventListener("submit", async event => {
