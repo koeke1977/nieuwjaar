@@ -46,7 +46,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     return json({ users: [...users.values()], environment });
   }
 
-  const registrationEditMatch = path.match(/^\\/api\\/admin\\/families\\/registrations\\/([^/]+)$/);
+  const registrationEditMatch = path.match(/^\/api\/admin\/families\/registrations\/([^/]+)$/);
   if (registrationEditMatch && request.method === "PUT") {
     if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
     const registrationId = decodeURIComponent(registrationEditMatch[1]);
