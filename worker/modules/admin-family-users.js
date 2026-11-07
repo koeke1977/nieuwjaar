@@ -46,6 +46,73 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     return json({ users: [...users.values()], environment });
   }
 
+  const registrationEditMatch = path.match(/^\\/api\\/admin\\/families\\/registrations\\/([^/]+)$/);
+  if (registrationEditMatch && request.method === "PUT") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const registrationId = decodeURIComponent(registrationEditMatch[1]);
+    const body = await request.json().catch(() => null);
+    if (!body || !Number.isSafeInteger(body.revision) || typeof body.name !== "string" ||
+        !body.name.trim() || body.name.trim().length > 160 || !Array.isArray(body.members) ||
+        body.members.length > 30) {
+      return json({ error: "Controleer de inschrijvingsnaam en de gezinsleden." }, 400);
+    }
+    const row = await env.DB.prepare(
+      "SELECT er.id, er.data_json, er.updated_at, er.status, er.legacy_environment, er.legacy_registration_id, d.status AS edition_status, e.status AS event_status, d.config_json FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE er.id = ?"
+    ).bind(registrationId).first();
+    if (!row) return json({ error: "Inschrijving niet gevonden." }, 404);
+    if (row.legacy_environment || row.legacy_registration_id) {
+      return json({ error: "Deze historische inschrijving blijft voorlopig alleen-lezen om de oude gegevens en accountkoppelingen te beschermen." }, 409);
+    }
+    if (row.status === "deleted" || row.edition_status === "archived" || row.edition_status === "closed" || row.event_status === "archived") {
+      return json({ error: "Deze inschrijving behoort tot een afgesloten editie en kan niet worden aangepast." }, 409);
+    }
+    if (Number(row.updated_at) !== body.revision) {
+      return json({ error: "De inschrijving is intussen gewijzigd. Herlaad de gegevens en probeer opnieuw." }, 409);
+    }
+    let registration, config;
+    try {
+      registration = JSON.parse(row.data_json || "{}");
+      config = JSON.parse(row.config_json || "{}");
+    } catch {
+      return json({ error: "De opgeslagen inschrijvingsgegevens zijn ongeldig. Er is niets gewijzigd." }, 500);
+    }
+    const catalog = (Array.isArray(config.catalog) ? config.catalog : Array.isArray(registration.catalog) ? registration.catalog : [])
+      .filter(product => product && typeof product.id === "string" && product.active !== false);
+    const catalogIds = new Set(catalog.map(product => product.id));
+    const seen = new Set(), members = [];
+    for (const person of body.members) {
+      if (!person || typeof person.id !== "string" || !person.id || person.id.length > 100 ||
+          typeof person.name !== "string" || !person.name.trim() || person.name.trim().length > 80 ||
+          !["Volwassene", "Kind"].includes(person.type) || seen.has(person.id)) {
+        return json({ error: "Controleer alle unieke gezinsleden, namen en categorieën." }, 400);
+      }
+      seen.add(person.id);
+      const sourceOrders = person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {};
+      const orders = {};
+      for (const [productId, rawQuantity] of Object.entries(sourceOrders)) {
+        if (!catalogIds.has(productId)) continue;
+        const quantity = Number(rawQuantity);
+        if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) {
+          return json({ error: "Een productaantal moet tussen 0 en 99 liggen." }, 400);
+        }
+        orders[productId] = quantity;
+      }
+      for (const productId of catalogIds) if (!(productId in orders)) orders[productId] = 0;
+      members.push({ id: person.id, name: person.name.trim(), type: person.type, orders });
+    }
+    registration.name = body.name.trim();
+    registration.members = members;
+    registration.adults = members.filter(person => person.type === "Volwassene").length;
+    registration.children = members.filter(person => person.type === "Kind").length;
+    const updated = await env.DB.prepare(
+      "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND updated_at = ? AND legacy_environment IS NULL AND legacy_registration_id IS NULL RETURNING updated_at"
+    ).bind(JSON.stringify(registration), now, registrationId, body.revision).first();
+    if (!updated) return json({ error: "De inschrijving is intussen gewijzigd. Herlaad de gegevens en probeer opnieuw." }, 409);
+    return json({ saved: true, revision: updated.updated_at, registration: {
+      id: registrationId, name: registration.name, adults: registration.adults, children: registration.children, members: registration.members
+    } });
+  }
+
   if (path === "/api/admin/families" && request.method === "GET") {
     try {
       const rows = await env.DB.prepare(
