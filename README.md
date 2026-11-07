@@ -36,12 +36,18 @@ afrondingsverschillen):
 
 ```
 src/
-  app.js                    beheer: laden, opslaan, klikken en formulieren
+  app.js                    start: juiste app kiezen, klikken/formulieren doorsturen naar pages/beheer/actions
   main.js                   start de juiste app (beheer, familieportaal of startpagina)
   data/admin-store.js       toestand van het beheer (evenementen + één geladen editie)
   data/edition-payload.js   omzetting editie ⇄ op te slaan gegevens (elk veld per persoon moet hierin!)
   services/admin-state.js   laden, opslaan met automatisch samenvoegen, live verversen
-  pages/beheer/             schermen van /beheer (beheer-view.js) en hun stijl
+  pages/beheer/
+    beheer-view.js          kader en navigatie van /beheer
+    screens/                één bestand per scherm (overview, families, order, bar, finance, edition,
+                            events, users, settings) + shared.js met gedeelde stukjes
+    admin-core.js           aanmelding, opslaan, live verversen, server-aanroepen, renderApp
+    actions/                wat een klik of formulier doet, per onderdeel (navigation, registrations,
+                            finance, edition, accounts): `clicks = { "data-action": … }`, `forms = { "form-id": … }`
   pages/family-auth/        familieportaal: aanmelden, gezin, bestelling, kosten, aftelling
   utils/                    gedeelde logica: finance, member-types, diet, time, html, state-merge
 worker/
