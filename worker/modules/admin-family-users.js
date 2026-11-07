@@ -305,9 +305,16 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
   if (action === "resend" && request.method === "POST") {
     if (user.status !== "invited") return json({ error: "Alleen openstaande uitnodigingen kunnen opnieuw worden verstuurd." }, 409);
     const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
-    await env.DB.prepare("UPDATE family_user_invites SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL").bind(now, userId).run();
-    await env.DB.prepare("INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
-      .bind(crypto.randomUUID(), userId, await sha256(token), now, now + 7 * 24 * 60 * 60).run();
+    try {
+      await env.DB.batch([
+        env.DB.prepare("UPDATE family_user_invites SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL").bind(now, userId),
+        env.DB.prepare("INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
+          .bind(crypto.randomUUID(), userId, await sha256(token), now, now + 7 * 24 * 60 * 60)
+      ]);
+    } catch (error) {
+      console.error("Family invitation token rotation failed:", error);
+      return json({ error: "De activatielink kon niet veilig worden vernieuwd. De bestaande uitnodiging bleef behouden." }, 503);
+    }
     let eventName = "het evenement";
     try {
       const normalizedEvent = await env.DB.prepare(
