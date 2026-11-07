@@ -86,16 +86,28 @@ export async function handleAdminEvents(request, env, url, dependencies) {
 
   if (url.pathname === "/api/admin/events/backfill-preview" && request.method === "GET") {
     try {
+      const requiredTables = ["events", "event_editions", "families", "family_memberships", "event_registrations", "edition_finance_snapshots", "family_users", "family_user_registrations", "app_state"];
+      const tableRows = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all();
+      const availableTables = new Set((tableRows.results || []).map(row => row.name));
+      const missingTables = requiredTables.filter(name => !availableTables.has(name));
+      if (missingTables.length) return json({ readOnly: true, canBackfill: false, missingTables, error: "De databasestructuur is nog niet volledig gemigreerd. Er is niets gewijzigd." }, 409);
       const states = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state ORDER BY environment").all();
       const links = await env.DB.prepare("SELECT edition_id, registration_id, COUNT(*) AS account_count FROM family_user_registrations GROUP BY edition_id, registration_id").all();
       const linkCounts = new Map((links.results || []).map(row => [row.edition_id + ":" + row.registration_id, Number(row.account_count) || 0]));
       const environments = [];
       let totalRegistrations = 0, linkedRegistrations = 0, orphanedLinks = 0, totalAccounts = 0;
+      const validationErrors = [];
       for (const row of states.results || []) {
         let data;
-        try { data = JSON.parse(row.data_json); } catch { return json({ error: "De opgeslagen gegevens van " + row.environment + " zijn geen geldige JSON. Er is niets gewijzigd." }, 500); }
+        try { data = JSON.parse(row.data_json); } catch { validationErrors.push("Ongeldige JSON in omgeving " + row.environment); continue; }
+        if (!data || typeof data !== "object" || Array.isArray(data)) { validationErrors.push("Ongeldige gegevensstructuur in omgeving " + row.environment); continue; }
         const registrations = Array.isArray(data.registrations) ? data.registrations : [];
-        const ids = new Set(registrations.map(item => item.id));
+        const ids = new Set();
+        for (const item of registrations) {
+          if (!item || typeof item.id !== "string" || !item.id.trim()) validationErrors.push("Inschrijving zonder geldige ID in " + row.environment);
+          else if (ids.has(item.id)) validationErrors.push("Dubbele inschrijvings-ID " + item.id + " in " + row.environment);
+          else ids.add(item.id);
+        }
         const linked = registrations.filter(item => linkCounts.has(row.environment + ":" + item.id));
         const accountCount = linked.reduce((sum, item) => sum + linkCounts.get(row.environment + ":" + item.id), 0);
         const knownLinks = [...linkCounts.keys()].filter(key => key.startsWith(row.environment + ":"));
@@ -119,6 +131,8 @@ export async function handleAdminEvents(request, env, url, dependencies) {
       return json({
         readOnly: true,
         environments,
+        canBackfill: validationErrors.length === 0 && orphanedLinks === 0,
+        validationErrors,
         totals: {
           familyAccounts: Number(users?.count) || 0,
           registrations: totalRegistrations,
