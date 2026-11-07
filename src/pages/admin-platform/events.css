@@ -1,0 +1,22 @@
+.admin-events-heading{margin-bottom:22px}
+.admin-event-form{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:end}
+.admin-event-form label{display:grid;gap:7px;font-size:13px;font-weight:700;color:var(--text,#292722)}
+.admin-event-form input,.admin-event-form textarea,.admin-event-form select,.admin-edition-form input{width:100%;min-width:0;padding:11px 12px;border:1px solid var(--line,#e8e4dd);border-radius:9px;background:#fff;color:inherit;font:inherit;font-weight:400}
+.admin-event-form label:nth-child(2),.admin-event-form label:nth-child(3){grid-column:1/-1}
+.admin-event-form textarea{resize:vertical}
+.admin-event-feedback{min-height:20px;margin:12px 0 0;color:var(--muted,#716c64);font-size:13px}
+.admin-event-feedback[data-error="true"]{color:#a33}
+.admin-events-list-section{margin-top:24px}
+.admin-events-list{display:grid;gap:14px}
+.admin-event-card{padding:20px;border:1px solid var(--line,#e8e4dd);border-radius:15px;background:var(--surface,#fff)}
+.admin-event-card-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.admin-event-card h3{margin:0 0 5px;font-size:18px}
+.admin-event-card p{margin:0;color:var(--muted,#716c64);font-size:13px;line-height:1.5}
+.admin-event-meta{margin-top:7px;color:var(--muted,#716c64);font-size:11px}
+.admin-editions{display:grid;gap:8px;margin-top:16px}
+.admin-edition-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 12px;border-radius:9px;background:#f7f5f1}
+.admin-edition-row strong{font-size:13px}
+.admin-edition-row small{color:var(--muted,#716c64)}
+.admin-edition-form{display:grid;grid-template-columns:minmax(150px,1fr) minmax(130px,.7fr) minmax(130px,.7fr) auto;gap:8px;margin-top:13px}
+.admin-edition-form button{white-space:nowrap}
+@media(max-width:700px){.admin-event-form{grid-template-columns:1fr}.admin-event-form label:nth-child(2),.admin-event-form label:nth-child(3){grid-column:auto}.admin-edition-form{grid-template-columns:1fr 1fr}.admin-edition-form input:first-child{grid-column:1/-1}.admin-edition-form button{grid-column:1/-1}.admin-event-card-head{align-items:flex-start}}
