@@ -127,10 +127,11 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     // Keep the legacy links as a fallback until all environments have been migrated.
     try {
       const relationalLinks = await env.DB.prepare(
-        "SELECT er.legacy_environment AS edition_id, er.legacy_registration_id AS registration_id FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id WHERE fm.user_id = ? AND er.legacy_environment IS NOT NULL AND er.legacy_registration_id IS NOT NULL"
+        "SELECT er.legacy_environment AS edition_id, er.legacy_registration_id AS registration_id, e.name AS event_name, d.label AS edition_label, fm.role AS membership_role FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE fm.user_id = ? AND er.legacy_environment IS NOT NULL AND er.legacy_registration_id IS NOT NULL"
       ).bind(session.user_id).all();
       for (const link of relationalLinks.results || []) {
-        linksByKey.set(link.edition_id + ":" + link.registration_id, link);
+        const key = link.edition_id + ":" + link.registration_id;
+        linksByKey.set(key, { ...linksByKey.get(key), ...link });
       }
     } catch (error) {
       // The relational schema may not yet be installed; legacy account links remain authoritative.
@@ -151,7 +152,9 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       }));
       registrations.push({
         edition: link.edition_id,
-        event: data.activeEvent?.name || data.activeEvent?.title || "Evenement",
+        editionLabel: link.edition_label || (link.edition_id === "test" ? "Testeditie" : "Live-editie"),
+        event: link.event_name || data.activeEvent?.name || data.activeEvent?.title || "Evenement",
+        accessRole: link.membership_role || "editor",
         registration: {
           id: registration.id,
           name: registration.name || "",
