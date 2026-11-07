@@ -62,7 +62,7 @@ async function loadNormalizedFamilies() {
     }
     target.innerHTML = families.map(family => {
       const accounts = family.accounts.map(account =>
-        '<span class="family-user-link"><span>'+escapeHtml(account.displayName || account.email)+' · '+escapeHtml(account.email)+'</span><small>'+escapeHtml(({owner:"Beheerder",editor:"Bewerker",viewer:"Lezer"})[account.role] || account.role || "Geen rol")+' · '+escapeHtml(account.status || "")+'</small></span>'
+        '<span class="family-user-link"><span>'+escapeHtml(account.displayName || account.email)+' · '+escapeHtml(account.email)+'</span><select aria-label="Familierol" data-normalized-membership-role data-family-id="'+escapeHtml(family.id)+'" data-user-id="'+escapeHtml(account.id)+'" data-previous-role="'+escapeHtml(account.role || "editor")+'"><option value="owner" '+(account.role==="owner"?"selected":"")+'>Beheerder</option><option value="editor" '+(account.role==="editor"?"selected":"")+'>Bewerker</option><option value="viewer" '+(account.role==="viewer"?"selected":"")+'>Lezer</option></select><button type="button" data-normalized-membership-remove data-family-id="'+escapeHtml(family.id)+'" data-user-id="'+escapeHtml(account.id)+'" aria-label="Account loskoppelen">×</button><small>'+escapeHtml(account.status || "")+'</small></span>'
       ).join("");
       const registrations = family.registrations.map(item =>
         '<div class="family-normalized-registration"><strong>'+escapeHtml(item.event || "Evenement")+'</strong><span>'+escapeHtml(item.edition || "Editie")+' · '+escapeHtml(item.name || "Inschrijving")+'</span><small>'+escapeHtml(item.status || "")+' · '+escapeHtml(item.financeStrategy || "geen financiële strategie")+(item.invalidData ? " · gegevens nakijken" : "")+'</small></div>'
@@ -114,6 +114,38 @@ export function initAdminUsersSection() {
       const target = root.querySelector("[data-normalized-family-feedback]");
       if (target) target.textContent = error.message;
     } finally { button.disabled = false; }
+  });
+  root.querySelector("[data-normalized-families]")?.addEventListener("change", async event => {
+    const select = event.target.closest("[data-normalized-membership-role]");
+    if (!select) return;
+    const previous = select.dataset.previousRole || "editor";
+    select.disabled = true;
+    try {
+      await api("/api/admin/families/"+encodeURIComponent(select.dataset.familyId)+"/memberships/"+encodeURIComponent(select.dataset.userId), { method: "PATCH", body: JSON.stringify({ role: select.value }) });
+      select.dataset.previousRole = select.value;
+      const target = root.querySelector("[data-normalized-family-feedback]");
+      if (target) target.textContent = "Familierol aangepast.";
+    } catch (error) {
+      select.value = previous;
+      const target = root.querySelector("[data-normalized-family-feedback]");
+      if (target) target.textContent = error.message;
+    } finally { select.disabled = false; }
+  });
+  root.querySelector("[data-normalized-families]")?.addEventListener("click", async event => {
+    const button = event.target.closest("[data-normalized-membership-remove]");
+    if (!button) return;
+    if (!window.confirm("Dit account loskoppelen van deze familie? Het account en de inschrijvingen blijven behouden.")) return;
+    button.disabled = true;
+    try {
+      await api("/api/admin/families/"+encodeURIComponent(button.dataset.familyId)+"/memberships/"+encodeURIComponent(button.dataset.userId), { method: "DELETE" });
+      const target = root.querySelector("[data-normalized-family-feedback]");
+      if (target) target.textContent = "Account losgekoppeld van de familie.";
+      await loadNormalizedFamilies();
+    } catch (error) {
+      const target = root.querySelector("[data-normalized-family-feedback]");
+      if (target) target.textContent = error.message;
+      button.disabled = false;
+    }
   });
   root.querySelector("[data-add-normalized-member]")?.addEventListener("submit", async event => {
     event.preventDefault();
