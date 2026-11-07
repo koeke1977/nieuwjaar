@@ -215,7 +215,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
           env.DB.prepare("INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
             .bind(inviteId, user.id, await sha256(token), now, now + 7 * 24 * 60 * 60)
         ]);
-        const inviteUrl = "https://nieuwjaar.datuur.be/familie/" + token;
+        const inviteUrl = "https://nieuwjaar.datuur.be/familie/activeren/" + token;
         const html = '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Toegang tot een familie-inschrijving</h2><p>Dag ' + escapeHtml(displayName) + ',</p><p><a href="' + inviteUrl + '">Activeer je account</a></p><p>Deze link is 7 dagen geldig.</p></div>';
         await sendGraphMail(env, email, "Uitnodiging familieportaal", html);
       } catch (error) {
