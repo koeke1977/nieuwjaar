@@ -165,17 +165,17 @@ test("the edition date and time are saved for the countdown", async () => {
   assert.equal((await saveEditionState({ DB }, "ed1", { base: payload(result.state), data: { ...payload(result.state), startsAt: "morgen" } }, NOW)).status, 400);
 });
 
-test("tally marks and the order deadline are saved by the admin", async () => {
+test("bar bills and the order deadline are saved by the admin", async () => {
   const DB = setup();
   const base = payload(await loadEditionState({ DB }, "ed1"));
   const data = clone(base);
   data.orderDeadline = "2026-12-20T23:59";
-  data.registrations[0].members[0].drinks = 12;
+  data.registrations[0].members[0].barCents = 2100;
   data.expenses.push({ id: "bar1", description: "Drank", amountCents: 5000, date: "2026-12-01", method: "bar", advancedBy: "kas" });
   const result = await saveEditionState({ DB }, "ed1", { base, data }, NOW);
   assert.equal(result.status, 200, result.error);
   assert.equal(result.state.orderDeadline, "2026-12-20T23:59");
-  assert.equal(result.state.registrations[0].members[0].drinks, 12);
+  assert.equal(result.state.registrations[0].members[0].barCents, 2100);
   assert.equal(result.state.expenses[0].method, "bar");
 });
 

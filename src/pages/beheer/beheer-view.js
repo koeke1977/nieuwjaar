@@ -34,7 +34,7 @@ function refundForm(registrationId, creditCents, compact = true) {
 }
 const METHOD_SHORT = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" };
 const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖", bar: "🍺" };
-const METHOD_HINT = { general: "Iedereen, ook kinderen (bv. zaal, decoratie, frisdrank)", adults: "Alleen volwassenen (bv. alcohol, cava)", meat: "Volgens bestelde porties" , bar: "Volgens de streepjes aan de bar (aankoop drank voor de open bar)" };
+const METHOD_HINT = { general: "Iedereen, ook kinderen (bv. zaal, decoratie, frisdrank)", adults: "Alleen volwassenen (bv. alcohol, cava)", meat: "Volgens bestelde porties" , bar: "Aankoop drank voor de open bar (niet verdeeld: gedekt door de persoonlijke barrekeningen)" };
 
 // ---- External data provided by app.js (accounts and personal links) ----
 let families = [];
@@ -225,7 +225,7 @@ function renderFamilyDetail(registration) {
   const payments = (state.payments || []).filter(payment => payment.registrationId === registration.id);
 
   const settlement = finance.expenses.length
-    ? '<ul class="bh-lines">' + finance.categories.map(category => '<li><span>' + METHOD_ICON[category.method] + ' ' + esc(category.label) + ' <small>' + category.familyUnits + "/" + category.totalUnits + " " + (category.method === "meat" ? "porties" : category.method === "adults" ? "volwassenen" : "personen") + '</small></span><b>' + euro(category.familyCents) + '</b></li>').join("") +
+    ? '<ul class="bh-lines">' + finance.categories.map(category => '<li><span>' + METHOD_ICON[category.method] + ' ' + esc(category.label) + ' <small>' + (category.personal ? "persoonlijke barrekening" : category.familyUnits + "/" + category.totalUnits) + " " + (category.method === "meat" ? "porties" : category.method === "adults" ? "volwassenen" : "personen") + '</small></span><b>' + euro(category.familyCents) + '</b></li>').join("") +
       '<li class="bh-line-strong"><span>Aandeel van het gezin</span><b>' + euro(t.shareCents) + '</b></li>' +
       (t.advancedCents ? '<li><span>Min: voorgeschoten</span><b>− ' + euro(t.advancedCents) + '</b></li>' : "") +
       (t.paidCents ? '<li><span>Min: betaald</span><b>− ' + euro(t.paidCents) + '</b></li>' : "") +
@@ -291,19 +291,18 @@ function orderForFamilyCard() {
 
 function renderBar() {
   const regs = state.registrations || [];
-  const drinksOf = person => Math.max(0, Number(person.drinks) || 0);
-  const total = regs.reduce((sum, reg) => sum + (reg.members || []).reduce((s, p) => s + drinksOf(p), 0), 0);
-  const barCosts = (state.expenses || []).filter(expense => expense.method === "bar").reduce((sum, expense) => sum + (Number(expense.amountCents) || 0), 0);
-  const perDrink = total ? barCosts / total : 0;
+  const barOf = person => Math.max(0, Number(person.barCents) || 0);
+  const charged = regs.reduce((sum, reg) => sum + (reg.members || []).reduce((s, p) => s + barOf(p), 0), 0);
+  const purchases = (state.expenses || []).filter(expense => expense.method === "bar").reduce((sum, expense) => sum + (Number(expense.amountCents) || 0), 0);
+  const difference = charged - purchases;
   const cards = regs.map(reg => {
-    const familyDrinks = (reg.members || []).reduce((s, p) => s + drinksOf(p), 0);
-    const rows = (reg.members || []).map(person => '<div class="bh-stepper-row"><span>' + esc(person.name) + (person.type === "Kind" ? ' <small class="bh-muted">(kind)</small>' : "") + '</span><div class="bh-stepper"><button type="button" data-action="admin-drinks" data-registration="' + esc(reg.id) + '" data-person="' + esc(person.id) + '" data-delta="-1" aria-label="Eén minder voor ' + esc(person.name) + '"' + (drinksOf(person) ? "" : " disabled") + '>−</button><input class="bh-drinks-input" type="number" min="0" max="9999" inputmode="numeric" value="' + drinksOf(person) + '" data-drinks-input data-registration="' + esc(reg.id) + '" data-person="' + esc(person.id) + '" aria-label="Streepjes van ' + esc(person.name) + '"><button type="button" data-action="admin-drinks" data-registration="' + esc(reg.id) + '" data-person="' + esc(person.id) + '" data-delta="1" aria-label="Eén meer voor ' + esc(person.name) + '">+</button></div></div>').join("");
-    return '<details class="bh-member"' + (familyDrinks ? "" : " open") + '><summary><span class="bh-avatar bh-avatar-sm">' + esc((reg.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(reg.name) + '</strong><small>' + plural((reg.members || []).length, "persoon", "personen") + '</small></span><span class="bh-chip' + (familyDrinks ? " bh-chip-ok" : "") + '">🍺 ' + familyDrinks + '</span>' + (perDrink ? '<b class="bh-family-money">' + euro(Math.round(familyDrinks * perDrink)) + '</b>' : "") + '<i class="bh-chev" aria-hidden="true">›</i></summary><div class="bh-member-body">' + (rows || '<p class="bh-empty">Nog geen gezinsleden.</p>') + '</div></details>';
+    const familyBar = (reg.members || []).reduce((s, p) => s + barOf(p), 0);
+    const rows = (reg.members || []).map(person => '<div class="bh-stepper-row"><span>' + esc(person.name) + (person.type === "Kind" ? ' <small class="bh-muted">(kind)</small>' : "") + '</span><label class="bh-bar-amount"><span aria-hidden="true">€</span><input type="number" min="0" step="0.01" inputmode="decimal" value="' + (barOf(person) ? (barOf(person) / 100).toFixed(2) : "") + '" placeholder="0,00" data-bar-input data-registration="' + esc(reg.id) + '" data-person="' + esc(person.id) + '" aria-label="Barrekening van ' + esc(person.name) + '"></label></div>').join("");
+    return '<details class="bh-member"' + (familyBar ? "" : " open") + '><summary><span class="bh-avatar bh-avatar-sm">' + esc((reg.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(reg.name) + '</strong><small>' + plural((reg.members || []).length, "persoon", "personen") + '</small></span><span class="bh-chip' + (familyBar ? " bh-chip-ok" : "") + '">🍺 ' + euro(familyBar) + '</span><i class="bh-chev" aria-hidden="true">›</i></summary><div class="bh-member-body">' + (rows || '<p class="bh-empty">Nog geen gezinsleden.</p>') + '</div></details>';
   }).join("");
-  return pageHead("Bar", "Open bar met streepjes: tel na het feest per persoon de streepjes en vul ze hier in.") +
-    '<section class="bh-kpis bh-kpis-4">' + kpi(total, "consumpties") + kpi(euro(barCosts), "drankkosten bar") + kpi(perDrink ? euro(Math.round(perDrink)) : "–", "per consumptie") + kpi(regs.filter(reg => (reg.members || []).some(p => drinksOf(p))).length + "/" + regs.length, "gezinnen geteld") + '</section>' +
-    '<section class="bh-card"><p class="bh-note">Zo werkt het: voer de aankoop van de drank in bij Financiën als kost van het soort <strong>🍺 Bar (volgens streepjes)</strong>. Vul hieronder de streepjes per persoon in. De drankkosten worden dan verdeeld volgens het aantal consumpties, net zoals het vlees volgens de porties. Gezinnen zien hun deel in hun afrekening.</p>' +
-      (barCosts ? "" : '<p class="bh-alert bh-alert-info">Er is nog geen drankkost van het soort Bar ingevoerd. <button type="button" class="bh-link" data-action="edition-tab" data-tab="finance">Naar Financiën</button></p>') + '</section>' +
+  return pageHead("Bar", "Na het feest: vul per persoon het bedrag van zijn of haar barrekening in. Dat bedrag komt rechtstreeks op de afrekening van dat gezin.") +
+    '<section class="bh-kpis bh-kpis-4">' + kpi(euro(charged), "aangerekend") + kpi(euro(purchases), "aankopen bar") + kpi((difference >= 0 ? "+ " : "− ") + euro(Math.abs(difference)), difference >= 0 ? "overschot voor de kas" : "tekort voor de kas") + kpi(regs.filter(reg => (reg.members || []).some(p => barOf(p))).length + "/" + regs.length, "gezinnen ingevuld") + '</section>' +
+    '<section class="bh-card"><p class="bh-note">Elke persoon betaalt zijn eigen drankjes: het bedrag wordt <strong>niet verdeeld</strong> over de anderen. Kocht iemand de drank voor de bar aan? Voer die aankoop in bij Financiën als kost van het soort <strong>🍺 Aankoop voor de bar</strong>: die persoon krijgt het geld terug via de afrekening, en de aankoop zelf wordt gedekt door de barrekeningen.</p></section>' +
     (cards ? '<div class="bh-members">' + cards + '</div>' : '<p class="bh-empty">Nog geen inschrijvingen.</p>');
 }
 
@@ -363,7 +362,9 @@ function renderFinance() {
   }).join("");
 
   const shareTotal = t.summary.reduce((sum, row) => sum + row.shareCents, 0);
-  const balanced = shareTotal === t.costs;
+  const splitShares = shareTotal - t.summary.reduce((sum, row) => sum + (row.barCents || 0), 0);
+  const splitCosts = (state.expenses || []).filter(expense => expense.method !== "bar").reduce((sum, expense) => sum + (Number(expense.amountCents) || 0), 0);
+  const balanced = splitShares === splitCosts;
   const settlementRows = t.summary.map(row => {
     const credit = row.creditCents;
     return '<tr><th scope="row"><button type="button" class="bh-link" data-action="open-family" data-id="' + esc(row.id) + '">' + esc(row.name) + '</button></th><td>' + euro(row.shareCents) + '</td><td>' + (row.advancedCents ? euro(row.advancedCents) : '<span class="bh-dim">–</span>') + '</td><td>' + (row.paidCents ? euro(row.paidCents) : '<span class="bh-dim">–</span>') + '</td><td class="' + (row.remainingCents ? "bh-due" : credit ? "bh-credit" : "") + '"><b>' + (row.remainingCents ? euro(row.remainingCents) + " te betalen" : credit ? euro(credit) + " terug" : "In orde") + '</b></td></tr>';
@@ -384,7 +385,7 @@ function renderFinance() {
         (t.summary.some(row => row.creditCents > 0) ? '<details class="bh-add"><summary>+ Terugbetaling registreren</summary><p class="bh-note">Geld dat je teruggeeft aan een gezin dat meer voorschoot dan zijn aandeel.</p><form id="add-refund-form" class="bh-form-grid"><label class="bh-span-2">Aan<select name="registrationId" required><option value="">Kies een gezin</option>' + t.summary.filter(row => row.creditCents > 0).map(row => '<option value="' + esc(row.id) + '">' + esc(row.name) + ' — ' + euro(row.creditCents) + ' terug te geven</option>').join("") + '</select></label><label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Datum<input name="date" type="date" value="' + today() + '" required></label><label class="bh-span-2">Wijze<select name="method"><option value="cash">Cash</option><option value="bank">Overschrijving</option></select></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Terugbetaling registreren</button></div></form></details>' : "") +
       '</section>' +
     '</div>' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Afrekening per gezin</h2><span class="bh-chip ' + (balanced ? "bh-chip-ok" : "bh-chip-due") + '">' + (balanced ? "✓ Sluitend: alle kosten zijn verdeeld" : "Niet sluitend: " + euro(t.costs - shareTotal) + " niet verdeeld") + '</span></header>' +
+    '<section class="bh-card"><header class="bh-card-head"><h2>Afrekening per gezin</h2><span class="bh-chip ' + (balanced ? "bh-chip-ok" : "bh-chip-due") + '">' + (balanced ? "✓ Sluitend: alle kosten zijn verdeeld" : "Niet sluitend: " + euro(splitCosts - splitShares) + " niet verdeeld") + '</span></header>' +
       (regs.length ? '<div class="bh-table-wrap"><table class="bh-table bh-table-money"><thead><tr><th>Gezin</th><th>Aandeel</th><th>Voorgeschoten</th><th>Betaald</th><th>Saldo</th></tr></thead><tbody>' + settlementRows + '</tbody><tfoot><tr><th>Totaal</th><th>' + euro(shareTotal) + '</th><th>' + euro(t.summary.reduce((s, r) => s + r.advancedCents, 0)) + '</th><th>' + euro(t.received) + '</th><th></th></tr></tfoot></table></div>' : '<p class="bh-empty">Nog geen gezinnen.</p>') +
       (balanced ? "" : '<p class="bh-note">Een kost wordt niet verdeeld als niemand in aanmerking komt, bv. een vleeskost terwijl nog niemand vlees bestelde, of een 18+-kost zonder volwassenen.</p>') +
     '</section>';

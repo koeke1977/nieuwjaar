@@ -314,3 +314,7 @@ button.bh-kpi:hover { border-color: #cdd3dc; }
 .bh-diet-edit legend { padding: 0 4px; color: var(--bh-muted); font-size: 12px; font-weight: 700; }
 .bh-diet-edit label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
 .bh-member-edit .bh-span-2 { grid-column: 1 / -1; }
+
+/* Personal bar bill per person */
+.bh-bar-amount { display: inline-flex; align-items: center; gap: 6px; color: var(--bh-muted); font-weight: 700; }
+.bh-app .bh-bar-amount input { width: 110px; min-height: 40px; text-align: right; font-variant-numeric: tabular-nums; }

@@ -177,7 +177,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
         id: person.id, name: person.name, type: person.type,
         orders: person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {},
         diet: Array.isArray(person.diet) ? person.diet : [], notes: typeof person.notes === "string" ? person.notes : "",
-        drinks: Math.max(0, Number(person.drinks) || 0)
+        barCents: Math.max(0, Number(person.barCents) || 0)
       }));
       const own = { id: row.registration_id, name: registration.name || "", members,
         adults: members.filter(person => person.type === "Volwassene").length, children: members.filter(person => person.type === "Kind").length };
@@ -271,15 +271,15 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
         if (closed && quantity !== (Number(stored.get(person.id)?.orders?.[productId]) || 0)) return json({ error: closedMessage(config.orderDeadline), ordersClosed: true }, 409);
         orders[productId] = quantity;
       }
-      const drinks = Math.max(0, Number(stored.get(person.id)?.drinks) || 0); // tally marks: only the organisation
-      const member = withDiet({ id: person.id, name: person.name.trim(), type: person.type, orders, ...(drinks ? { drinks } : {}) }, person);
+      const barCents = Math.max(0, Number(stored.get(person.id)?.barCents) || 0); // bar bill: only the organisation
+      const member = withDiet({ id: person.id, name: person.name.trim(), type: person.type, orders, ...(barCents ? { barCents } : {}) }, person);
       if (!member) return json({ error: "Controleer de allergieën en opmerkingen (maximaal 200 tekens)." }, 400);
       members.push(member);
     }
     if (closed) {
       for (const [id, person] of stored) {
         const ordered = Object.values(person.orders || {}).some(qty => Number(qty) > 0);
-        if (!memberIds.has(id) && (ordered || Number(person.drinks) > 0)) return json({ error: closedMessage(config.orderDeadline), ordersClosed: true }, 409);
+        if (!memberIds.has(id) && (ordered || Number(person.barCents) > 0)) return json({ error: closedMessage(config.orderDeadline), ordersClosed: true }, 409);
       }
     }
     const updatedRegistration = { ...registration, members,

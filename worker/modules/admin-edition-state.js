@@ -82,9 +82,10 @@ function cleanMembers(members) {
       if (!PRODUCT_ID.test(productId) || !Number.isInteger(quantity) || quantity < 0 || quantity > 99) return null;
       orders[productId] = quantity;
     }
-    const drinks = person.drinks == null ? 0 : Number(person.drinks);
-    if (!Number.isInteger(drinks) || drinks < 0 || drinks > 9999) return null;
-    const clean = withDiet({ id: person.id, name, type: person.type, orders, ...(drinks ? { drinks } : {}) }, person);
+    // Personal bar bill in cents (entered by the organisation).
+    const barCents = person.barCents == null ? 0 : Number(person.barCents);
+    if (!Number.isSafeInteger(barCents) || barCents < 0 || barCents > 10_000_000) return null;
+    const clean = withDiet({ id: person.id, name, type: person.type, orders, ...(barCents ? { barCents } : {}) }, person);
     if (!clean) return null;
     out.push(clean);
   }

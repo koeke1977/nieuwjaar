@@ -11,7 +11,7 @@ const memberPayload = person => ({
   id: person.id, name: person.name, type: person.type, orders: { ...(person.orders || {}) },
   ...((person.diet || []).length ? { diet: [...person.diet] } : {}),
   ...(person.notes ? { notes: person.notes } : {}),
-  ...(Number(person.drinks) > 0 ? { drinks: Number(person.drinks) } : {})
+  ...(Number(person.barCents) > 0 ? { barCents: Number(person.barCents) } : {})
 });
 const registrationPayload = reg => ({
   id: reg.id, familyId: reg.familyId || null, name: reg.name,

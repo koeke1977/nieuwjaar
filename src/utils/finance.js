@@ -5,8 +5,7 @@ export function getRegistrationCounts(registration) {
       people: Math.max(0, Number(registration.aggregateCounts.people) || 0),
       adults: Math.max(0, Number(registration.aggregateCounts.adults) || 0),
       children: Math.max(0, Number(registration.aggregateCounts.children) || 0),
-      meat: Math.max(0, Number(registration.aggregateCounts.meat) || 0),
-      drinks: Math.max(0, Number(registration.aggregateCounts.drinks) || 0)
+      meat: Math.max(0, Number(registration.aggregateCounts.meat) || 0)
     };
   }
   const members = registration.members || [];
@@ -16,23 +15,23 @@ export function getRegistrationCounts(registration) {
       adults: members.filter(person => person.type === "Volwassene").length,
       children: members.filter(person => person.type === "Kind").length,
       meat: members.reduce((sum, person) =>
-        sum + Object.values(person.orders || {}).reduce((personSum, qty) => personSum + Math.max(0, Number(qty) || 0), 0), 0),
-      drinks: members.reduce((sum, person) => sum + memberDrinks(person), 0)
+        sum + Object.values(person.orders || {}).reduce((personSum, qty) => personSum + Math.max(0, Number(qty) || 0), 0), 0)
     };
   }
   return {
     people: (Number(registration.adults) || 0) + (Number(registration.children) || 0),
     adults: Number(registration.adults) || 0,
     children: Number(registration.children) || 0,
-    meat: 0,
-    drinks: 0
+    meat: 0
   };
 }
 
-// Open bar: consumptions tallied per person ("streepjes"), entered by the organisation.
-export function memberDrinks(member) {
-  return Math.max(0, Math.floor(Number(member?.drinks) || 0));
+// Open bar: a personal bar bill per person (in cents), entered by the organisation after the
+// party. It is charged directly to that person; it is not split over anyone else.
+export function memberBarCents(member) {
+  return Math.max(0, Math.floor(Number(member?.barCents) || 0));
 }
+const registrationBarCents = registration => (registration?.members || []).reduce((sum, person) => sum + memberBarCents(person), 0);
 
 // Largest-remainder verdeling: som van shares is altijd exact amountCents.
 export function splitCents(amountCents, weightedRows, { strict = false } = {}) {
@@ -63,8 +62,7 @@ export function getExpenseShares(expense, registrations, { strict = false } = {}
     const counts = getRegistrationCounts(registration);
     const weight = expense.method === "general" ? counts.people
       : expense.method === "adults" ? counts.adults
-      : expense.method === "meat" ? counts.meat
-      : expense.method === "bar" ? counts.drinks : 0;
+      : expense.method === "meat" ? counts.meat : 0;
     return { id: registration.id, weight };
   }).filter(row => row.weight > 0);
   return splitCents(expense.amountCents, weightedRows, { strict });
@@ -82,6 +80,10 @@ export function getFinancialSummary(registrations, expenses, payments = []) {
       const row = byId.get(share.id);
       if (row) row.shareCents += share.cents;
     }
+  }
+  for (const registration of registrations) {
+    const row = byId.get(registration.id);
+    if (row) { row.barCents = registrationBarCents(registration); row.shareCents += row.barCents; }
   }
   // A payment is money a family paid in; kind "refund" is money paid back to a family.
   for (const payment of (Array.isArray(payments) ? payments : [])) {
@@ -116,8 +118,7 @@ function memberPortions(member) {
 function memberWeight(member, method) {
   return method === "general" ? 1
     : method === "adults" ? (member.type === "Volwassene" ? 1 : 0)
-    : method === "meat" ? memberPortions(member)
-    : method === "bar" ? memberDrinks(member) : 0;
+    : method === "meat" ? memberPortions(member) : 0;
 }
 
 // Verdeel het aandeel van één inschrijving in één kost over haar leden.
@@ -141,14 +142,15 @@ export function getMemberCostSummary(registration, registrations = [], expenses 
       totals.set(share.id, (totals.get(share.id) || 0) + share.cents);
     }
   }
-  return members.map(member => ({ id: member.id, name: member.name, cents: totals.get(member.id) || 0 }));
+  return members.map(member => ({ id: member.id, name: member.name, cents: (totals.get(member.id) || 0) + memberBarCents(member) }));
 }
 
 export const COST_METHODS = {
   general: { label: "Algemene kosten", appliesTo: "Iedereen, ook kinderen", unit: ["persoon", "personen"] },
   adults: { label: "Kosten voor volwassenen (18+)", appliesTo: "Alleen volwassenen", unit: ["volwassene", "volwassenen"] },
   meat: { label: "Vlees", appliesTo: "Volgens het aantal bestelde porties", unit: ["portie", "porties"] },
-  bar: { label: "Bar (volgens streepjes)", appliesTo: "Volgens het aantal genomen consumpties", unit: ["consumptie", "consumpties"] }
+  // Purchases for the bar are not split: the personal bar bills cover them.
+  bar: { label: "Bar", appliesTo: "Persoonlijke barrekening per persoon", unit: ["persoon", "personen"] }
 };
 
 // Volledige, uitlegbare afrekening van één inschrijving. Bevat alleen gegevens van
@@ -159,13 +161,13 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
   const ownCounts = getRegistrationCounts(registration);
   const eventCounts = registrations.reduce((sum, item) => {
     const counts = getRegistrationCounts(item);
-    return { people: sum.people + counts.people, adults: sum.adults + counts.adults, meat: sum.meat + counts.meat, drinks: sum.drinks + counts.drinks };
-  }, { people: 0, adults: 0, meat: 0, drinks: 0 });
-  const unitsFor = (counts, method) => method === "general" ? counts.people : method === "adults" ? counts.adults : method === "meat" ? counts.meat : method === "bar" ? counts.drinks : 0;
+    return { people: sum.people + counts.people, adults: sum.adults + counts.adults, meat: sum.meat + counts.meat };
+  }, { people: 0, adults: 0, meat: 0 });
+  const unitsFor = (counts, method) => method === "general" ? counts.people : method === "adults" ? counts.adults : method === "meat" ? counts.meat : 0;
 
   const memberRows = new Map(members.map(member => [member.id, {
     id: member.id, name: member.name, type: member.type, portions: memberPortions(member),
-    drinks: memberDrinks(member), totalCents: 0, byMethod: { general: 0, adults: 0, meat: 0, bar: 0 }
+    barCents: memberBarCents(member), totalCents: memberBarCents(member), byMethod: { general: 0, adults: 0, meat: 0, bar: memberBarCents(member) }
   }]));
   const categories = new Map();
   const expenseRows = [];
@@ -174,6 +176,11 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
     if (!expense || !COST_METHODS[expense.method]) continue;
     const amountCents = Number(expense.amountCents) || 0;
     if (expense.advancedBy === registration.id) advancedCents += amountCents;
+    // A bar purchase is not a shared cost; only the family that advanced it sees it (in its own costs).
+    if (expense.method === "bar") {
+      if (expense.advancedBy === registration.id) expenseRows.push({ id: expense.id, description: expense.description || "Aankoop bar", date: expense.date || null, method: "bar", amountCents, familyCents: 0, familyUnits: 0, totalUnits: 0, advancedByUs: true, enteredByFamily: expense.enteredBy === "family", receipt: expense.receipt || null, members: [], notShared: true });
+      continue;
+    }
     const familyCents = getExpenseShares(expense, registrations).find(share => share.id === registration.id)?.cents || 0;
     const memberShares = getMemberExpenseShares(familyCents, members, expense.method);
     for (const share of memberShares) {
@@ -197,6 +204,11 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
     category.amountCents += amountCents;
     category.familyCents += familyCents;
     categories.set(expense.method, category);
+  }
+  const familyBar = registrationBarCents(registration);
+  if (familyBar > 0) {
+    categories.set("bar", { method: "bar", ...COST_METHODS.bar, personal: true, amountCents: familyBar, familyCents: familyBar, familyUnits: 0, totalUnits: 0,
+      perMember: members.filter(member => memberBarCents(member) > 0).map(member => ({ id: member.id, name: member.name, cents: memberBarCents(member) })) });
   }
   const paymentRows = (Array.isArray(payments) ? payments : [])
     .filter(payment => payment && payment.registrationId === registration.id)

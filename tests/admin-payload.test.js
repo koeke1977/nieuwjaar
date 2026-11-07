@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { payloadFrom } from "../src/data/environment-store.js";
 
 test("the admin save payload keeps every stored member field (allergies, notes)", () => {
-  const person = { id: "p1", name: "Emma", type: "Kind", orders: { steak: 1 }, diet: ["Glutenvrij"], notes: "geen pikant", drinks: 7 };
+  const person = { id: "p1", name: "Emma", type: "Kind", orders: { steak: 1 }, diet: ["Glutenvrij"], notes: "geen pikant", barCents: 2100 };
   const payload = payloadFrom({ editionId: "ed", registrations: [{ id: "r1", familyId: "f1", name: "Gezin", members: [person], revision: 3 }], catalog: [], expenses: [], payments: [] });
   assert.deepEqual(payload.registrations[0].members[0], person);
 });

@@ -221,10 +221,10 @@ test("after the order deadline a family cannot change its order, but can still e
   assert.equal(removeOrdered.status, 409, "removing a person with an order is also blocked");
 });
 
-test("tally marks are kept when a family saves and cannot be changed by the family", async () => {
+test("a personal bar bill is kept when a family saves and cannot be changed by the family", async () => {
   const DB = await setup();
-  DB.raw.prepare("UPDATE event_registrations SET data_json = ? WHERE id = 'ra'").run(JSON.stringify({ name: "A", members: [{ ...member("a1", 1), drinks: 6 }] }));
-  const result = await save(DB, "ua", "ra", [{ ...member("a1", 2), drinks: 0 }]);
+  DB.raw.prepare("UPDATE event_registrations SET data_json = ? WHERE id = 'ra'").run(JSON.stringify({ name: "A", members: [{ ...member("a1", 1), barCents: 2100 }] }));
+  const result = await save(DB, "ua", "ra", [{ ...member("a1", 2), barCents: 0 }]);
   assert.equal(result.status, 200, JSON.stringify(result.body));
-  assert.equal(JSON.parse(row(DB, "ra").data_json).members[0].drinks, 6);
+  assert.equal(JSON.parse(row(DB, "ra").data_json).members[0].barCents, 2100);
 });

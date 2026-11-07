@@ -186,14 +186,6 @@ function handleClick(event) {
   if (type === "rename-registration") { go({ beheerRenaming: true }); document.querySelector("#rename-registration-form input")?.focus(); return; }
   if (type === "cancel-rename") { go({ beheerRenaming: false }); return; }
 
-  if (type === "admin-drinks") {
-    const registration = state.registrations.find(item => item.id === action.dataset.registration);
-    const person = registration?.members?.find(item => item.id === action.dataset.person);
-    if (!person) return;
-    const next = Math.max(0, Math.min(9999, (Number(person.drinks) || 0) + Number(action.dataset.delta)));
-    if (next) person.drinks = next; else delete person.drinks;
-    renderApp(); return;
-  }
   if (type === "message-template") {
     const template = MESSAGE_TEMPLATES[action.dataset.template];
     const form = document.querySelector("#family-message-form");
@@ -490,7 +482,7 @@ async function handleSubmit(event) {
     }
     const existing = id === "edit-expense-form" ? state.expenses.find(item => item.id === state.editingExpenseId) : null;
     const expense = { id: existing?.id || makeId("kost"), description, amountCents, date, method, advancedBy };
-    // Bar costs are divided once the tally marks are in, so they may be entered beforehand.
+    // Bar purchases are not divided (the personal bar bills cover them).
     if (method !== "bar") { try { getExpenseShares(expense, state.registrations, { strict: true }); } catch (error) { window.alert(error.message); return; } }
     if (existing) Object.assign(existing, expense); else state.expenses.push(expense);
     state.editingExpenseId = null; markCostsProvisional(); renderApp(); return;
@@ -532,14 +524,16 @@ async function handleSubmit(event) {
   }
 }
 
-function handleDrinksInput(event) {
-  const input = event.target.closest?.("[data-drinks-input]");
+// Personal bar bill typed in euros on the Bar tab.
+function handleBarInput(event) {
+  const input = event.target.closest?.("[data-bar-input]");
   if (!input) return;
   const registration = state.registrations.find(item => item.id === input.dataset.registration);
   const person = registration?.members?.find(item => item.id === input.dataset.person);
   if (!person) return;
-  const value = Math.max(0, Math.min(9999, Math.floor(Number(input.value) || 0)));
-  if (value) person.drinks = value; else delete person.drinks;
+  const cents = Math.round(Math.max(0, Math.min(100000, Number(String(input.value).replace(",", ".")) || 0)) * 100);
+  if (cents) person.barCents = cents; else delete person.barCents;
+  markCostsProvisional();
   renderApp();
 }
 function rememberMessageDraft(event) {
@@ -587,7 +581,7 @@ export async function startApp() {
   document.addEventListener("click", handleClick);
   document.addEventListener("submit", handleSubmit);
   document.addEventListener("change", handleImageUpload);
-  document.addEventListener("change", handleDrinksInput);
+  document.addEventListener("change", handleBarInput);
   document.addEventListener("input", rememberMessageDraft);
   document.addEventListener("toggle", event => {
     const details = event.target.closest?.("[data-member-id]"); if (!details) return;
