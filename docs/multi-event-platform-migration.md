@@ -152,3 +152,14 @@ De backfill-endpoint voert nu zelf de kritieke preflight uit; de browser-preview
 De preview toont dezelfde blokkades vóór de gebruiker de migratie kan starten. Eén backfill wordt begrensd op maximaal 1.000 prepared statements om binnen een beheersbare transactie te blijven. Cloudflare documenteert een limiet van 30 seconden voor de volledige D1-batch; er is geen gedocumenteerde vaste limiet op het aantal statements zelf. Boven de lokale veiligheidsgrens stopt de endpoint zonder writes. Zie de [officiële D1-limieten](https://developers.cloudflare.com/d1/platform/limits/).
 
 **Belangrijk:** dit is codecontrole, geen uitvoering op de echte D1-database. De backfill mag pas worden uitgevoerd na remote backup en nadat de preview op de doelomgeving groen is. De oude snapshots blijven behouden.
+
+
+## Familieaccount-portaal — verdere compatibiliteitsstap
+
+- De account-sessie geeft voor reeds overgenomen inschrijvingen nu de evenementnaam, de editienaam en de membershiprol terug vanuit de relationele eventtabellen.
+- Het portaal toont de echte editienaam in plaats van uitsluitend de labels TESTEDITIE/LIVE-EDITIE.
+- Een membership met rol `viewer` krijgt geen bestelknoppen of formulier om deelnemers toe te voegen. De API blijft de rol onafhankelijk controleren bij iedere schrijfaanvraag.
+- Aanpassingen via de account-API worden tijdens de overgang in één D1-batch naar de oude `app_state`-snapshot en de relationele `event_registrations.data_json` geschreven. De optimistic revision guard wordt op beide writes toegepast.
+- Accountkoppelingen die via uitnodiging of accountbeheer worden gelegd, schrijven de legacy link en relationele membership nu atomair in één D1-batch zodra de registratie is overgenomen.
+
+Dit blijft een overgangsroute voor bestaande test/live-registraties. Volledig nieuwe event-edities zonder legacy `app_state` zijn nog niet geschikt voor het huidige account-/bestelportaal. De bestaande legacy token-portalroutes en de event-accountportal zijn nog twee afzonderlijke flows; die mogen niet worden uitgefaseerd voordat de nieuwe route alle registratieacties en autorisatie volledig vervangt.
