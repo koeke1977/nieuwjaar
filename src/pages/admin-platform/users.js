@@ -65,6 +65,7 @@ async function loadNormalizedFamilies() {
   try {
     const result = await api("/api/admin/families");
     const families = result.families || [];
+    root.__normalizedFamilies = families;
     renderNormalizedFamilyOptions(families);
     root.querySelector("[data-normalized-family-count]").textContent = families.length + (families.length === 1 ? " familie" : " families");
     if (!families.length) {
@@ -137,6 +138,45 @@ export function initAdminUsersSection() {
       const target = root.querySelector("[data-normalized-family-feedback]");
       if (target) target.textContent = error.message;
     } finally { button.disabled = false; }
+  });
+  root.querySelector("[data-normalized-families]")?.addEventListener("click", event => {
+    const cancel = event.target.closest("[data-cancel-registration-edit]");
+    if (cancel) { cancel.closest("[data-registration-card]")?.querySelector("[data-registration-editor-slot]")?.replaceChildren(); return; }
+    const button = event.target.closest("[data-edit-registration]");
+    if (!button) return;
+    const card = button.closest("[data-registration-card]");
+    const registrationId = button.dataset.editRegistration;
+    const registration = root.__normalizedFamilies?.flatMap(item => item.registrations || []).find(item => item.id === registrationId);
+    if (!registration) { feedback("Inschrijving niet gevonden. Vernieuw het overzicht.", true); return; }
+    const slot = card.querySelector("[data-registration-editor-slot]");
+    slot.innerHTML = registrationEditor(registration);
+    button.hidden = true;
+  });
+  root.querySelector("[data-normalized-families]")?.addEventListener("submit", async event => {
+    const form = event.target.closest("[data-registration-editor]");
+    if (!form) return;
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    const members = [...form.querySelectorAll("[data-edit-member]")].map(row => {
+      const original = root.__normalizedFamilies?.flatMap(item => item.registrations || []).find(item => item.id === form.dataset.registrationEditor)?.members?.[Number(row.dataset.editMember)] || {};
+      const orders = {};
+      row.querySelectorAll("[data-product-id]").forEach(input => { orders[input.dataset.productId] = Number(input.value); });
+      return { id: original.id, name: row.querySelector("[data-member-name]").value, type: row.querySelector("[data-member-type]").value, orders };
+    });
+    try {
+      await api("/api/admin/families/registrations/"+encodeURIComponent(form.dataset.registrationEditor), {
+        method: "PUT",
+        body: JSON.stringify({ revision: Number(form.dataset.revision), name: form.elements.registrationName.value, members })
+      });
+      const target = root.querySelector("[data-normalized-family-feedback]");
+      if (target) target.textContent = "Inschrijving veilig opgeslagen.";
+      await loadNormalizedFamilies();
+    } catch (error) {
+      const target = root.querySelector("[data-normalized-family-feedback]");
+      if (target) target.textContent = error.message;
+      button.disabled = false;
+    }
   });
   root.querySelector("[data-normalized-families]")?.addEventListener("change", async event => {
     const select = event.target.closest("[data-normalized-membership-role]");
