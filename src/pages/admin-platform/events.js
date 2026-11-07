@@ -28,7 +28,7 @@ function renderEvents(events) {
   }
   target.innerHTML = events.map(event => {
     const editions = event.editions.length ? event.editions.map(edition =>
-      '<div class="admin-edition-row"><span><strong>'+escapeHtml(edition.label)+'</strong><br><small>'+escapeHtml(edition.startsAt || "Datum nog niet bepaald")+(edition.endsAt ? " – "+escapeHtml(edition.endsAt) : "")+'</small></span><span class="status neutral">'+escapeHtml(edition.status)+'</span><button type="button" class="button button-small button-outline" data-edit-edition="'+escapeHtml(edition.id)+'" data-parent-event="'+escapeHtml(event.id)+'">Wijzigen</button></div>'
+      '<div class="admin-edition-row"><span><strong>'+escapeHtml(edition.label)+'</strong><br><small>'+escapeHtml(edition.startsAt || "Datum nog niet bepaald")+(edition.endsAt ? " – "+escapeHtml(edition.endsAt) : "")+'</small></span><span class="status neutral">'+escapeHtml(edition.status)+'</span><button type="button" class="button button-small button-outline" data-edit-edition="'+escapeHtml(edition.id)+'" data-parent-event="'+escapeHtml(event.id)+'">Wijzigen</button><button type="button" class="button button-small button-outline" data-edit-catalog="'+escapeHtml(edition.id)+'" data-parent-event="'+escapeHtml(event.id)+'">Catalogus ('+(edition.catalog || []).length+')</button></div>'
     ).join("") : '<p class="catalog-note">Nog geen edities voor dit evenement.</p>';
     return '<article class="admin-event-card"><div class="admin-event-card-head"><div><h3>'+escapeHtml(event.name)+'</h3><p>'+escapeHtml(event.description || "Geen beschrijving toegevoegd.")+'</p><div class="admin-event-meta">Code: '+escapeHtml(event.slug)+' · Financieel: '+escapeHtml(event.financeStrategy)+'</div></div><span class="status '+(event.status==="active"?"success":"neutral")+'">'+escapeHtml(event.status)+'</span><button type="button" class="button button-small button-outline" data-edit-event="'+escapeHtml(event.id)+'">Evenement wijzigen</button></div><div class="admin-editions">'+editions+'</div><form class="admin-edition-form" data-create-edition="'+escapeHtml(event.id)+'"><input name="label" maxlength="100" placeholder="Naam nieuwe editie" aria-label="Naam nieuwe editie" required><input name="startsAt" type="date" aria-label="Startdatum"><input name="endsAt" type="date" aria-label="Einddatum"><button class="button button-small button-dark" type="submit">+ Editie</button></form></article>';
   }).join("");
@@ -120,6 +120,24 @@ export function initAdminEventsSection() {
   root.querySelector("[data-admin-events-list]").addEventListener("click", async event => {
     const eventButton = event.target.closest("[data-edit-event]");
     const editionButton = event.target.closest("[data-edit-edition]");
+    const catalogButton = event.target.closest("[data-edit-catalog]");
+    if (catalogButton) {
+      try {
+        const events = await api("/api/admin/events");
+        const item = (events.events || []).find(row => row.id === catalogButton.dataset.parentEvent);
+        const edition = item?.editions.find(row => row.id === catalogButton.dataset.editCatalog);
+        if (!edition) return;
+        const current = JSON.stringify(edition.catalog || [], null, 2);
+        const example = '[{"id":"steak","name":"Steak","image":"/images/steak.jpg","active":true}]';
+        const entered = window.prompt("Bewerk de catalogus als JSON. Elk item heeft id, name, optioneel image en active. Voorbeeld: "+example, current);
+        if (entered === null) return;
+        let catalog;
+        try { catalog = JSON.parse(entered); } catch { throw new Error("De catalogus bevat geen geldige JSON."); }
+        await api("/api/admin/events/"+encodeURIComponent(item.id)+"/editions/"+encodeURIComponent(edition.id)+"/catalog", {method:"PUT",body:JSON.stringify({catalog})});
+        feedback("Catalogus van "+edition.label+" opgeslagen.");
+        await loadEvents();
+      } catch (error) { feedback(error.message, true); }
+    }
     if (eventButton && !eventButton.hasAttribute("data-edit-edition")) {
       const events = await api("/api/admin/events");
       const item = (events.events || []).find(row => row.id === eventButton.dataset.editEvent);
