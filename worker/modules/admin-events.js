@@ -293,10 +293,6 @@ export async function handleAdminEvents(request, env, url, dependencies) {
       }
       const existingTargets = await env.DB.prepare("SELECT (SELECT COUNT(*) FROM events WHERE id IN ('legacy-event-test','legacy-event-live')) + (SELECT COUNT(*) FROM event_editions WHERE id IN ('legacy-edition-test','legacy-edition-live')) + (SELECT COUNT(*) FROM edition_finance_snapshots WHERE edition_id IN ('legacy-edition-test','legacy-edition-live')) + (SELECT COUNT(*) FROM families WHERE id LIKE 'legacy-family-test-%' OR id LIKE 'legacy-family-live-%') + (SELECT COUNT(*) FROM event_registrations WHERE id LIKE 'legacy-registration-test-%' OR id LIKE 'legacy-registration-live-%') + (SELECT COUNT(*) FROM family_memberships WHERE id LIKE 'legacy-membership-test-%' OR id LIKE 'legacy-membership-live-%') AS count").first();
       if (Number(existingTargets?.count || 0) > 0) return json({ error: "Doelrecords van een eerdere of gedeeltelijke overname bestaan al. Eerst expliciet reconciliëren; er is niets gewijzigd." }, 409);
-      const knownUsers = new Set((users.results || []).map(row => row.id));
-      if (linkRows.some(row => !knownUsers.has(row.user_id))) {
-        return json({ error: "Er bestaan accountkoppelingen naar ontbrekende accounts. Herstel die eerst; er is niets gewijzigd." }, 409);
-      }
       const statements = [];
       const now = Math.floor(Date.now() / 1000);
       const migrated = [];
