@@ -37,7 +37,7 @@ export async function loadEvents() {
 
 // Pick the edition to work on: the remembered one if it still exists, otherwise the
 // open edition of the first event, otherwise the most recent edition.
-export function defaultEditionId(preferred) {
+function defaultEditionId(preferred) {
   const editions = (state.events || []).flatMap(event => event.editions || []);
   if (preferred && editions.some(edition => edition.id === preferred)) return preferred;
   return editions.find(edition => edition.status === "open")?.id || editions[0]?.id || null;
@@ -57,7 +57,7 @@ export async function loadAdminState(preferredEditionId) {
   return editionId;
 }
 
-export function hasUnsavedAdminChanges() {
+function hasUnsavedAdminChanges() {
   if (!base || !state.activeEditionId) return false;
   return JSON.stringify(currentPayload()) !== lastSaved;
 }

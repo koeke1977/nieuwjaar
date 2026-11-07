@@ -83,16 +83,11 @@ export async function startFamilyAuth() {
     try {
       const result = await request("/api/family-account/registration", {
         edition: item.edition, registrationId: item.registration.id,
-        // base = the members as last seen from the server: conflicts are detected per family,
-        // so other families saving at the same time never block this save.
-        revision: item.revision, base: item.base, members: sent
+        // Each family has its own row and revision, so other families never block this save.
+        revision: item.revision, members: sent
       }, "PUT");
       item.revision = result.revision;
-      item.base = sent;
       // All legacy registrations of one edition share the app_state revision.
-      if (item.edition === "live") {
-        account.items.forEach(entry => { if (entry.edition === item.edition) entry.revision = result.revision; });
-      }
     } catch (error) {
       failure = error;
       // Pending local edits are based on a rejected state: drop them and reload the server truth.
@@ -120,7 +115,6 @@ export async function startFamilyAuth() {
       const old = previous.get(item.registration.id);
       // Keep local edits that are still waiting to be saved.
       if (old && (old.dirty || old.saving)) return old;
-      item.base = clone(item.registration.members || []);
       return item;
     });
     if (!account.items.some(item => item.registration.id === account.activeId)) account.activeId = account.items[0]?.registration.id || null;

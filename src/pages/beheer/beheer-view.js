@@ -43,7 +43,6 @@ function paymentLine(payment, withFamily) {
 function refundForm(registrationId, creditCents, compact = true) {
   return '<form id="add-refund-form" class="bh-form-grid' + (compact ? " bh-form-compact" : "") + '"><input type="hidden" name="registrationId" value="' + esc(registrationId) + '"><label>Terugbetaald (€)<input name="amount" type="number" min="0.01" step="0.01" max="' + (creditCents / 100).toFixed(2) + '" value="' + (creditCents / 100).toFixed(2) + '" required></label><label>Datum<input name="date" type="date" value="' + today() + '" required></label><label>Wijze<select name="method"><option value="cash">Cash</option><option value="bank">Overschrijving</option></select></label><button type="submit" class="bh-btn bh-btn-primary">Terugbetaling registreren</button></form>';
 }
-const METHOD_SHORT = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" };
 const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖", bar: "🍺" };
 const METHOD_HINT = { general: "Iedereen, ook kinderen (bv. zaal, decoratie, frisdrank)", adults: "Alleen volwassenen (bv. alcohol, cava)", meat: "Volgens bestelde porties" , bar: "Aankoop drank voor de open bar (niet verdeeld: gedekt door de persoonlijke barrekeningen)" };
 
@@ -189,7 +188,6 @@ function renderFamilyList() {
   const t = eventTotals();
   const regs = state.registrations || [];
   const rows = regs.map(reg => {
-    const counts = getRegistrationCounts(reg);
     const row = t.summary.find(item => item.id === reg.id);
     return '<li><button type="button" class="bh-family-row" data-action="open-family" data-id="' + esc(reg.id) + '">' +
       '<span class="bh-avatar">' + esc((reg.name || "?").charAt(0).toUpperCase()) + '</span>' +
@@ -233,7 +231,6 @@ function renderAccess(familyId) {
 function renderFamilyDetail(registration) {
   const finance = getFamilyFinanceBreakdown(registration, state.registrations, state.expenses, state.payments);
   const t = finance.totals;
-  const counts = getRegistrationCounts(registration);
   const payments = (state.payments || []).filter(payment => payment.registrationId === registration.id);
 
   const settlement = finance.expenses.length
@@ -521,7 +518,6 @@ function renderUserFamily(family) {
     ? '<li><form id="edit-admin-member-form" data-index="' + index + '" class="bh-member-edit"><input name="memberName" maxlength="80" value="' + esc(person.name) + '" aria-label="Naam" required><select name="memberType" aria-label="Categorie">' + typeOptions(person.type) + '</select>' + dietFields(person) + '<div class="bh-actions"><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-edit-admin-member">Annuleren</button></div></form></li>'
     : '<li><span class="bh-person"><span class="bh-avatar bh-avatar-sm">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(person.name) + '</strong><small>' + esc(typeLabel(person.type)) + '</small>' + dietChips(person) + '</span></span>' +
       (registration ? '<span class="bh-line-end"><button type="button" class="bh-btn bh-btn-sm" data-action="edit-member" data-index="' + index + '">Wijzigen</button><button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-member" data-index="' + index + '">Verwijderen</button></span>' : "") + '</li>').join("");
-  const adults = members.filter(p => p.type === "Volwassene").length;
   const name = registration?.name || family.name;
   const membersCard = '<section class="bh-card"><header class="bh-card-head"><h2>Gezinsleden</h2><span class="bh-count">' + members.length + '</span></header>' +
     (registration ? "" : '<p class="bh-note">' + (latest ? "Zoals bij de laatste inschrijving (" + esc(latest.event) + " " + esc(latest.edition) + "). " : "") + 'Niet ingeschreven voor ' + esc(eventTitle()) + '.</p>') +
@@ -546,7 +542,6 @@ function renderUserFamilies() {
   const rows = list.map(family => {
     const registration = state.registrations.find(item => item.familyId === family.id);
     const members = registration?.members || family.registrations?.[0]?.members || [];
-    const adults = members.filter(p => p.type === "Volwassene").length;
     const editions = (family.registrations || []).map(reg => '<span class="bh-chip' + (reg.editionId === state.activeEditionId ? " bh-chip-info" : "") + '">' + esc(reg.event + " " + reg.edition) + '</span>').join("");
     return '<li><button type="button" class="bh-family-row bh-family-row-user" data-action="open-user-family" data-id="' + esc(family.id) + '">' +
       '<span class="bh-avatar">' + esc((family.name || "?").charAt(0).toUpperCase()) + '</span>' +

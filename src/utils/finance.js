@@ -30,7 +30,7 @@ export function getRegistrationCounts(registration) {
 
 // Open bar: a personal bar bill per person (in cents), entered by the organisation after the
 // party. It is charged directly to that person; it is not split over anyone else.
-export function memberBarCents(member) {
+function memberBarCents(member) {
   return Math.max(0, Math.floor(Number(member?.barCents) || 0));
 }
 const registrationBarCents = registration => (registration?.members || []).reduce((sum, person) => sum + memberBarCents(person), 0);

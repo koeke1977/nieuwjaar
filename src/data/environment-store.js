@@ -20,7 +20,6 @@ const registrationPayload = reg => ({
 const productPayload = product => ({ id: product.id, name: product.name, image: product.image || null, active: product.active !== false });
 
 // Canonical payload: fixed field order so it can be compared as text.
-export { memberPayload };
 export function payloadFrom(source) {
   return {
     editionId: source.editionId,
