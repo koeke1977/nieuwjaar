@@ -182,6 +182,16 @@ export async function handleAdminEvents(request, env, url, dependencies) {
       if (orphanedAccounts) validationErrors.push(orphanedAccounts + " accountkoppelingen verwijzen naar niet-bestaande accounts.");
       const unsupportedLinks = (links.results || []).filter(row => !["test", "live"].includes(row.edition_id)).length;
       if (unsupportedLinks) validationErrors.push(unsupportedLinks + " accountkoppelingen verwijzen naar onbekende oude omgevingen.");
+      const stateEnvironments = (states.results || []).map(row => row.environment);
+      const unsupportedStates = stateEnvironments.filter(environment => !["test", "live"].includes(environment));
+      if (unsupportedStates.length) validationErrors.push("Niet-ondersteunde app_state-omgevingen: " + unsupportedStates.join(", "));
+      for (const requiredEnvironment of ["test", "live"]) {
+        if (!stateEnvironments.includes(requiredEnvironment)) validationErrors.push("De " + requiredEnvironment + "-omgeving ontbreekt.");
+      }
+      const existingTargets = await env.DB.prepare(
+        "SELECT (SELECT COUNT(*) FROM events WHERE id IN ('legacy-event-test','legacy-event-live')) + (SELECT COUNT(*) FROM event_editions WHERE id IN ('legacy-edition-test','legacy-edition-live')) + (SELECT COUNT(*) FROM edition_finance_snapshots WHERE edition_id IN ('legacy-edition-test','legacy-edition-live')) + (SELECT COUNT(*) FROM families WHERE id LIKE 'legacy-family-test-%' OR id LIKE 'legacy-family-live-%') + (SELECT COUNT(*) FROM event_registrations WHERE id LIKE 'legacy-registration-test-%' OR id LIKE 'legacy-registration-live-%') + (SELECT COUNT(*) FROM family_memberships WHERE id LIKE 'legacy-membership-test-%' OR id LIKE 'legacy-membership-live-%') AS count"
+      ).first();
+      if (Number(existingTargets?.count || 0) > 0) validationErrors.push("Er bestaan al doelrecords van een eerdere of gedeeltelijke overname; eerst reconciliëren.");
       return json({
         readOnly: true,
         environments,
