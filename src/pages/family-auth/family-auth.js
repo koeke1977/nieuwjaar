@@ -11,6 +11,8 @@ const request = async (path, body, method = "POST") => {
   return result;
 };
 const SAVE_DELAY_MS = 450;
+const LIVE_REFRESH_MS = 20000;
+const clone = value => JSON.parse(JSON.stringify(value ?? null));
 
 export async function startFamilyAuth() {
   root().innerHTML = template;
@@ -62,12 +64,16 @@ export async function startFamilyAuth() {
     item.saving = true; item.dirty = false;
     feedback("Bewaren…", "success");
     let failure = null;
+    const sent = clone(item.registration.members);
     try {
       const result = await request("/api/family-account/registration", {
         edition: item.edition, registrationId: item.registration.id,
-        revision: item.revision, members: item.registration.members
+        // base = the members as last seen from the server: conflicts are detected per family,
+        // so other families saving at the same time never block this save.
+        revision: item.revision, base: item.base, members: sent
       }, "PUT");
       item.revision = result.revision;
+      item.base = sent;
       // All legacy registrations of one edition share the app_state revision.
       if (["test", "live"].includes(item.edition)) {
         account.items.forEach(entry => { if (entry.edition === item.edition) entry.revision = result.revision; });
@@ -89,12 +95,16 @@ export async function startFamilyAuth() {
     const response = await fetch("/api/family-account/session", { credentials: "same-origin" });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.authenticated) { show("login"); return false; }
+    const signature = JSON.stringify(result);
+    if (signature === account.signature && !account.items.some(item => item.dirty || item.saving)) return true;
+    account.signature = signature;
     account.user = result.user || null;
     const previous = new Map(account.items.map(item => [item.registration.id, item]));
     account.items = (result.registrations || []).map(item => {
       const old = previous.get(item.registration.id);
       // Keep local edits that are still waiting to be saved.
       if (old && (old.dirty || old.saving)) return old;
+      item.base = clone(item.registration.members || []);
       return item;
     });
     if (!account.items.some(item => item.registration.id === account.activeId)) account.activeId = account.items[0]?.registration.id || null;
@@ -104,6 +114,19 @@ export async function startFamilyAuth() {
   async function loadAccount() {
     if (await refreshAccount()) show("account");
   }
+
+  // Live refresh: pick up cost changes by the organizer and edits by other family members,
+  // but never while this person is typing or has unsaved changes.
+  const busy = () => {
+    if (currentPanel !== "account" || document.hidden) return true;
+    if (account.items.some(item => item.dirty || item.saving) || account.view.editingMemberId) return true;
+    const active = document.activeElement;
+    if (active && view.contains(active) && ["INPUT", "SELECT", "TEXTAREA"].includes(active.tagName)) return true;
+    return [...view.querySelectorAll(".fa-app input")].some(input => input.value !== input.defaultValue);
+  };
+  const liveRefresh = () => { if (!busy()) refreshAccount().catch(() => {}); };
+  setInterval(liveRefresh, LIVE_REFRESH_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) liveRefresh(); });
 
   view.addEventListener("click", async event => {
     const control = event.target.closest("[data-action], [data-tab], [data-tab-target], [data-switch-registration]");

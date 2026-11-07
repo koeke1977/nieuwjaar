@@ -11,7 +11,7 @@ import "./pages/beheer/beheer.css";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
 import { archiveCurrentAndStartNewEdition } from "./data/edition-manager.js";
-import { loadAdminState, saveAdminState } from "./services/admin-state.js";
+import { loadAdminState, saveAdminState, refreshAdminStateIfChanged } from "./services/admin-state.js";
 const markCostsProvisional = () => { state.costsFinalized=false; state.costsFinalizedAt=null; };
 const makeId = (prefix = "lid") => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 let adminAuthenticated = false;
@@ -45,13 +45,49 @@ function scheduleAdminStateSave() {
   persistenceTimer = setTimeout(async () => {
     if (persistenceInFlight) { persistenceAgain = true; return; }
     persistenceInFlight = true;
-    try { await saveAdminState(); }
+    try {
+      const result = await saveAdminState();
+      // A merge pulled in changes from families: show them as soon as the admin is not typing.
+      if (result?.merged) { liveRenderPending = true; renderWhenIdle(); }
+      if (result?.conflicts?.length) console.warn("Admin save merged with conflicts (admin version kept):", result.conflicts);
+    }
     catch (error) { persistenceError = error.message || "Opslaan is mislukt."; statePersistenceReady = false; console.error("Admin state save failed:", error); renderApp(); }
     finally {
       persistenceInFlight = false;
       if (persistenceAgain) { persistenceAgain = false; scheduleAdminStateSave(); }
     }
   }, 500);
+}
+// ---- Live updates: show family changes without a manual refresh ----
+const LIVE_REFRESH_MS = 8000;
+let liveRenderPending = false;
+function adminBusy() {
+  if (state.editingExpenseId || state.editingAdminMemberIndex != null || state.beheerRenaming) return true;
+  const active = document.activeElement;
+  if (active?.closest?.(".bh-app") && ["INPUT", "SELECT", "TEXTAREA"].includes(active.tagName)) return true;
+  return [...document.querySelectorAll(".bh-main input, .bh-main select, .bh-main textarea")].some(field =>
+    field.type === "checkbox" ? field.checked !== field.defaultChecked
+      : field.tagName === "SELECT" ? [...field.options].some(option => option.selected !== option.defaultSelected)
+      : field.value !== field.defaultValue);
+}
+function renderWhenIdle() {
+  if (!liveRenderPending || adminBusy() || state.activeConsole !== "admin") return;
+  liveRenderPending = false;
+  const scroll = window.scrollY;
+  renderApp();
+  window.scrollTo(0, scroll);
+}
+async function pollAdminState() {
+  if (!adminAuthenticated || !statePersistenceReady || document.hidden || persistenceInFlight) return;
+  try { if (await refreshAdminStateIfChanged()) liveRenderPending = true; }
+  catch (error) { console.warn("Live refresh failed:", error); }
+  renderWhenIdle();
+}
+function startLiveRefresh() {
+  setInterval(pollAdminState, LIVE_REFRESH_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pollAdminState(); });
+  // Apply a pending update as soon as the admin leaves a form field.
+  document.addEventListener("focusout", () => setTimeout(renderWhenIdle, 300));
 }
 async function loadFamilyInvites() {
   if (!adminAuthenticated) return;
@@ -441,5 +477,6 @@ export async function startApp(){
   document.addEventListener("toggle",event=>{const details=event.target.closest?.("[data-member-id]");if(!details)return;state.beheerOpenMembers=state.beheerOpenMembers||new Set();if(details.open)state.beheerOpenMembers.add(details.dataset.memberId);else state.beheerOpenMembers.delete(details.dataset.memberId);},true);
   try{const response=await fetch("/api/admin/session",{credentials:"same-origin"});const session=await response.json();adminAuthenticated=Boolean(session.authenticated);}catch{adminAuthenticated=false;}
   if(adminAuthenticated){try{await loadAdminState();statePersistenceReady=true;await Promise.all([loadFamilyInvites(),loadFamilyAccounts()]);}catch(error){persistenceError=error?.message||true;console.error("Admin state load failed:",error);}}
+  startLiveRefresh();
   renderApp();
 }

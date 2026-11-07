@@ -109,6 +109,84 @@ async function normalizedFamilyFinance(env, editionId, registration) {
   };
 }
 
+const LEGACY_SAVE_ATTEMPTS = 4;
+
+// Canonical members for conflict detection: ignore zero quantities and key order.
+function canonicalMembers(members) {
+  return JSON.stringify((Array.isArray(members) ? members : []).map(person => ({
+    id: String(person?.id ?? ""), name: String(person?.name ?? "").trim(), type: person?.type,
+    orders: Object.entries(person?.orders && typeof person.orders === "object" ? person.orders : {})
+      .filter(([, qty]) => Number(qty) > 0).map(([id, qty]) => [id, Number(qty)]).sort(([a], [b]) => a.localeCompare(b))
+  })));
+}
+
+const conflictMessage = "Iemand anders heeft jullie inschrijving net aangepast. We tonen nu de nieuwste gegevens; controleer ze en pas opnieuw aan.";
+
+async function saveLegacyFamilyRegistration(env, { edition, registrationId, body, hasBase, now }) {
+  const reply = (payload, status = 200) => ({ response: json => json(payload, status) });
+  const stateRow = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(edition).first();
+  if (!stateRow) return reply({ error: "De editie is niet beschikbaar." }, 404);
+  // Older clients without a base fall back to the shared revision lock.
+  if (!hasBase && stateRow.updated_at !== body.revision) return reply({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
+  let data;
+  try { data = JSON.parse(stateRow.data_json); } catch { return reply({ error: "De editiegegevens zijn ongeldig." }, 500); }
+  const registration = (data.registrations || []).find(item => item.id === registrationId);
+  if (!registration) return reply({ error: "Deze inschrijving bestaat niet meer." }, 404);
+  if (hasBase && canonicalMembers(registration.members) !== canonicalMembers(body.base)) return reply({ error: conflictMessage, conflict: "registration" }, 409);
+  const catalogIds = new Set((data.catalog || []).filter(item => item.active).map(item => item.id));
+  const memberIds = new Set();
+  const members = [];
+  for (const person of body.members) {
+    if (!person || typeof person.id !== "string" || !person.id || person.id.length > 100 ||
+        typeof person.name !== "string" || !person.name.trim() || person.name.trim().length > 80 ||
+        !["Volwassene", "Kind"].includes(person.type)) {
+      return reply({ error: "Controleer de namen en categorieën van alle gezinsleden." }, 400);
+    }
+    if (memberIds.has(person.id)) return reply({ error: "Een gezinslid komt meer dan één keer voor." }, 400);
+    memberIds.add(person.id);
+    const orders = { ...(person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {}) };
+    for (const productId of catalogIds) {
+      const quantity = Number(orders[productId] ?? 0);
+      if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) return reply({ error: "Ongeldig aantal in de vleesbestelling." }, 400);
+      orders[productId] = quantity;
+    }
+    members.push({ id: person.id, name: person.name.trim(), type: person.type, orders });
+  }
+  // Nothing changed: do not write (and do not reopen finalized costs).
+  if (canonicalMembers(registration.members) === canonicalMembers(members)) {
+    return reply({ saved: true, unchanged: true, revision: stateRow.updated_at, registration });
+  }
+  registration.members = members;
+  registration.adults = members.filter(person => person.type === "Volwassene").length;
+  registration.children = members.filter(person => person.type === "Kind").length;
+  data.costsFinalized = false;
+  data.costsFinalizedAt = null;
+  const serialized = JSON.stringify(data);
+  const nextRevision = Math.max(Number(stateRow.updated_at) + 1, now);
+  let normalized = null;
+  try {
+    normalized = await env.DB.prepare(
+      "SELECT er.id FROM event_registrations er WHERE er.legacy_environment = ? AND er.legacy_registration_id = ?"
+    ).bind(edition, registrationId).first();
+  } catch (error) {
+    if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+  }
+  // One transaction: compare-and-swap the shared row, and mirror the normalized copy
+  // only when that swap succeeded.
+  const statements = [
+    env.DB.prepare("UPDATE app_state SET data_json = ?, updated_at = ? WHERE environment = ? AND updated_at = ?")
+      .bind(serialized, nextRevision, edition, stateRow.updated_at)
+  ];
+  if (normalized) {
+    statements.push(env.DB.prepare(
+      "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND EXISTS (SELECT 1 FROM app_state WHERE environment = ? AND updated_at = ? AND data_json = ?)"
+    ).bind(JSON.stringify(registration), now, normalized.id, edition, nextRevision, serialized));
+  }
+  const results = await env.DB.batch(statements);
+  if (!Number(results?.[0]?.meta?.changes ?? 0)) return { retry: true }; // another family saved meanwhile
+  return reply({ saved: true, revision: nextRevision, registration });
+}
+
 export async function handleFamilyAccountApi(request, env, url, dependencies) {
   const { json, sameOrigin, cookieValue, sha256, base64Url, fromBase64Url, sendGraphMail } = dependencies;
 
@@ -322,72 +400,16 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
     }
     if (!linked) return json({ error: "Deze inschrijving is niet aan je account gekoppeld." }, 403);
-    const stateRow = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(edition).first();
-    if (!stateRow) return json({ error: "De editie is niet beschikbaar." }, 404);
-    if (stateRow.updated_at !== body.revision) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
-    let data;
-    try { data = JSON.parse(stateRow.data_json); } catch { return json({ error: "De editiegegevens zijn ongeldig." }, 500); }
-    const registration = (data.registrations || []).find(item => item.id === registrationId);
-    if (!registration) return json({ error: "Deze inschrijving bestaat niet meer." }, 404);
-    const catalog = (data.catalog || []).filter(item => item.active);
-    const catalogIds = new Set(catalog.map(item => item.id));
-    const memberIds = new Set();
-    const members = [];
-    for (const person of body.members) {
-      if (!person || typeof person.id !== "string" || !person.id || person.id.length > 100 ||
-          typeof person.name !== "string" || !person.name.trim() || person.name.trim().length > 80 ||
-          !["Volwassene", "Kind"].includes(person.type)) {
-        return json({ error: "Controleer de namen en categorieën van alle gezinsleden." }, 400);
-      }
-      if (memberIds.has(person.id)) return json({ error: "Een gezinslid komt meer dan één keer voor." }, 400);
-      memberIds.add(person.id);
-      const orders = { ...(person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {}) };
-      for (const productId of catalogIds) {
-        const quantity = Number(orders[productId] ?? 0);
-        if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) {
-          return json({ error: "Ongeldig aantal in de vleesbestelling." }, 400);
-        }
-        orders[productId] = quantity;
-      }
-      members.push({ id: person.id, name: person.name.trim(), type: person.type, orders });
+    // All registrations of a legacy edition share one app_state row. Conflicts are detected
+    // per registration (body.base = the members as this client last saw them), so families
+    // never block each other; the shared row is written with compare-and-swap and retried.
+    const hasBase = Array.isArray(body.base);
+    for (let attempt = 0; attempt < LEGACY_SAVE_ATTEMPTS; attempt++) {
+      const outcome = await saveLegacyFamilyRegistration(env, { edition, registrationId, body, hasBase, now });
+      if (outcome.retry) continue;
+      return outcome.response(json);
     }
-    registration.members = members;
-    registration.adults = members.filter(person => person.type === "Volwassene").length;
-    registration.children = members.filter(person => person.type === "Kind").length;
-    data.costsFinalized = false;
-    data.costsFinalizedAt = null;
-    const serialized = JSON.stringify(data);
-    // During the transition, keep the normalized registration copy in sync with
-    // the legacy snapshot. The legacy revision remains the optimistic lock.
-    let normalized = null;
-    try {
-      normalized = await env.DB.prepare(
-        "SELECT er.id, er.data_json FROM event_registrations er WHERE er.legacy_environment = ? AND er.legacy_registration_id = ?"
-      ).bind(edition, registrationId).first();
-    } catch (error) {
-      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
-    }
-    let updated;
-    if (normalized) {
-      const results = await env.DB.batch([
-        env.DB.prepare(
-          "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ?"
-        ).bind(serialized, now, edition, body.revision),
-        env.DB.prepare(
-          "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND EXISTS (SELECT 1 FROM app_state WHERE environment = ? AND data_json = ? AND updated_at = ?)"
-        ).bind(JSON.stringify(registration), now, normalized.id, edition, serialized, Math.max(body.revision + 1, now))
-      ]);
-      const changed = Number(results?.[0]?.meta?.changes ?? results?.[0]?.changes ?? 0);
-      if (!changed) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
-      const revision = await env.DB.prepare("SELECT updated_at FROM app_state WHERE environment = ?").bind(edition).first();
-      updated = revision;
-    } else {
-      updated = await env.DB.prepare(
-        "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ? RETURNING updated_at"
-      ).bind(serialized, now, edition, body.revision).first();
-      if (!updated) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
-    }
-    return json({ saved: true, revision: updated.updated_at, registration });
+    return json({ error: "Het is momenteel erg druk. Probeer het over enkele seconden opnieuw." }, 409);
   }
 
   if (path === "/api/family-account/logout" && request.method === "POST") {

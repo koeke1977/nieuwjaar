@@ -90,6 +90,20 @@ export function getPersistableEnvironmentData() {
   return snapshot;
 }
 
+// Replace the data of one environment with a newer server version, keeping the
+// admin's UI state (open family, edit forms) intact where it still makes sense.
+export function applyLatestEnvironmentData(environment, data) {
+  if (!data || typeof data !== "object") return;
+  state.environmentData[environment] = clonePersisted(data);
+  if (environment !== state.activeEnvironment) return;
+  fields.forEach(field => { if (field in data) state[field] = clonePersisted(data[field]); });
+  const ids = new Set((state.registrations || []).map(item => item.id));
+  if (!ids.has(state.activeRegistrationId)) state.activeRegistrationId = state.registrations[0]?.id || null;
+  if (!ids.has(state.managingRegistrationId)) state.managingRegistrationId = state.registrations[0]?.id || null;
+  if (state.beheerFamilyId && !ids.has(state.beheerFamilyId)) state.beheerFamilyId = null;
+  if (state.editingExpenseId && !(state.expenses || []).some(item => item.id === state.editingExpenseId)) state.editingExpenseId = null;
+}
+
 export function restorePersistedEnvironmentData(environments) {
   if (!environments || typeof environments !== "object") return;
   for (const environment of ["test", "live"]) {
