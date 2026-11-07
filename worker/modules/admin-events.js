@@ -82,7 +82,7 @@ export async function handleAdminEvents(request, env, url, dependencies) {
     return json({ updated: true });
   }
 
-  const catalogMatch = url.pathname.match(/^\/api\/admin\/events\/([0-9a-f-]+)\/editions\/([0-9a-f-]+)\/catalog$/i);
+  const catalogMatch = url.pathname.match(/^\/api\/admin\/events\/([A-Za-z0-9_-]+)\/editions\/([A-Za-z0-9_-]+)\/catalog$/);
   if (catalogMatch && request.method === "PUT") {
     const [, eventId, editionId] = catalogMatch;
     const body = await request.json().catch(() => null);
@@ -116,7 +116,7 @@ export async function handleAdminEvents(request, env, url, dependencies) {
     return json({ updated: true, catalog });
   }
 
-  const editionMatch = url.pathname.match(/^\/api\/admin\/events\/([0-9a-f-]+)\/editions\/([0-9a-f-]+)$/i);
+  const editionMatch = url.pathname.match(/^\/api\/admin\/events\/([A-Za-z0-9_-]+)\/editions\/([A-Za-z0-9_-]+)$/);
   if (editionMatch && request.method === "PATCH") {
     const [, eventId, editionId] = editionMatch;
     const body = await request.json().catch(() => null);
@@ -137,7 +137,7 @@ export async function handleAdminEvents(request, env, url, dependencies) {
     return json({ updated: true });
   }
 
-  const match = url.pathname.match(/^\/api\/admin\/events\/([0-9a-f-]+)\/editions$/i);
+  const match = url.pathname.match(/^\/api\/admin\/events\/([A-Za-z0-9_-]+)\/editions$/);
   if (match && request.method === "POST") {
     const eventId = match[1];
     const body = await request.json().catch(() => null);
