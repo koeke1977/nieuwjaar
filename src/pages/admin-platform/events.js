@@ -127,12 +127,49 @@ export function initAdminEventsSection() {
         const item = (events.events || []).find(row => row.id === catalogButton.dataset.parentEvent);
         const edition = item?.editions.find(row => row.id === catalogButton.dataset.editCatalog);
         if (!edition) return;
-        const current = JSON.stringify(edition.catalog || [], null, 2);
-        const example = '[{"id":"steak","name":"Steak","image":"/images/steak.jpg","active":true}]';
-        const entered = window.prompt("Bewerk de catalogus als JSON. Elk item heeft id, name, optioneel image en active. Voorbeeld: "+example, current);
-        if (entered === null) return;
-        let catalog;
-        try { catalog = JSON.parse(entered); } catch { throw new Error("De catalogus bevat geen geldige JSON."); }
+        const catalog = [...(edition.catalog || [])].map(product => ({...product}));
+        let editing = true;
+        while (editing) {
+          const overview = catalog.length
+            ? catalog.map((product, index) => (index + 1)+". "+product.name+" ["+product.id+"] · "+(product.active === false ? "uitgeschakeld" : "actief")).join("\\n")
+            : "De catalogus is nog leeg.";
+          const action = window.prompt("CATALOGUS · "+edition.label+"\\n\\n"+overview+"\\n\\nTyp: + = product toevoegen, nummer = wijzigen, -nummer = verwijderen, klaar = opslaan", " +");
+          if (action === null || action.trim().toLowerCase() === "klaar") { editing = false; continue; }
+          const command = action.trim().toLowerCase();
+          if (command === "+") {
+            const name = window.prompt("Naam van het product:");
+            if (name === null) continue;
+            const cleanName = name.trim();
+            if (!cleanName) { window.alert("Geef het product een naam."); continue; }
+            const suggestedId = cleanName.normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 64);
+            const id = window.prompt("Unieke productcode:", suggestedId);
+            if (id === null) continue;
+            if (catalog.some(product => product.id === id.trim())) { window.alert("Die productcode bestaat al."); continue; }
+            const image = window.prompt("Afbeelding (optioneel: HTTPS-url of pad zoals /images/steak.jpg):", "");
+            if (image === null) continue;
+            catalog.push({id:id.trim(),name:cleanName,image:image.trim(),active:true});
+            continue;
+          }
+          if (/^-\\d+$/.test(command)) {
+            const index = Number(command.slice(1))-1;
+            if (!catalog[index]) { window.alert("Dat productnummer bestaat niet."); continue; }
+            if (window.confirm("Product '"+catalog[index].name+"' definitief uit deze catalogus verwijderen?")) catalog.splice(index,1);
+            continue;
+          }
+          if (/^\\d+$/.test(command)) {
+            const index = Number(command)-1, product = catalog[index];
+            if (!product) { window.alert("Dat productnummer bestaat niet."); continue; }
+            const name = window.prompt("Productnaam:",product.name);
+            if (name === null) continue;
+            const image = window.prompt("Afbeelding (leeg = geen afbeelding):",product.image || "");
+            if (image === null) continue;
+            const active = window.confirm("Product actief tonen in de familieportal? Kies Annuleren om het uit te schakelen.");
+            catalog[index] = {...product,name:name.trim(),image:image.trim(),active};
+            continue;
+          }
+          window.alert("Gebruik +, een productnummer, - gevolgd door een nummer of klaar.");
+        }
+        if (catalog.length > 200) throw new Error("Een catalogus mag maximaal 200 producten bevatten.");
         await api("/api/admin/events/"+encodeURIComponent(item.id)+"/editions/"+encodeURIComponent(edition.id)+"/catalog", {method:"PUT",body:JSON.stringify({catalog})});
         feedback("Catalogus van "+edition.label+" opgeslagen.");
         await loadEvents();
