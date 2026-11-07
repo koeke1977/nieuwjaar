@@ -116,6 +116,30 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     }
   }
 
+  const membershipMatch = path.match(/^\/api\/admin\/families\/([^/]+)\/memberships\/([^/]+)$/);
+  if (membershipMatch && ["PATCH", "DELETE"].includes(request.method)) {
+    const [, familyId, userId] = membershipMatch;
+    const membership = await env.DB.prepare("SELECT role FROM family_memberships WHERE family_id = ? AND user_id = ?").bind(familyId, userId).first();
+    if (!membership) return json({ error: "Familiekoppeling niet gevonden." }, 404);
+    if (request.method === "PATCH") {
+      const body = await request.json().catch(() => null);
+      const role = body?.role;
+      if (!["owner", "editor", "viewer"].includes(role)) return json({ error: "Ongeldige toegangsrol." }, 400);
+      if (membership.role === "owner" && role !== "owner") {
+        const owners = await env.DB.prepare("SELECT COUNT(*) AS total FROM family_memberships WHERE family_id = ? AND role = 'owner'").bind(familyId).first();
+        if (Number(owners?.total || 0) <= 1) return json({ error: "De laatste beheerder kan niet worden gedegradeerd. Maak eerst een andere beheerder aan." }, 409);
+      }
+      await env.DB.prepare("UPDATE family_memberships SET role = ? WHERE family_id = ? AND user_id = ?").bind(role, familyId, userId).run();
+      return json({ updated: true, role });
+    }
+    if (membership.role === "owner") {
+      const owners = await env.DB.prepare("SELECT COUNT(*) AS total FROM family_memberships WHERE family_id = ? AND role = 'owner'").bind(familyId).first();
+      if (Number(owners?.total || 0) <= 1) return json({ error: "De laatste beheerder kan niet worden losgekoppeld. Maak eerst een andere beheerder aan." }, 409);
+    }
+    await env.DB.prepare("DELETE FROM family_memberships WHERE family_id = ? AND user_id = ?").bind(familyId, userId).run();
+    return json({ unlinked: true });
+  }
+
   if (path === "/api/admin/families/memberships" && request.method === "POST") {
     const body = await request.json().catch(() => null);
     const familyId = typeof body?.familyId === "string" ? body.familyId : "";
