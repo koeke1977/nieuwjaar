@@ -56,14 +56,15 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     const registration = (data.registrations || []).find(item => item.id === registrationId);
     if (!registration) return json({ error: "De gekozen inschrijving bestaat niet in deze editie." }, 404);
     let user = await env.DB.prepare("SELECT id, status FROM family_users WHERE email = ?").bind(email).first();
+    let newlyCreatedUser = false;
     if (user && user.status === "disabled") return json({ error: "Dit account is geblokkeerd. Activeer het eerst opnieuw via accountbeheer." }, 409);
     if (!user) {
       const id = crypto.randomUUID();
       await env.DB.prepare("INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'invited', ?, ?)")
         .bind(id, email, displayName, now, now).run();
       user = { id, status: "invited" };
+      newlyCreatedUser = true;
     }
-    const newlyCreatedUser = user.status === "invited" && !(await env.DB.prepare("SELECT 1 AS existing FROM family_user_invites WHERE user_id = ? LIMIT 1").bind(user.id).first());
     try {
       let relational = null;
       try {
