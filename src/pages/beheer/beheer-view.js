@@ -4,7 +4,7 @@ import { state } from "../../data/admin-store.js";
 import { DIET_OPTIONS, NOTE_MAX, hasDiet } from "../../utils/diet.js";
 import { typeLabel, typeOptions, countByType, countsText, EVENING } from "../../utils/member-types.js";
 import { ordersClosed, localToDate } from "../../utils/time.js";
-import { esc, euro, plural, formatDate } from "../../utils/html.js";
+import { html, joinHtml, euro, plural, formatDate } from "../../utils/html.js";
 import { SHARED_FUND, COST_ICON } from "../../utils/finance.js";
 import {
   getExpenseShares,
@@ -35,38 +35,30 @@ export function barBalance(registrations = state.registrations || [], expenses =
 function barCheck(bar) {
   if (!bar.used) return "";
   if (!bar.difference)
-    return '<span class="bh-chip bh-chip-ok">✓ Bar sluitend: barrekeningen = rekening (€ 0,00 verschil)</span>';
-  return (
-    '<span class="bh-chip bh-chip-due">⚠ Bar: ' +
-    euro(Math.abs(bar.difference)) +
-    (bar.difference > 0 ? " meer aangerekend dan de rekening" : " minder aangerekend dan de rekening") +
-    "</span>"
-  );
+    return html`<span class="bh-chip bh-chip-ok">✓ Bar sluitend: barrekeningen = rekening (€ 0,00 verschil)</span>`;
+  return html`<span class="bh-chip bh-chip-due">⚠
+      Bar: ${euro(Math.abs(bar.difference))}${bar.difference > 0 ? " meer aangerekend dan de rekening" : " minder aangerekend dan de rekening"}</span>`;
 }
 const dietChips = person =>
   hasDiet(person)
-    ? '<span class="bh-diet">' +
-      (person.diet || []).map(item => "<b>" + esc(item) + "</b>").join("") +
-      (person.notes ? "<em>" + esc(person.notes) + "</em>" : "") +
-      "</span>"
+    ? html`<span class="bh-diet">${joinHtml(
+        (person.diet || []).map(item => html`<b>${item}</b>`),
+        ""
+      )}${person.notes ? html`<em>${person.notes}</em>` : ""}</span>`
     : "";
 const dietFields = person =>
-  '<fieldset class="bh-diet-edit bh-span-2"><legend>Allergieën en voorkeuren</legend>' +
-  DIET_OPTIONS.map(
-    option =>
-      '<label><input type="checkbox" name="diet" value="' +
-      esc(option) +
-      '"' +
-      ((person.diet || []).includes(option) ? " checked" : "") +
-      "> " +
-      esc(option) +
-      "</label>"
-  ).join("") +
-  '</fieldset><input name="notes" class="bh-span-2" maxlength="' +
-  NOTE_MAX +
-  '" value="' +
-  esc(person.notes || "") +
-  '" placeholder="Opmerking (optioneel)" aria-label="Opmerking">';
+  html`<fieldset class="bh-diet-edit bh-span-2">
+      <legend>Allergieën en voorkeuren</legend>${joinHtml(
+        DIET_OPTIONS.map(
+          option =>
+            html`<label>
+          <input type="checkbox" name="diet"
+              value="${option}"${(person.diet || []).includes(option) ? " checked" : ""}> ${option}</label>`
+        ),
+        ""
+      )}</fieldset>
+    <input name="notes" class="bh-span-2" maxlength="${NOTE_MAX}" value="${person.notes || ""}" placeholder="Opmerking
+        (optioneel)" aria-label="Opmerking">`;
 const payerName = (id, regs = state.registrations || []) =>
   id === SHARED_FUND ? "de gemeenschappelijke kas" : regs.find(reg => reg.id === id)?.name || "Onbekend";
 function paymentLine(payment, withFamily) {
@@ -74,40 +66,38 @@ function paymentLine(payment, withFamily) {
   const label =
     (refund ? "Terugbetaald aan het gezin" : "Betaling") +
     " · " +
-    esc(formatDate(payment.date)) +
+    formatDate(payment.date) +
     " · " +
     (payment.method === "cash" ? "cash" : "overschrijving");
-  return (
-    "<li" +
-    (refund ? ' class="bh-refund"' : "") +
-    "><span>" +
-    (withFamily
-      ? "<strong>" + esc(payerName(payment.registrationId)) + "</strong><small>" + label + "</small>"
-      : label) +
-    '</span><span class="bh-line-end"><b>' +
-    (refund ? "− " : "") +
-    euro(payment.amountCents) +
-    '</b><button type="button" class="bh-icon-btn" data-action="delete-payment" data-id="' +
-    esc(payment.id) +
-    '" aria-label="' +
-    (refund ? "Terugbetaling" : "Betaling") +
-    ' verwijderen">×</button></span></li>'
-  );
+  return html`<li${refund ? html` class="bh-refund"` : ""}>
+        <span>${
+          withFamily
+            ? html`<strong>${payerName(payment.registrationId)}</strong>
+        <small>${label}</small>`
+            : label
+        }</span>
+        <span class="bh-line-end">
+          <b>${refund ? "− " : ""}${euro(payment.amountCents)}</b>
+          <button type="button" class="bh-icon-btn" data-action="delete-payment" data-id="${payment.id}"
+              aria-label="${refund ? "Terugbetaling" : "Betaling"} verwijderen">×</button>
+        </span>
+      </li>`;
 }
 function refundForm(registrationId, creditCents, compact = true) {
-  return (
-    '<form id="add-refund-form" class="bh-form-grid' +
-    (compact ? " bh-form-compact" : "") +
-    '"><input type="hidden" name="registrationId" value="' +
-    esc(registrationId) +
-    '"><label>Terugbetaald (€)<input name="amount" type="number" min="0.01" step="0.01" max="' +
-    (creditCents / 100).toFixed(2) +
-    '" value="' +
-    (creditCents / 100).toFixed(2) +
-    '" required></label><label>Datum<input name="date" type="date" value="' +
-    today() +
-    '" required></label><label>Wijze<select name="method"><option value="cash">Cash</option><option value="bank">Overschrijving</option></select></label><button type="submit" class="bh-btn bh-btn-primary">Terugbetaling registreren</button></form>'
-  );
+  return html`<form id="add-refund-form" class="bh-form-grid${compact ? " bh-form-compact" : ""}">
+        <input type="hidden" name="registrationId" value="${registrationId}">
+        <label>Terugbetaald (€)<input name="amount" type="number" min="0.01" step="0.01"
+            max="${(creditCents / 100).toFixed(2)}" value="${(creditCents / 100).toFixed(2)}" required>
+        </label>
+        <label>Datum<input name="date" type="date" value="${today()}" required>
+        </label>
+        <label>Wijze<select name="method">
+            <option value="cash">Cash</option>
+            <option value="bank">Overschrijving</option>
+          </select>
+        </label>
+        <button type="submit" class="bh-btn bh-btn-primary">Terugbetaling registreren</button>
+      </form>`;
 }
 const METHOD_HINT = {
   general: "Iedereen, ook kinderen (bv. zaal, decoratie, frisdrank)",
@@ -210,55 +200,43 @@ function eventTotals() {
 
 function statusChip() {
   return state.costsFinalized
-    ? '<span class="bh-chip bh-chip-ok">Kosten definitief</span>'
-    : '<span class="bh-chip bh-chip-warn">Kosten voorlopig</span>';
+    ? html`<span class="bh-chip bh-chip-ok">Kosten definitief</span>`
+    : html`<span class="bh-chip bh-chip-warn">Kosten voorlopig</span>`;
 }
 
 function pageHead(title, intro, actions = "") {
-  return (
-    '<header class="bh-page-head"><div><h1>' +
-    esc(title) +
-    "</h1>" +
-    (intro ? "<p>" + esc(intro) + "</p>" : "") +
-    "</div>" +
-    (actions ? '<div class="bh-page-actions">' + actions + "</div>" : "") +
-    "</header>"
-  );
+  return html`<header class="bh-page-head">
+        <div>
+          <h1>${title}</h1>${intro ? html`<p>${intro}</p>` : ""}</div>${
+            actions
+              ? html`<div
+              class="bh-page-actions">${actions}</div>`
+              : ""
+          }</header>`;
 }
 
 function kpi(value, label, sub = "", target = "") {
-  const tag = target
-    ? 'button type="button" data-action="edition-tab" data-tab="' + (EDITION_TAB_ALIASES[target] || target) + '"'
-    : "div";
-  return (
-    "<" +
-    tag +
-    ' class="bh-kpi"><strong>' +
-    value +
-    "</strong><span>" +
-    esc(label) +
-    "</span>" +
-    (sub ? "<small>" + sub + "</small>" : "") +
-    "</" +
-    (target ? "button" : "div") +
-    ">"
-  );
+  const body = html`<strong>${value}</strong><span>${label}</span>${sub ? html`<small>${sub}</small>` : ""}`;
+  return target
+    ? html`<button type="button" data-action="edition-tab" data-tab="${EDITION_TAB_ALIASES[target] || target}"
+        class="bh-kpi">${body}</button>`
+    : html`<div class="bh-kpi">${body}</div>`;
 }
 
 function familyBalanceChip(row) {
   if (!row) return "";
-  if (row.remainingCents > 0) return '<span class="bh-chip bh-chip-due">' + euro(row.remainingCents) + " open</span>";
+  if (row.remainingCents > 0) return html`<span class="bh-chip bh-chip-due">${euro(row.remainingCents)} open</span>`;
   const credit = row.creditCents;
-  if (credit > 0) return '<span class="bh-chip bh-chip-info">' + euro(credit) + " terug</span>";
-  if (row.shareCents > 0) return '<span class="bh-chip bh-chip-ok">In orde</span>';
-  return '<span class="bh-chip">Geen saldo</span>';
+  if (credit > 0) return html`<span class="bh-chip bh-chip-info">${euro(credit)} terug</span>`;
+  if (row.shareCents > 0) return html`<span class="bh-chip bh-chip-ok">In orde</span>`;
+  return html`<span class="bh-chip">Geen saldo</span>`;
 }
 
 function accessChip(familyId) {
   const users = accountsForFamily(familyId);
-  if (users.some(user => user.status === "active")) return '<span class="bh-chip bh-chip-ok">Account actief</span>';
-  if (users.some(user => user.status === "invited")) return '<span class="bh-chip bh-chip-warn">Uitgenodigd</span>';
-  return '<span class="bh-chip bh-chip-muted">Geen account</span>';
+  if (users.some(user => user.status === "active")) return html`<span class="bh-chip bh-chip-ok">Account actief</span>`;
+  if (users.some(user => user.status === "invited")) return html`<span class="bh-chip bh-chip-warn">Uitgenodigd</span>`;
+  return html`<span class="bh-chip bh-chip-muted">Geen account</span>`;
 }
 
 // ---------------- Dashboard ----------------
@@ -275,13 +253,13 @@ function renderOverview() {
     if (row?.remainingCents > 0) reasons.push(euro(row.remainingCents) + " openstaand");
     if (reasons.length)
       attention.push(
-        '<li><button type="button" data-action="open-family" data-id="' +
-          esc(reg.id) +
-          '"><strong>' +
-          esc(reg.name) +
-          "</strong><span>" +
-          esc(reasons.join(" · ")) +
-          '</span><i aria-hidden="true">›</i></button></li>'
+        html`<li>
+            <button type="button" data-action="open-family" data-id="${reg.id}">
+              <strong>${reg.name}</strong>
+              <span>${reasons.join(" · ")}</span>
+              <i aria-hidden="true">›</i>
+            </button>
+          </li>`
       );
   }
   const meat = state.catalog
@@ -304,221 +282,219 @@ function renderOverview() {
     }))
     .filter(row => row.cents > 0);
   const progress = t.received + t.outstanding > 0 ? Math.round((t.received / (t.received + t.outstanding)) * 100) : 0;
-  return (
-    pageHead("Overzicht", "De stand van deze editie in één oogopslag.", statusChip()) +
-    '<section class="bh-kpis">' +
-    kpi(t.families, "gezinnen", "", "families") +
-    kpi(
-      t.people,
-      "aan tafel",
-      t.adults + " volwassenen · " + t.children + " kinderen" + (t.evening ? " · + " + t.evening + " avondgasten" : ""),
-      "families"
-    ) +
-    kpi(
-      t.portions,
-      "vleesporties",
-      meat.length ? plural(meat.length, "product", "producten") : "nog niets besteld",
-      "order"
-    ) +
-    kpi(euro(t.costs), "kosten", plural((state.expenses || []).length, "uitgave", "uitgaven"), "finance") +
-    kpi(
-      euro(t.received),
-      "ontvangen",
-      t.received && t.outstanding ? progress + "% van het verschuldigde" : "",
-      "finance"
-    ) +
-    kpi(euro(t.outstanding), "nog te ontvangen", t.toRefund ? euro(t.toRefund) + " terug te geven" : "", "finance") +
-    "</section>" +
-    '<div class="bh-grid-2">' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Aandachtspunten</h2><span class="bh-count">' +
-    attention.length +
-    "</span></header>" +
-    (attention.length
-      ? '<ul class="bh-attention">' + attention.join("") + "</ul>"
-      : '<p class="bh-empty">Alles is in orde. 🎉</p>') +
-    "</section>" +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Vlees</h2><button type="button" class="bh-link" data-action="edition-tab" data-tab="order">Volledig overzicht ›</button></header>' +
-    (meat.length
-      ? '<ul class="bh-bars">' +
-        meat
-          .map(
-            item =>
-              "<li><span>" +
-              esc(item.name) +
-              '</span><div class="bh-bar"><i style="width:' +
-              Math.round((item.count / maxMeat) * 100) +
-              '%"></i></div><b>' +
-              item.count +
-              "</b></li>"
-          )
-          .join("") +
-        "</ul>"
-      : '<p class="bh-empty">Nog geen bestellingen.</p>') +
-    '<header class="bh-card-head bh-card-head-sub"><h2>Kosten per soort</h2><button type="button" class="bh-link" data-action="edition-tab" data-tab="finance">Financiën ›</button></header>' +
-    (byMethod.length
-      ? '<ul class="bh-lines">' +
-        byMethod
-          .map(
-            row =>
-              "<li><span>" +
-              COST_ICON[row.method] +
-              " " +
-              esc(COST_METHODS[row.method].label) +
-              "</span><b>" +
-              euro(row.cents) +
-              "</b></li>"
-          )
-          .join("") +
-        "</ul>"
-      : '<p class="bh-empty">Nog geen kosten ingevoerd.</p>') +
-    "</section>" +
-    "</div>"
-  );
+  return html`${pageHead("Overzicht", "De stand van deze editie in één oogopslag.", statusChip())}<section
+      class="bh-kpis">${kpi(t.families, "gezinnen", "", "families")}${kpi(
+        t.people,
+        "aan tafel",
+        t.adults +
+          " volwassenen · " +
+          t.children +
+          " kinderen" +
+          (t.evening ? " · + " + t.evening + " avondgasten" : ""),
+        "families"
+      )}${kpi(
+        t.portions,
+        "vleesporties",
+        meat.length ? plural(meat.length, "product", "producten") : "nog niets besteld",
+        "order"
+      )}${kpi(euro(t.costs), "kosten", plural((state.expenses || []).length, "uitgave", "uitgaven"), "finance")}${kpi(
+        euro(t.received),
+        "ontvangen",
+        t.received && t.outstanding ? progress + "% van het verschuldigde" : "",
+        "finance"
+      )}${kpi(euro(t.outstanding), "nog te ontvangen", t.toRefund ? euro(t.toRefund) + " terug te geven" : "", "finance")}</section>
+      <div class="bh-grid-2">
+        <section class="bh-card">
+          <header class="bh-card-head">
+            <h2>Aandachtspunten</h2>
+            <span class="bh-count">${attention.length}</span>
+          </header>${
+            attention.length
+              ? html`<ul class="bh-attention">${attention}</ul>`
+              : html`<p class="bh-empty">Alles is in orde. 🎉</p>`
+          }</section>
+        <section class="bh-card">
+          <header class="bh-card-head">
+            <h2>Vlees</h2>
+            <button type="button" class="bh-link" data-action="edition-tab" data-tab="order">Volledig overzicht
+                ›</button>
+          </header>${
+            meat.length
+              ? html`<ul class="bh-bars">${joinHtml(
+                  meat.map(
+                    item =>
+                      html`<li>
+                  <span>${item.name}</span>
+                  <div class="bh-bar">
+                    <i style="width:${Math.round((item.count / maxMeat) * 100)}%">
+                    </i>
+                  </div>
+                  <b>${item.count}</b>
+                </li>`
+                  ),
+                  ""
+                )}</ul>`
+              : html`<p class="bh-empty">Nog geen bestellingen.</p>`
+          }<header class="bh-card-head bh-card-head-sub">
+            <h2>Kosten per soort</h2>
+            <button type="button" class="bh-link" data-action="edition-tab" data-tab="finance">Financiën ›</button>
+          </header>${
+            byMethod.length
+              ? html`<ul class="bh-lines">${joinHtml(
+                  byMethod.map(
+                    row =>
+                      html`<li>
+                  <span>${COST_ICON[row.method]} ${COST_METHODS[row.method].label}</span>
+                  <b>${euro(row.cents)}</b>
+                </li>`
+                  ),
+                  ""
+                )}</ul>`
+              : html`<p class="bh-empty">Nog geen kosten ingevoerd.</p>`
+          }</section>
+      </div>`;
 }
 
 // ---------------- Gezinnen ----------------
 function registerExistingFamily() {
   if (state.editionStatus === "archived")
-    return '<p class="bh-alert bh-alert-info">Deze editie is afgesloten. Je kan ze nog aanpassen, maar nieuwe inschrijvingen horen bij de actieve editie.</p>';
+    return html`<p class="bh-alert bh-alert-info">Deze editie is afgesloten. Je kan ze nog aanpassen, maar nieuwe
+        inschrijvingen horen bij de actieve editie.</p>`;
   const registered = new Set((state.registrations || []).map(reg => reg.familyId));
   const options = allFamilies().filter(family => !registered.has(family.id));
   if (!options.length) return "";
-  return (
-    '<section class="bh-card"><form id="register-family-form" class="bh-inline-form"><label for="bh-existing-family">Bestaand gezin inschrijven</label><div><select id="bh-existing-family" name="familyId" required><option value="">Kies een gezin</option>' +
-    options.map(family => '<option value="' + esc(family.id) + '">' + esc(family.name) + "</option>").join("") +
-    '</select><button type="submit" class="bh-btn bh-btn-primary">Inschrijven</button></div><small class="bh-muted">De gezinsleden van hun vorige inschrijving worden overgenomen; de bestelling start leeg.</small></form></section>'
-  );
+  return html`<section class="bh-card">
+        <form id="register-family-form" class="bh-inline-form">
+          <label for="bh-existing-family">Bestaand gezin inschrijven</label>
+          <div>
+            <select id="bh-existing-family" name="familyId" required>
+              <option value="">Kies een gezin</option>${joinHtml(
+                options.map(family => html`<option value="${family.id}">${family.name}</option>`),
+                ""
+              )}</select>
+            <button type="submit" class="bh-btn bh-btn-primary">Inschrijven</button>
+          </div>
+          <small class="bh-muted">De gezinsleden van hun vorige inschrijving worden overgenomen; de bestelling start
+              leeg.</small>
+        </form>
+      </section>`;
 }
 
 function renderFamilyList() {
   const t = eventTotals();
   const regs = state.registrations || [];
-  const rows = regs
-    .map(reg => {
+  const rows = joinHtml(
+    regs.map(reg => {
       const row = t.summary.find(item => item.id === reg.id);
-      return (
-        '<li><button type="button" class="bh-family-row" data-action="open-family" data-id="' +
-        esc(reg.id) +
-        '">' +
-        '<span class="bh-avatar">' +
-        esc((reg.name || "?").charAt(0).toUpperCase()) +
-        "</span>" +
-        '<span class="bh-family-name"><strong>' +
-        esc(reg.name) +
-        "</strong><small>" +
-        ((reg.members || []).length
-          ? countsText(reg.members) + " · " + plural(familyPortions(reg), "portie", "porties")
-          : "Gezin nog niet ingevuld") +
-        "</small></span>" +
-        '<span class="bh-family-money"><b>' +
-        euro(row?.shareCents || 0) +
-        "</b><small>aandeel</small></span>" +
-        '<span class="bh-family-chips">' +
-        familyBalanceChip(row) +
-        accessChip(reg.familyId) +
-        "</span>" +
-        '<i class="bh-chev" aria-hidden="true">›</i></button></li>'
-      );
-    })
-    .join("");
-  return (
-    pageHead(
-      "Inschrijvingen",
-      plural(regs.length, "gezin", "gezinnen") +
-        " ingeschreven · " +
-        t.people +
-        " aan tafel (" +
-        t.adults +
-        " volwassenen, " +
-        t.children +
-        " kinderen)" +
-        (t.evening ? " · " + t.evening + " avondgasten na het eten" : "")
-    ) +
-    registerExistingFamily() +
-    '<section class="bh-card"><form id="add-registration-form" class="bh-inline-form"><label for="bh-new-family">Nieuw gezin inschrijven</label><div><input id="bh-new-family" name="registrationName" maxlength="80" placeholder="Bijvoorbeeld: Jan & Els" required><button type="submit" class="bh-btn bh-btn-primary">+ Gezin toevoegen</button></div></form></section>' +
-    (rows
-      ? '<ul class="bh-family-list">' + rows + "</ul>"
-      : '<p class="bh-empty">Nog geen inschrijvingen voor deze editie.</p>')
+      return html`<li>
+            <button type="button" class="bh-family-row" data-action="open-family" data-id="${reg.id}">
+              <span class="bh-avatar">${(reg.name || "?").charAt(0).toUpperCase()}</span>
+              <span class="bh-family-name">
+                <strong>${reg.name}</strong>
+                <small>${
+                  (reg.members || []).length
+                    ? countsText(reg.members) + " · " + plural(familyPortions(reg), "portie", "porties")
+                    : "Gezin nog niet ingevuld"
+                }</small>
+              </span>
+              <span class="bh-family-money">
+                <b>${euro(row?.shareCents || 0)}</b>
+                <small>aandeel</small>
+              </span>
+              <span class="bh-family-chips">${familyBalanceChip(row)}${accessChip(reg.familyId)}</span>
+              <i class="bh-chev" aria-hidden="true">›</i>
+            </button>
+          </li>`;
+    }),
+    ""
   );
+  return html`${pageHead(
+    "Inschrijvingen",
+    plural(regs.length, "gezin", "gezinnen") +
+      " ingeschreven · " +
+      t.people +
+      " aan tafel (" +
+      t.adults +
+      " volwassenen, " +
+      t.children +
+      " kinderen)" +
+      (t.evening ? " · " + t.evening + " avondgasten na het eten" : "")
+  )}${registerExistingFamily()}<section class="bh-card">
+        <form id="add-registration-form" class="bh-inline-form">
+          <label for="bh-new-family">Nieuw gezin inschrijven</label>
+          <div>
+            <input id="bh-new-family" name="registrationName" maxlength="80" placeholder="Bijvoorbeeld: Jan & Els"
+                required>
+            <button type="submit" class="bh-btn bh-btn-primary">+ Gezin toevoegen</button>
+          </div>
+        </form>
+      </section>${
+        rows
+          ? html`<ul class="bh-family-list">${rows}</ul>`
+          : html`<p class="bh-empty">Nog geen inschrijvingen voor deze editie.</p>`
+      }`;
 }
 
 function renderMemberEditor(registration) {
   const members = registration.members || [];
   const products = state.catalog.filter(product => product.active);
-  return members
-    .map((person, index) => {
+  return joinHtml(
+    members.map((person, index) => {
       if (state.editingAdminMemberIndex === index) {
-        return (
-          '<form id="edit-admin-member-form" data-index="' +
-          index +
-          '" class="bh-member bh-member-edit"><input name="memberName" maxlength="80" value="' +
-          esc(person.name) +
-          '" aria-label="Naam" required><select name="memberType" aria-label="Categorie">' +
-          typeOptions(person.type) +
-          "</select>" +
-          dietFields(person) +
-          '<div class="bh-actions"><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-edit-admin-member">Annuleren</button></div></form>'
-        );
+        return html`<form id="edit-admin-member-form" data-index="${index}" class="bh-member bh-member-edit">
+              <input name="memberName" maxlength="80" value="${person.name}" aria-label="Naam" required>
+              <select name="memberType"
+                  aria-label="Categorie">${typeOptions(person.type)}</select>${dietFields(person)}<div
+                  class="bh-actions">
+                <button type="submit" class="bh-btn bh-btn-primary">Bewaren</button>
+                <button type="button" class="bh-btn" data-action="cancel-edit-admin-member">Annuleren</button>
+              </div>
+            </form>`;
       }
       const steppers =
         person.type === EVENING
-          ? '<p class="bh-note">🌙 Komt na het eten: geen vlees en geen gedeelde kosten, alleen de eigen barrekening.</p>'
-          : products
-              .map(product => {
+          ? html`<p class="bh-note">🌙 Komt na het eten: geen vlees en geen gedeelde kosten, alleen de eigen
+              barrekening.</p>`
+          : joinHtml(
+              products.map(product => {
                 const quantity = Number(person.orders?.[product.id]) || 0;
-                return (
-                  '<div class="bh-stepper-row"><span>' +
-                  esc(product.name) +
-                  '</span><div class="bh-stepper"><button type="button" data-action="admin-quantity" data-registration="' +
-                  esc(registration.id) +
-                  '" data-person="' +
-                  esc(person.id) +
-                  '" data-product="' +
-                  esc(product.id) +
-                  '" data-delta="-1" aria-label="Minder ' +
-                  esc(product.name) +
-                  '"' +
-                  (quantity ? "" : " disabled") +
-                  ">−</button><b>" +
-                  quantity +
-                  '</b><button type="button" data-action="admin-quantity" data-registration="' +
-                  esc(registration.id) +
-                  '" data-person="' +
-                  esc(person.id) +
-                  '" data-product="' +
-                  esc(product.id) +
-                  '" data-delta="1" aria-label="Meer ' +
-                  esc(product.name) +
-                  '">+</button></div></div>'
-                );
-              })
-              .join("");
-      return (
-        '<details class="bh-member" data-member-id="' +
-        esc(person.id) +
-        '"' +
-        (state.beheerOpenMembers?.has(person.id) ? " open" : "") +
-        '><summary><span class="bh-avatar bh-avatar-sm">' +
-        esc((person.name || "?").charAt(0).toUpperCase()) +
-        '</span><span class="bh-family-name"><strong>' +
-        esc(person.name) +
-        "</strong><small>" +
-        esc(typeLabel(person.type)) +
-        "</small>" +
-        dietChips(person) +
-        '</span><span class="bh-chip">' +
-        plural(portionsOf(person), "portie", "porties") +
-        '</span><i class="bh-chev" aria-hidden="true">›</i></summary>' +
-        '<div class="bh-member-body">' +
-        (steppers || '<p class="bh-empty">Geen actieve producten.</p>') +
-        '<div class="bh-actions"><button type="button" class="bh-btn bh-btn-sm" data-action="edit-member" data-index="' +
-        index +
-        '">Naam of categorie wijzigen</button><button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-member" data-index="' +
-        index +
-        '">Verwijderen</button></div></div></details>'
-      );
-    })
-    .join("");
+                return html`<div class="bh-stepper-row">
+                      <span>${product.name}</span>
+                      <div class="bh-stepper">
+                        <button type="button" data-action="admin-quantity" data-registration="${registration.id}"
+                            data-person="${person.id}" data-product="${product.id}" data-delta="-1"
+                            aria-label="Minder ${product.name}"${quantity ? "" : " disabled"}>−</button>
+                        <b>${quantity}</b>
+                        <button type="button" data-action="admin-quantity" data-registration="${registration.id}"
+                            data-person="${person.id}" data-product="${product.id}" data-delta="1"
+                            aria-label="Meer ${product.name}">+</button>
+                      </div>
+                    </div>`;
+              }),
+              ""
+            );
+      return html`<details class="bh-member"
+          data-member-id="${person.id}"${state.beheerOpenMembers?.has(person.id) ? " open" : ""}>
+            <summary>
+              <span class="bh-avatar bh-avatar-sm">${(person.name || "?").charAt(0).toUpperCase()}</span>
+              <span class="bh-family-name">
+                <strong>${person.name}</strong>
+                <small>${typeLabel(person.type)}</small>${dietChips(person)}</span>
+              <span class="bh-chip">${plural(portionsOf(person), "portie", "porties")}</span>
+              <i class="bh-chev" aria-hidden="true">›</i>
+            </summary>
+            <div class="bh-member-body">${steppers || html`<p class="bh-empty">Geen actieve producten.</p>`}<div
+                class="bh-actions">
+                <button type="button" class="bh-btn bh-btn-sm" data-action="edit-member" data-index="${index}">Naam of
+                    categorie wijzigen</button>
+                <button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-member"
+                    data-index="${index}">Verwijderen</button>
+              </div>
+            </div>
+          </details>`;
+    }),
+    ""
+  );
 }
 
 function accessData(familyId) {
@@ -527,36 +503,40 @@ function accessData(familyId) {
 
 function renderAccess(familyId) {
   const { users } = accessData(familyId);
-  const accountRows = users
-    .map(
+  const accountRows = joinHtml(
+    users.map(
       user =>
-        "<li><span><strong>" +
-        esc(user.displayName || user.email) +
-        "</strong><small>" +
-        esc(user.email) +
-        " · " +
-        (user.role === "owner" ? "beheerder" : user.role === "viewer" ? "lezer" : "bewerker") +
-        '</small></span><span class="bh-line-end">' +
-        (user.status === "active"
-          ? '<span class="bh-chip bh-chip-ok">Actief</span>'
-          : user.status === "disabled"
-            ? '<span class="bh-chip bh-chip-due">Geblokkeerd</span>'
-            : '<span class="bh-chip bh-chip-warn">Uitgenodigd</span><button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite" data-user="' +
-              esc(user.id) +
-              '">Opnieuw sturen</button>') +
-        "</span></li>"
-    )
-    .join("");
-  return (
-    (accountRows
-      ? '<ul class="bh-lines">' + accountRows + "</ul>"
-      : '<p class="bh-note">Dit gezin heeft nog geen account. Stuur een uitnodiging: ze kiezen zelf een wachtwoord en beheren daarna hun gezin, bestelling en afrekening.</p>') +
-    '<form data-invite-account="' +
-    esc(familyId) +
-    '" class="bh-form-grid bh-form-compact"><label>Naam<input name="displayName" maxlength="100" placeholder="Naam contactpersoon" required></label><label>E-mailadres<input name="email" type="email" maxlength="254" placeholder="naam@voorbeeld.be" required></label><button type="submit" class="bh-btn bh-btn-primary">' +
-    (users.length ? "Extra account uitnodigen" : "Uitnodiging versturen") +
-    "</button></form>"
+        html`<li>
+            <span>
+              <strong>${user.displayName || user.email}</strong>
+              <small>${user.email} · ${user.role === "owner" ? "beheerder" : user.role === "viewer" ? "lezer" : "bewerker"}</small>
+            </span>
+            <span class="bh-line-end">${
+              user.status === "active"
+                ? html`<span class="bh-chip bh-chip-ok">Actief</span>`
+                : user.status === "disabled"
+                  ? html`<span class="bh-chip bh-chip-due">Geblokkeerd</span>`
+                  : html`<span class="bh-chip bh-chip-warn">Uitgenodigd</span>
+              <button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite"
+                  data-user="${user.id}">Opnieuw sturen</button>`
+            }</span>
+          </li>`
+    ),
+    ""
   );
+  return html`${
+    accountRows
+      ? html`<ul class="bh-lines">${accountRows}</ul>`
+      : html`<p class="bh-note">Dit gezin heeft nog geen account. Stuur een uitnodiging: ze kiezen zelf een wachtwoord en
+          beheren daarna hun gezin, bestelling en afrekening.</p>`
+  }<form data-invite-account="${familyId}" class="bh-form-grid bh-form-compact">
+        <label>Naam<input name="displayName" maxlength="100" placeholder="Naam contactpersoon" required>
+        </label>
+        <label>E-mailadres<input name="email" type="email" maxlength="254" placeholder="naam@voorbeeld.be" required>
+        </label>
+        <button type="submit" class="bh-btn
+            bh-btn-primary">${users.length ? "Extra account uitnodigen" : "Uitnodiging versturen"}</button>
+      </form>`;
 }
 
 function renderFamilyDetail(registration) {
@@ -564,122 +544,168 @@ function renderFamilyDetail(registration) {
   const t = finance.totals;
   const payments = (state.payments || []).filter(payment => payment.registrationId === registration.id);
 
+  const categoryShare = category =>
+    category.personal
+      ? "persoonlijke barrekening"
+      : category.familyUnits +
+        "/" +
+        category.totalUnits +
+        " " +
+        (category.method === "meat" ? "porties" : category.method === "adults" ? "volwassenen" : "personen");
   const settlement = finance.expenses.length
-    ? '<ul class="bh-lines">' +
-      finance.categories
-        .map(
+    ? html`<ul class="bh-lines">${joinHtml(
+        finance.categories.map(
           category =>
-            "<li><span>" +
-            COST_ICON[category.method] +
-            " " +
-            esc(category.label) +
-            " <small>" +
-            (category.personal ? "persoonlijke barrekening" : category.familyUnits + "/" + category.totalUnits) +
-            " " +
-            (category.method === "meat" ? "porties" : category.method === "adults" ? "volwassenen" : "personen") +
-            "</small></span><b>" +
-            euro(category.familyCents) +
-            "</b></li>"
-        )
-        .join("") +
-      '<li class="bh-line-strong"><span>Aandeel van het gezin</span><b>' +
-      euro(t.shareCents) +
-      "</b></li>" +
-      (t.advancedCents ? "<li><span>Min: voorgeschoten</span><b>− " + euro(t.advancedCents) + "</b></li>" : "") +
-      (t.paidCents ? "<li><span>Min: betaald</span><b>− " + euro(t.paidCents) + "</b></li>" : "") +
-      (t.refundedCents
-        ? "<li><span>Al terugbetaald aan het gezin</span><b>" + euro(t.refundedCents) + "</b></li>"
-        : "") +
-      (t.remainingCents
-        ? '<li class="bh-line-total bh-due"><span>Nog te betalen</span><b>' + euro(t.remainingCents) + "</b></li>"
-        : t.creditCents
-          ? '<li class="bh-line-total bh-credit"><span>Terug te geven</span><b>' + euro(t.creditCents) + "</b></li>"
-          : '<li class="bh-line-total bh-ok"><span>Saldo</span><b>' + euro(0) + "</b></li>") +
-      "</ul>" +
-      '<div class="bh-member-costs">' +
-      finance.members
-        .map(member => "<span>" + esc(member.name) + " <b>" + euro(member.totalCents) + "</b></span>")
-        .join("") +
-      "</div>"
-    : '<p class="bh-empty">Nog geen kosten ingevoerd.</p>';
+            html`<li>
+                <span>${COST_ICON[category.method]} ${category.label} <small>${categoryShare(category)}</small>
+                </span>
+                <b>${euro(category.familyCents)}</b>
+              </li>`
+        ),
+        ""
+      )}<li class="bh-line-strong">
+          <span>Aandeel van het gezin</span>
+          <b>${euro(t.shareCents)}</b>
+        </li>${
+          t.advancedCents
+            ? html`<li>
+          <span>Min: voorgeschoten</span>
+          <b>− ${euro(t.advancedCents)}</b>
+        </li>`
+            : ""
+        }${
+          t.paidCents
+            ? html`<li>
+          <span>Min: betaald</span>
+          <b>− ${euro(t.paidCents)}</b>
+        </li>`
+            : ""
+        }${
+          t.refundedCents
+            ? html`<li>
+            <span>Al terugbetaald aan het gezin</span>
+            <b>${euro(t.refundedCents)}</b>
+          </li>`
+            : ""
+        }${
+          t.remainingCents
+            ? html`<li class="bh-line-total bh-due">
+            <span>Nog te betalen</span>
+            <b>${euro(t.remainingCents)}</b>
+          </li>`
+            : t.creditCents
+              ? html`<li class="bh-line-total bh-credit">
+              <span>Terug te geven</span>
+              <b>${euro(t.creditCents)}</b>
+            </li>`
+              : html`<li class="bh-line-total bh-ok">
+              <span>Saldo</span>
+              <b>${euro(0)}</b>
+            </li>`
+        }</ul>
+      <div class="bh-member-costs">${joinHtml(
+        finance.members.map(
+          member => html`<span>${member.name} <b>${euro(member.totalCents)}</b>
+          </span>`
+        ),
+        ""
+      )}</div>`
+    : html`<p class="bh-empty">Nog geen kosten ingevoerd.</p>`;
 
   const paymentList = payments.length
-    ? '<ul class="bh-lines">' + payments.map(payment => paymentLine(payment, false)).join("") + "</ul>"
+    ? html`<ul class="bh-lines">${payments.map(payment => paymentLine(payment, false))}</ul>`
     : "";
   const paymentForm =
     t.remainingCents > 0
-      ? '<form id="add-payment-form" class="bh-form-grid bh-form-compact"><input type="hidden" name="registrationId" value="' +
-        esc(registration.id) +
-        '"><label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" max="' +
-        (t.remainingCents / 100).toFixed(2) +
-        '" value="' +
-        (t.remainingCents / 100).toFixed(2) +
-        '" required></label><label>Datum<input name="date" type="date" value="' +
-        today() +
-        '" required></label><label>Wijze<select name="method"><option value="cash">Cash</option><option value="bank">Overschrijving</option></select></label><button type="submit" class="bh-btn bh-btn-primary">Betaling registreren</button></form>'
+      ? html`<form id="add-payment-form" class="bh-form-grid bh-form-compact">
+          <input type="hidden" name="registrationId" value="${registration.id}">
+          <label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01"
+              max="${(t.remainingCents / 100).toFixed(2)}" value="${(t.remainingCents / 100).toFixed(2)}" required>
+          </label>
+          <label>Datum<input name="date" type="date" value="${today()}" required>
+          </label>
+          <label>Wijze<select name="method">
+              <option value="cash">Cash</option>
+              <option value="bank">Overschrijving</option>
+            </select>
+          </label>
+          <button type="submit" class="bh-btn bh-btn-primary">Betaling registreren</button>
+        </form>`
       : t.creditCents > 0
         ? refundForm(registration.id, t.creditCents)
         : "";
 
-  return (
-    '<button type="button" class="bh-back" data-action="close-family">‹ Alle inschrijvingen</button>' +
-    '<header class="bh-page-head"><div>' +
-    (state.beheerRenaming
-      ? '<form id="rename-registration-form" data-id="' +
-        esc(registration.id) +
-        '" class="bh-rename"><input name="registrationName" maxlength="80" value="' +
-        esc(registration.name) +
-        '" aria-label="Naam gezin" required><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-rename">Annuleren</button></form>'
-      : "<h1>" +
-        esc(registration.name) +
-        ' <button type="button" class="bh-icon-btn" data-action="rename-registration" aria-label="Naam wijzigen">✎</button></h1>') +
-    "<p>" +
-    countsText(registration.members) +
-    " · " +
-    plural(familyPortions(registration), "portie", "porties") +
-    "</p></div>" +
-    '<div class="bh-page-actions">' +
-    accessChip(registration.familyId) +
-    familyBalanceChip(
-      getFinancialSummary(state.registrations, state.expenses, state.payments).find(row => row.id === registration.id)
-    ) +
-    "</div></header>" +
-    '<div class="bh-grid-2">' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Gezinsleden & bestelling</h2><span class="bh-count">' +
-    (registration.members || []).length +
-    "</span></header>" +
-    ((registration.members || []).length
-      ? '<div class="bh-members">' + renderMemberEditor(registration) + "</div>"
-      : '<p class="bh-empty">Nog geen gezinsleden. Het gezin kan ze zelf toevoegen, of je voegt ze hier toe.</p>') +
-    '<form id="add-member-form" class="bh-form-grid bh-form-compact"><label>Naam<input name="memberName" maxlength="80" placeholder="Voornaam en naam" required></label><label>Categorie<select name="memberType">' +
-    typeOptions("Volwassene") +
-    '</select></label><button type="submit" class="bh-btn">+ Persoon toevoegen</button></form>' +
-    "</section>" +
-    '<div class="bh-stack">' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Afrekening</h2>' +
-    statusChip() +
-    "</header>" +
-    settlement +
-    "</section>" +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Betalingen</h2><span class="bh-count">' +
-    payments.length +
-    "</span></header>" +
-    (paymentList || (t.remainingCents ? "" : '<p class="bh-empty">Geen betalingen of terugbetalingen nodig.</p>')) +
-    paymentForm +
-    "</section>" +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Gezin & toegang</h2>' +
-    accessChip(registration.familyId) +
-    '</header><p class="bh-note">Namen, accounts en uitnodigingen beheer je bij het gezin onder Gebruikers.</p><button type="button" class="bh-btn" data-action="open-user-family" data-id="' +
-    esc(registration.familyId) +
-    '">Gezin openen in Gebruikers ›</button></section>' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Uitschrijven</h2></header><p class="bh-note">Haalt dit gezin uit ' +
-    esc(eventTitle()) +
-    '. Het gezin, de leden en de accounts blijven bestaan onder Gebruikers.</p><button type="button" class="bh-btn bh-btn-danger" data-action="unregister-family" data-id="' +
-    esc(registration.id) +
-    '">Uitschrijven uit deze editie</button></section>' +
-    "</div>" +
-    "</div>"
-  );
+  return html`<button type="button" class="bh-back" data-action="close-family">‹ Alle inschrijvingen</button>
+      <header class="bh-page-head">
+        <div>${
+          state.beheerRenaming
+            ? html`<form id="rename-registration-form" data-id="${registration.id}" class="bh-rename">
+          <input name="registrationName" maxlength="80" value="${registration.name}" aria-label="Naam gezin" required>
+          <button type="submit" class="bh-btn bh-btn-primary">Bewaren</button>
+          <button type="button" class="bh-btn" data-action="cancel-rename">Annuleren</button>
+        </form>`
+            : html`<h1>${registration.name} <button type="button" class="bh-icon-btn" data-action="rename-registration"
+                aria-label="Naam wijzigen">✎</button>
+        </h1>`
+        }<p>${countsText(registration.members)} · ${plural(familyPortions(registration), "portie", "porties")}</p>
+        </div>
+        <div class="bh-page-actions">${accessChip(registration.familyId)}${familyBalanceChip(
+          getFinancialSummary(state.registrations, state.expenses, state.payments).find(
+            row => row.id === registration.id
+          )
+        )}</div>
+      </header>
+      <div class="bh-grid-2">
+        <section class="bh-card">
+          <header class="bh-card-head">
+            <h2>Gezinsleden & bestelling</h2>
+            <span class="bh-count">${(registration.members || []).length}</span>
+          </header>${
+            (registration.members || []).length
+              ? html`<div class="bh-members">${renderMemberEditor(registration)}</div>`
+              : html`<p class="bh-empty">Nog geen gezinsleden. Het gezin kan ze zelf toevoegen, of je voegt ze hier
+                  toe.</p>`
+          }<form id="add-member-form" class="bh-form-grid bh-form-compact">
+            <label>Naam<input name="memberName" maxlength="80" placeholder="Voornaam en naam" required>
+            </label>
+            <label>Categorie<select name="memberType">${typeOptions("Volwassene")}</select>
+            </label>
+            <button type="submit" class="bh-btn">+ Persoon toevoegen</button>
+          </form>
+        </section>
+        <div class="bh-stack">
+          <section class="bh-card">
+            <header class="bh-card-head">
+              <h2>Afrekening</h2>${statusChip()}</header>${settlement}</section>
+          <section class="bh-card">
+            <header class="bh-card-head">
+              <h2>Betalingen</h2>
+              <span class="bh-count">${payments.length}</span>
+            </header>${
+              paymentList ||
+              (t.remainingCents
+                ? ""
+                : html`<p class="bh-empty">Geen betalingen of
+                terugbetalingen nodig.</p>`)
+            }${paymentForm}</section>
+          <section class="bh-card">
+            <header class="bh-card-head">
+              <h2>Gezin & toegang</h2>${accessChip(registration.familyId)}</header>
+            <p class="bh-note">Namen, accounts en uitnodigingen beheer je bij het gezin onder Gebruikers.</p>
+            <button type="button" class="bh-btn" data-action="open-user-family" data-id="${registration.familyId}">Gezin
+                openen in Gebruikers ›</button>
+          </section>
+          <section class="bh-card">
+            <header class="bh-card-head">
+              <h2>Uitschrijven</h2>
+            </header>
+            <p class="bh-note">Haalt dit gezin uit ${eventTitle()}. Het gezin, de leden en de accounts blijven bestaan
+                onder Gebruikers.</p>
+            <button type="button" class="bh-btn bh-btn-danger" data-action="unregister-family"
+                data-id="${registration.id}">Uitschrijven uit deze editie</button>
+          </section>
+        </div>
+      </div>`;
 }
 
 function renderFamilies() {
@@ -697,58 +723,68 @@ function renderDietOverview() {
     (reg.members || []).filter(hasDiet).map(person => ({ reg, person }))
   );
   if (!rows.length)
-    return '<section class="bh-card"><header class="bh-card-head"><h2>Allergieën & opmerkingen</h2></header><p class="bh-empty">Nog geen allergieën of opmerkingen doorgegeven.</p></section>';
+    return html`<section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Allergieën & opmerkingen</h2>
+        </header>
+        <p class="bh-empty">Nog geen allergieën of opmerkingen doorgegeven.</p>
+      </section>`;
   const counts = DIET_OPTIONS.map(option => [
     option,
     rows.filter(row => (row.person.diet || []).includes(option)).length
   ]).filter(([, n]) => n);
-  return (
-    '<section class="bh-card"><header class="bh-card-head"><h2>Allergieën & opmerkingen</h2><span class="bh-count">' +
-    rows.length +
-    "</span></header>" +
-    (counts.length
-      ? '<div class="bh-member-costs">' +
-        counts.map(([option, n]) => "<span>" + esc(option) + " <b>" + n + "</b></span>").join("") +
-        "</div>"
-      : "") +
-    '<ul class="bh-lines">' +
-    rows
-      .map(
-        ({ reg, person }) =>
-          "<li><span><strong>" +
-          esc(person.name) +
-          "</strong><small>" +
-          esc(reg.name) +
-          (person.type === "Kind" ? " · kind" : "") +
-          "</small></span>" +
-          dietChips(person) +
-          "</li>"
-      )
-      .join("") +
-    "</ul></section>"
-  );
+  return html`<section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Allergieën & opmerkingen</h2>
+          <span class="bh-count">${rows.length}</span>
+        </header>${
+          counts.length
+            ? html`<div class="bh-member-costs">${joinHtml(
+                counts.map(
+                  ([option, n]) => html`<span>${option} <b>${n}</b>
+          </span>`
+                ),
+                ""
+              )}</div>`
+            : ""
+        }<ul class="bh-lines">${joinHtml(
+          rows.map(
+            ({ reg, person }) =>
+              html`<li>
+              <span>
+                <strong>${person.name}</strong>
+                <small>${reg.name}${person.type === "Kind" ? " · kind" : ""}</small>
+              </span>${dietChips(person)}</li>`
+          ),
+          ""
+        )}</ul>
+      </section>`;
 }
 
 // Admin fills in the order on behalf of a family (e.g. someone who does not use the app).
 function orderForFamilyCard() {
   const regs = [...(state.registrations || [])].sort((a, b) => String(a.name).localeCompare(String(b.name), "nl"));
   if (!regs.length) return "";
-  return (
-    '<section class="bh-card bh-order-for"><form id="order-for-family-form" class="bh-inline-form"><label for="bh-order-family">Bestelling invullen voor een gezin</label><div><select id="bh-order-family" name="registrationId" required><option value="">Kies een gezin</option>' +
-    regs
-      .map(
-        reg =>
-          '<option value="' +
-          esc(reg.id) +
-          '">' +
-          esc(reg.name) +
-          " — " +
-          plural(familyPortions(reg), "portie", "porties") +
-          "</option>"
-      )
-      .join("") +
-    '</select><button type="submit" class="bh-btn bh-btn-primary">Bestelling invullen</button></div><small class="bh-muted">Voor gezinnen die liever niet zelf met de app werken. Staat het gezin er nog niet in? <button type="button" class="bh-link" data-action="edition-tab" data-tab="registrations">Schrijf het eerst in</button>.</small></form></section>'
-  );
+  return html`<section class="bh-card bh-order-for">
+        <form id="order-for-family-form" class="bh-inline-form">
+          <label for="bh-order-family">Bestelling invullen voor een gezin</label>
+          <div>
+            <select id="bh-order-family" name="registrationId" required>
+              <option value="">Kies een gezin</option>${joinHtml(
+                regs.map(
+                  reg =>
+                    html`<option
+                        value="${reg.id}">${reg.name} — ${plural(familyPortions(reg), "portie", "porties")}</option>`
+                ),
+                ""
+              )}</select>
+            <button type="submit" class="bh-btn bh-btn-primary">Bestelling invullen</button>
+          </div>
+          <small class="bh-muted">Voor gezinnen die liever niet zelf met de app werken. Staat het gezin er nog niet
+              in? <button type="button" class="bh-link" data-action="edition-tab" data-tab="registrations">Schrijf het
+              eerst in</button>.</small>
+        </form>
+      </section>`;
 }
 
 function renderBar() {
@@ -759,86 +795,85 @@ function renderBar() {
     .filter(expense => expense.method === "bar")
     .reduce((sum, expense) => sum + (Number(expense.amountCents) || 0), 0);
   const bar = barBalance(regs, state.expenses || []);
-  const cards = regs
-    .map(reg => {
+  const cards = joinHtml(
+    regs.map(reg => {
       const familyBar = (reg.members || []).reduce((s, p) => s + barOf(p), 0);
-      const rows = (reg.members || [])
-        .map(
+      const rows = joinHtml(
+        (reg.members || []).map(
           person =>
-            '<div class="bh-stepper-row"><span>' +
-            esc(person.name) +
-            (person.type !== "Volwassene"
-              ? ' <small class="bh-muted">(' + (person.type === EVENING ? "avondgast" : "kind") + ")</small>"
-              : "") +
-            '</span><label class="bh-bar-amount"><span aria-hidden="true">€</span><input type="number" min="0" step="0.01" inputmode="decimal" value="' +
-            (barOf(person) ? (barOf(person) / 100).toFixed(2) : "") +
-            '" placeholder="0,00" data-bar-input data-registration="' +
-            esc(reg.id) +
-            '" data-person="' +
-            esc(person.id) +
-            '" aria-label="Barrekening van ' +
-            esc(person.name) +
-            '"></label></div>'
-        )
-        .join("");
-      return (
-        '<details class="bh-member"' +
-        (familyBar ? "" : " open") +
-        '><summary><span class="bh-avatar bh-avatar-sm">' +
-        esc((reg.name || "?").charAt(0).toUpperCase()) +
-        '</span><span class="bh-family-name"><strong>' +
-        esc(reg.name) +
-        "</strong><small>" +
-        plural((reg.members || []).length, "persoon", "personen") +
-        '</small></span><span class="bh-chip' +
-        (familyBar ? " bh-chip-ok" : "") +
-        '">🍺 ' +
-        euro(familyBar) +
-        '</span><i class="bh-chev" aria-hidden="true">›</i></summary><div class="bh-member-body">' +
-        (rows || '<p class="bh-empty">Nog geen gezinsleden.</p>') +
-        "</div></details>"
+            html`<div class="bh-stepper-row">
+                <span>${person.name}${
+                  person.type !== "Volwassene"
+                    ? html` <small class="bh-muted">(${person.type === EVENING ? "avondgast" : "kind"})</small>`
+                    : ""
+                }</span>
+                <label class="bh-bar-amount">
+                  <span aria-hidden="true">€</span>
+                  <input type="number" min="0" step="0.01" inputmode="decimal"
+                      value="${barOf(person) ? (barOf(person) / 100).toFixed(2) : ""}" placeholder="0,00" data-bar-input
+                      data-registration="${reg.id}" data-person="${person.id}" aria-label="Barrekening
+                      van ${person.name}">
+                </label>
+              </div>`
+        ),
+        ""
       );
-    })
-    .join("");
-  return (
-    pageHead(
-      "Bar",
-      "Na het feest: vul per persoon het bedrag van zijn of haar barrekening in. Dat bedrag komt rechtstreeks op de afrekening van dat gezin."
-    ) +
-    '<section class="bh-kpis bh-kpis-4">' +
-    kpi(euro(charged), "aangerekend") +
-    kpi(euro(purchases), "aankopen bar") +
-    kpi(
-      bar.difference ? (bar.difference > 0 ? "+ " : "− ") + euro(Math.abs(bar.difference)) : "✓ € 0,00",
-      bar.difference ? "verschil (moet € 0,00 zijn)" : "verschil: sluitend"
-    ) +
-    kpi(regs.filter(reg => (reg.members || []).some(p => barOf(p))).length + "/" + regs.length, "gezinnen ingevuld") +
-    "</section>" +
-    (bar.used
-      ? '<section class="bh-card bh-bar-check ' +
-        (bar.difference ? "is-off" : "is-ok") +
-        '"><div><h2>' +
-        (bar.difference ? "De bar is nog niet sluitend" : "De bar is sluitend") +
-        "</h2><p>" +
-        (bar.difference
-          ? (purchases
-              ? "Barrekeningen samen " + euro(charged) + ", rekening van de drank " + euro(purchases) + ". "
-              : "Er is nog geen rekening van de drank ingevoerd. ") +
-            (bar.difference > 0
-              ? "Er is " +
-                euro(bar.difference) +
-                " te veel aangerekend: verlaag een barrekening of voeg de ontbrekende rekening toe."
-              : "Er is nog " +
-                euro(-bar.difference) +
-                " niet aangerekend: verhoog de barrekeningen of controleer de rekening.")
-          : "Wat de drinkers betalen (" +
-            euro(charged) +
-            ") is exact de rekening die werd voorgeschoten. Het verschil is € 0,00.") +
-        "</p></div></section>"
-      : "") +
-    '<section class="bh-card"><p class="bh-note">Elke persoon betaalt zijn eigen drankjes: het bedrag wordt <strong>niet verdeeld</strong> over de anderen. Kocht iemand de drank voor de bar aan? Voer die aankoop in bij Financiën als kost van het soort <strong>🍺 Aankoop voor de bar</strong>: die persoon krijgt het geld terug via de afrekening, en de aankoop zelf wordt gedekt door de barrekeningen.</p></section>' +
-    (cards ? '<div class="bh-members">' + cards + "</div>" : '<p class="bh-empty">Nog geen inschrijvingen.</p>')
+      return html`<details class="bh-member"${familyBar ? "" : " open"}>
+            <summary>
+              <span class="bh-avatar bh-avatar-sm">${(reg.name || "?").charAt(0).toUpperCase()}</span>
+              <span class="bh-family-name">
+                <strong>${reg.name}</strong>
+                <small>${plural((reg.members || []).length, "persoon", "personen")}</small>
+              </span>
+              <span class="bh-chip${familyBar ? " bh-chip-ok" : ""}">🍺 ${euro(familyBar)}</span>
+              <i class="bh-chev" aria-hidden="true">›</i>
+            </summary>
+            <div class="bh-member-body">${rows || html`<p class="bh-empty">Nog geen gezinsleden.</p>`}</div>
+          </details>`;
+    }),
+    ""
   );
+  return html`${pageHead(
+    "Bar",
+    "Na het feest: vul per persoon het bedrag van zijn of haar barrekening in. Dat bedrag komt rechtstreeks op de afrekening van dat gezin."
+  )}<section class="bh-kpis bh-kpis-4">${kpi(euro(charged), "aangerekend")}${kpi(euro(purchases), "aankopen bar")}${kpi(
+    bar.difference ? (bar.difference > 0 ? "+ " : "− ") + euro(Math.abs(bar.difference)) : "✓ € 0,00",
+    bar.difference ? "verschil (moet € 0,00 zijn)" : "verschil: sluitend"
+  )}${kpi(regs.filter(reg => (reg.members || []).some(p => barOf(p))).length + "/" + regs.length, "gezinnen ingevuld")}</section>${
+    bar.used
+      ? html`<section class="bh-card bh-bar-check ${bar.difference ? "is-off" : "is-ok"}">
+          <div>
+            <h2>${bar.difference ? "De bar is nog niet sluitend" : "De bar is sluitend"}</h2>
+            <p>${
+              bar.difference
+                ? (purchases
+                    ? "Barrekeningen samen " + euro(charged) + ", rekening van de drank " + euro(purchases) + ". "
+                    : "Er is nog geen rekening van de drank ingevoerd. ") +
+                  (bar.difference > 0
+                    ? "Er is " +
+                      euro(bar.difference) +
+                      " te veel aangerekend: verlaag een barrekening of voeg de ontbrekende rekening toe."
+                    : "Er is nog " +
+                      euro(-bar.difference) +
+                      " niet aangerekend: verhoog de barrekeningen of controleer de rekening.")
+                : "Wat de drinkers betalen (" +
+                  euro(charged) +
+                  ") is exact de rekening die werd voorgeschoten. Het verschil is € 0,00."
+            }</p>
+          </div>
+        </section>`
+      : ""
+  }<section class="bh-card">
+        <p class="bh-note">Elke persoon betaalt zijn eigen drankjes: het bedrag wordt <strong>niet verdeeld</strong> over
+            de anderen. Kocht iemand de drank voor de bar aan? Voer die aankoop in bij Financiën als kost van het
+            soort <strong>🍺 Aankoop voor de bar</strong>: die persoon krijgt het geld terug via de afrekening, en de
+            aankoop zelf wordt gedekt door de barrekeningen.</p>
+      </section>${
+        cards
+          ? html`<div class="bh-members">${cards}</div>`
+          : html`<p class="bh-empty">Nog geen
+          inschrijvingen.</p>`
+      }`;
 }
 
 function renderOrder() {
@@ -850,227 +885,209 @@ function renderOrder() {
     members.reduce((sum, person) => sum + (Number(person.orders?.[productId]) || 0), 0);
   const allMembers = regs.flatMap(r => r.members || []);
   const total = allMembers.reduce((sum, person) => sum + portionsOf(person), 0);
-  const cards = products
-    .map(product => {
+  const cards = joinHtml(
+    products.map(product => {
       const count = countFor(allMembers, product.id);
-      return (
-        '<article class="bh-product"><div class="bh-product-img">' +
-        (product.image ? '<img src="' + esc(product.image) + '" alt="" loading="lazy">' : "<span>🍖</span>") +
-        "</div><div><strong>" +
-        esc(product.name) +
-        "</strong><b>" +
-        count +
-        "</b></div></article>"
-      );
-    })
-    .join("");
-  const head =
-    "<tr><th>Gezin</th>" +
-    products.map(product => "<th>" + esc(product.name) + "</th>").join("") +
-    "<th>Totaal</th></tr>";
-  const body = regs
-    .map(reg => {
-      const members = reg.members || [];
-      const cells = products
-        .map(product => {
-          const c = countFor(members, product.id);
-          return "<td>" + (c || '<span class="bh-dim">–</span>') + "</td>";
-        })
-        .join("");
-      const memberRows = members
-        .map(
-          person =>
-            '<tr class="bh-sub-row"><td>' +
-            esc(person.name) +
-            (person.type !== "Volwassene"
-              ? " <small>(" + (person.type === EVENING ? "avondgast" : "kind") + ")</small>"
-              : "") +
-            "</td>" +
-            products
-              .map(product => {
-                const c = Number(person.orders?.[product.id]) || 0;
-                return "<td>" + (c || '<span class="bh-dim">–</span>') + "</td>";
-              })
-              .join("") +
-            "<td>" +
-            portionsOf(person) +
-            "</td></tr>"
-        )
-        .join("");
-      return (
-        '<tbody class="bh-group"><tr class="bh-group-row"><th scope="row"><button type="button" class="bh-link" data-action="open-family" data-id="' +
-        esc(reg.id) +
-        '">' +
-        esc(reg.name) +
-        "</button></th>" +
-        cells +
-        "<td><b>" +
-        familyPortions(reg) +
-        "</b></td></tr>" +
-        memberRows +
-        "</tbody>"
-      );
-    })
-    .join("");
-  const foot =
-    "<tfoot><tr><th>Totaal</th>" +
-    products.map(product => "<th>" + countFor(allMembers, product.id) + "</th>").join("") +
-    "<th>" +
-    total +
-    "</th></tr></tfoot>";
-  const deadlineBanner = !state.orderDeadline
-    ? '<p class="bh-alert bh-alert-info">Er is geen einddatum om te bestellen. Stel er een in bij <button type="button" class="bh-link" data-action="edition-tab" data-tab="edition">Editie</button>.</p>'
-    : ordersClosed(state.orderDeadline)
-      ? '<p class="bh-alert">🔒 Bestellen is gesloten sinds ' +
-        esc(deadlineText()) +
-        ". Gezinnen kunnen niets meer wijzigen; jij kan dat als beheerder nog wel.</p>"
-      : '<p class="bh-alert bh-alert-info">Gezinnen kunnen bestellen tot ' + esc(deadlineText()) + ".</p>";
-  return (
-    deadlineBanner +
-    pageHead(
-      "Bestelling",
-      plural(total, "portie", "porties") +
-        " in totaal, door " +
-        plural(regs.filter(r => familyPortions(r) > 0).length, "gezin", "gezinnen") +
-        ".",
-      '<button type="button" class="bh-btn" data-action="print">Afdrukken</button>'
-    ) +
-    orderForFamilyCard() +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Voor de slager</h2></header><div class="bh-products">' +
-    (cards || '<p class="bh-empty">Geen producten.</p>') +
-    "</div></section>" +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Wie bestelde wat?</h2></header>' +
-    (regs.length
-      ? '<div class="bh-table-wrap"><table class="bh-table">' +
-        "<thead>" +
-        head +
-        "</thead>" +
-        body +
-        foot +
-        "</table></div>"
-      : '<p class="bh-empty">Nog geen gezinnen.</p>') +
-    "</section>" +
-    renderDietOverview()
+      return html`<article class="bh-product">
+            <div class="bh-product-img">${
+              product.image
+                ? html`<img src="${product.image}" alt=""
+                loading="lazy">`
+                : html`<span>🍖</span>`
+            }</div>
+            <div>
+              <strong>${product.name}</strong>
+              <b>${count}</b>
+            </div>
+          </article>`;
+    }),
+    ""
   );
+  const head = html`<tr>
+        <th>Gezin</th>${joinHtml(
+          products.map(product => html`<th>${product.name}</th>`),
+          ""
+        )}<th>Totaal</th>
+      </tr>`;
+  const body = joinHtml(
+    regs.map(reg => {
+      const members = reg.members || [];
+      const cells = joinHtml(
+        products.map(product => {
+          const c = countFor(members, product.id);
+          return html`<td>${c || html`<span class="bh-dim">–</span>`}</td>`;
+        }),
+        ""
+      );
+      const memberRows = joinHtml(
+        members.map(
+          person =>
+            html`<tr class="bh-sub-row">
+                <td>${person.name}${
+                  person.type !== "Volwassene"
+                    ? html` <small>(${person.type === EVENING ? "avondgast" : "kind"})</small>`
+                    : ""
+                }</td>${joinHtml(
+                  products.map(product => {
+                    const c = Number(person.orders?.[product.id]) || 0;
+                    return html`<td>${c || html`<span class="bh-dim">–</span>`}</td>`;
+                  }),
+                  ""
+                )}<td>${portionsOf(person)}</td>
+              </tr>`
+        ),
+        ""
+      );
+      return html`<tbody class="bh-group">
+            <tr class="bh-group-row">
+              <th scope="row">
+                <button type="button" class="bh-link" data-action="open-family" data-id="${reg.id}">${reg.name}</button>
+              </th>${cells}<td>
+                <b>${familyPortions(reg)}</b>
+              </td>
+            </tr>${memberRows}</tbody>`;
+    }),
+    ""
+  );
+  const foot = html`<tfoot>
+        <tr>
+          <th>Totaal</th>${joinHtml(
+            products.map(product => html`<th>${countFor(allMembers, product.id)}</th>`),
+            ""
+          )}<th>${total}</th>
+        </tr>
+      </tfoot>`;
+  const deadlineBanner = !state.orderDeadline
+    ? html`<p class="bh-alert bh-alert-info">Er is geen einddatum om te bestellen. Stel er een in bij <button
+        type="button" class="bh-link" data-action="edition-tab" data-tab="edition">Editie</button>.</p>`
+    : ordersClosed(state.orderDeadline)
+      ? html`<p class="bh-alert">🔒 Bestellen is gesloten sinds ${deadlineText()}. Gezinnen kunnen niets meer wijzigen;
+          jij kan dat als beheerder nog wel.</p>`
+      : html`<p class="bh-alert bh-alert-info">Gezinnen kunnen bestellen tot ${deadlineText()}.</p>`;
+  return html`${deadlineBanner}${pageHead(
+    "Bestelling",
+    plural(total, "portie", "porties") +
+      " in totaal, door " +
+      plural(regs.filter(r => familyPortions(r) > 0).length, "gezin", "gezinnen") +
+      ".",
+    html`<button type="button" class="bh-btn" data-action="print">Afdrukken</button>`
+  )}${orderForFamilyCard()}<section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Voor de slager</h2>
+        </header>
+        <div class="bh-products">${cards || html`<p class="bh-empty">Geen producten.</p>`}</div>
+      </section>
+      <section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Wie bestelde wat?</h2>
+        </header>${
+          regs.length
+            ? html`<div class="bh-table-wrap">
+          <table class="bh-table">
+            <thead>${head}</thead>${body}${foot}</table>
+        </div>`
+            : html`<p class="bh-empty">Nog geen gezinnen.</p>`
+        }</section>${renderDietOverview()}`;
 }
 
 // ---------------- Financiën ----------------
 function renderExpenseForm(expense = null) {
   const isEdit = Boolean(expense);
   const method = expense?.method || "general";
-  return (
-    '<form id="' +
-    (isEdit ? "edit-expense-form" : "add-expense-form") +
-    '" class="bh-form-grid">' +
-    '<label class="bh-span-2">Omschrijving<input name="description" maxlength="120" value="' +
-    esc(expense?.description || "") +
-    '" placeholder="Bv. Beenhouwer, Drank, Decoratie" required></label>' +
-    '<label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" value="' +
-    (expense ? (expense.amountCents / 100).toFixed(2) : "") +
-    '" placeholder="0,00" required></label>' +
-    '<label>Datum<input name="date" type="date" value="' +
-    esc(expense?.date || today()) +
-    '" required></label>' +
-    '<label class="bh-span-2">Wie betaalt mee?<select name="method">' +
-    Object.keys(COST_METHODS)
-      .map(
-        key =>
-          '<option value="' +
-          key +
-          '"' +
-          (key === method ? " selected" : "") +
-          ">" +
-          COST_ICON[key] +
-          " " +
-          esc(COST_METHODS[key].label) +
-          " — " +
-          esc(METHOD_HINT[key]) +
-          "</option>"
-      )
-      .join("") +
-    "</select></label>" +
-    '<label class="bh-span-2">Voorgeschoten door<select name="advancedBy" required><option value="">Wie betaalde deze kost?</option><option value="' +
-    SHARED_FUND +
-    '"' +
-    (expense?.advancedBy === SHARED_FUND ? " selected" : "") +
-    ">Gemeenschappelijke kas / organisatie</option>" +
-    (state.registrations || [])
-      .map(
-        reg =>
-          '<option value="' +
-          esc(reg.id) +
-          '"' +
-          (expense?.advancedBy === reg.id ? " selected" : "") +
-          ">" +
-          esc(reg.name) +
-          "</option>"
-      )
-      .join("") +
-    "</select></label>" +
-    '<div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">' +
-    (isEdit ? "Wijzigingen bewaren" : "+ Kost toevoegen") +
-    "</button>" +
-    (isEdit ? '<button type="button" class="bh-btn" data-action="cancel-edit-expense">Annuleren</button>' : "") +
-    "</div></form>"
-  );
+  return html`<form id="${isEdit ? "edit-expense-form" : "add-expense-form"}" class="bh-form-grid">
+        <label class="bh-span-2">Omschrijving<input name="description" maxlength="120"
+            value="${expense?.description || ""}" placeholder="Bv. Beenhouwer, Drank, Decoratie" required>
+        </label>
+        <label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01"
+            value="${expense ? (expense.amountCents / 100).toFixed(2) : ""}" placeholder="0,00" required>
+        </label>
+        <label>Datum<input name="date" type="date" value="${expense?.date || today()}" required>
+        </label>
+        <label class="bh-span-2">Wie betaalt mee?<select name="method">${joinHtml(
+          Object.keys(COST_METHODS).map(
+            key =>
+              html`<option
+                  value="${key}"${key === method ? " selected" : ""}>${COST_ICON[key]} ${COST_METHODS[key].label} — ${METHOD_HINT[key]}</option>`
+          ),
+          ""
+        )}</select>
+        </label>
+        <label class="bh-span-2">Voorgeschoten door<select name="advancedBy" required>
+            <option value="">Wie betaalde deze kost?</option>
+            <option value="${SHARED_FUND}"${expense?.advancedBy === SHARED_FUND ? " selected" : ""}>Gemeenschappelijke
+                kas / organisatie</option>${joinHtml(
+                  (state.registrations || []).map(
+                    reg =>
+                      html`<option
+                      value="${reg.id}"${expense?.advancedBy === reg.id ? " selected" : ""}>${reg.name}</option>`
+                  ),
+                  ""
+                )}</select>
+        </label>
+        <div class="bh-actions bh-span-2">
+          <button type="submit" class="bh-btn
+              bh-btn-primary">${isEdit ? "Wijzigingen bewaren" : "+ Kost toevoegen"}</button>${
+                isEdit
+                  ? html`<button
+              type="button" class="bh-btn" data-action="cancel-edit-expense">Annuleren</button>`
+                  : ""
+              }</div>
+      </form>`;
 }
 
 function renderFinance() {
   const t = eventTotals();
   const regs = state.registrations || [];
   const nameOf = id => payerName(id, regs);
-  const groups = Object.keys(COST_METHODS)
-    .map(method => {
+  const groups = joinHtml(
+    Object.keys(COST_METHODS).map(method => {
       const list = (state.expenses || []).filter(expense => expense.method === method);
       if (!list.length) return "";
       const sum = list.reduce((s, e) => s + (Number(e.amountCents) || 0), 0);
-      const rows = list
-        .map(expense => {
+      const rows = joinHtml(
+        list.map(expense => {
           if (state.editingExpenseId === expense.id)
-            return '<li class="bh-editing">' + renderExpenseForm(expense) + "</li>";
+            return html`<li class="bh-editing">${renderExpenseForm(expense)}</li>`;
           const shares = getExpenseShares(expense, regs);
-          return (
-            '<li><div class="bh-expense"><span><strong>' +
-            esc(expense.description) +
-            "</strong><small>" +
-            esc(formatDate(expense.date)) +
-            " · voorgeschoten door " +
-            esc(nameOf(expense.advancedBy)) +
-            (expense.enteredBy === "family"
-              ? ' · <span class="bh-chip bh-chip-info">ingevoerd door gezin</span>'
-              : "") +
-            (expense.receipt
-              ? ' · <a class="bh-link" href="/api/admin/receipts?key=' +
-                encodeURIComponent(expense.receipt) +
-                '" target="_blank" rel="noopener">📎 Kasticket</a>'
-              : "") +
-            " · verdeeld over " +
-            plural(shares.length, "gezin", "gezinnen") +
-            "</small></span><b>" +
-            euro(expense.amountCents) +
-            '</b></div><div class="bh-actions"><button type="button" class="bh-btn bh-btn-sm" data-action="edit-expense" data-id="' +
-            esc(expense.id) +
-            '">Wijzigen</button><button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-expense" data-id="' +
-            esc(expense.id) +
-            '">Verwijderen</button></div></li>'
-          );
-        })
-        .join("");
-      return (
-        '<section class="bh-expense-group"><header><span>' +
-        COST_ICON[method] +
-        " " +
-        esc(COST_METHODS[method].label) +
-        " <small>" +
-        esc(METHOD_HINT[method]) +
-        "</small></span><b>" +
-        euro(sum) +
-        "</b></header><ul>" +
-        rows +
-        "</ul></section>"
+          return html`<li>
+                <div class="bh-expense">
+                  <span>
+                    <strong>${expense.description}</strong>
+                    <small>${formatDate(expense.date)} · voorgeschoten door ${nameOf(expense.advancedBy)}${
+                      expense.enteredBy === "family"
+                        ? html` · <span class="bh-chip bh-chip-info">ingevoerd door gezin</span>`
+                        : ""
+                    }${
+                      expense.receipt
+                        ? html` · <a class="bh-link"
+                            href="/api/admin/receipts?key=${encodeURIComponent(expense.receipt)}" target="_blank"
+                            rel="noopener">📎 Kasticket</a>`
+                        : ""
+                    } · verdeeld over ${plural(shares.length, "gezin", "gezinnen")}</small>
+                  </span>
+                  <b>${euro(expense.amountCents)}</b>
+                </div>
+                <div class="bh-actions">
+                  <button type="button" class="bh-btn bh-btn-sm" data-action="edit-expense"
+                      data-id="${expense.id}">Wijzigen</button>
+                  <button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-expense"
+                      data-id="${expense.id}">Verwijderen</button>
+                </div>
+              </li>`;
+        }),
+        ""
       );
-    })
-    .join("");
+      return html`<section class="bh-expense-group">
+            <header>
+              <span>${COST_ICON[method]} ${COST_METHODS[method].label} <small>${METHOD_HINT[method]}</small>
+              </span>
+              <b>${euro(sum)}</b>
+            </header>
+            <ul>${rows}</ul>
+          </section>`;
+    }),
+    ""
+  );
 
   const shareTotal = t.summary.reduce((sum, row) => sum + row.shareCents, 0);
   const splitShares = shareTotal - t.summary.reduce((sum, row) => sum + (row.barCents || 0), 0);
@@ -1078,173 +1095,213 @@ function renderFinance() {
     .filter(expense => expense.method !== "bar")
     .reduce((sum, expense) => sum + (Number(expense.amountCents) || 0), 0);
   const balanced = splitShares === splitCosts;
-  const settlementRows = t.summary
-    .map(row => {
+  const settlementRows = joinHtml(
+    t.summary.map(row => {
       const credit = row.creditCents;
-      return (
-        '<tr><th scope="row"><button type="button" class="bh-link" data-action="open-family" data-id="' +
-        esc(row.id) +
-        '">' +
-        esc(row.name) +
-        "</button></th><td>" +
-        euro(row.shareCents) +
-        "</td><td>" +
-        (row.advancedCents ? euro(row.advancedCents) : '<span class="bh-dim">–</span>') +
-        "</td><td>" +
-        (row.paidCents ? euro(row.paidCents) : '<span class="bh-dim">–</span>') +
-        '</td><td class="' +
-        (row.remainingCents ? "bh-due" : credit ? "bh-credit" : "") +
-        '"><b>' +
-        (row.remainingCents ? euro(row.remainingCents) + " te betalen" : credit ? euro(credit) + " terug" : "In orde") +
-        "</b></td></tr>"
-      );
-    })
-    .join("");
+      return html`<tr>
+            <th scope="row">
+              <button type="button" class="bh-link" data-action="open-family" data-id="${row.id}">${row.name}</button>
+            </th>
+            <td>${euro(row.shareCents)}</td>
+            <td>${row.advancedCents ? euro(row.advancedCents) : html`<span class="bh-dim">–</span>`}</td>
+            <td>${row.paidCents ? euro(row.paidCents) : html`<span class="bh-dim">–</span>`}</td>
+            <td class="${row.remainingCents ? "bh-due" : credit ? "bh-credit" : ""}">
+              <b>${row.remainingCents ? euro(row.remainingCents) + " te betalen" : credit ? euro(credit) + " terug" : "In orde"}</b>
+            </td>
+          </tr>`;
+    }),
+    ""
+  );
 
   const payments = [...(state.payments || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  return (
-    pageHead("Financiën", "Kosten, betalingen en de afrekening per gezin.", statusChip()) +
-    '<section class="bh-kpis bh-kpis-4">' +
-    kpi(euro(t.costs), "kosten") +
-    kpi(euro(t.received), "ontvangen") +
-    kpi(euro(t.outstanding), "nog te ontvangen") +
-    kpi(euro(t.toRefund), "terug te geven") +
-    "</section>" +
-    '<section class="bh-card bh-finalize ' +
-    (state.costsFinalized ? "is-final" : "") +
-    '"><div><h2>' +
-    (state.costsFinalized ? "De afrekening is definitief" : "De afrekening is voorlopig") +
-    "</h2><p>" +
-    (state.costsFinalized
-      ? "Gezinnen zien hun bedrag als definitief. Een wijziging aan kosten of bestellingen maakt het weer voorlopig."
-      : "Zodra alle facturen binnen zijn, bevestig je de afrekening. Gezinnen zien dan een definitief bedrag.") +
-    "</p></div>" +
-    (state.costsFinalized
-      ? '<button type="button" class="bh-btn" data-action="reopen-costs">Terug naar voorlopig</button>'
-      : '<button type="button" class="bh-btn bh-btn-primary" data-action="finalize-costs">Alle kosten zijn binnen</button>') +
-    "</section>" +
-    '<div class="bh-grid-2">' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Kosten</h2><span class="bh-count">' +
-    (state.expenses || []).length +
-    "</span></header>" +
-    (groups || '<p class="bh-empty">Nog geen kosten. Voeg hieronder de eerste toe.</p>') +
-    '<details class="bh-add"' +
-    ((state.expenses || []).length ? "" : " open") +
-    "><summary>+ Nieuwe kost</summary>" +
-    (state.editingExpenseId
-      ? '<p class="bh-note">Bewaar eerst de kost die je aan het wijzigen bent.</p>'
-      : renderExpenseForm()) +
-    "</details></section>" +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Betalingen</h2><span class="bh-count">' +
-    payments.length +
-    "</span></header>" +
-    (payments.length
-      ? '<ul class="bh-lines">' + payments.map(payment => paymentLine(payment, true)).join("") + "</ul>"
-      : '<p class="bh-empty">Nog geen betalingen.</p>') +
-    '<details class="bh-add"><summary>+ Betaling registreren</summary><form id="add-payment-form" class="bh-form-grid"><label class="bh-span-2">Van<select name="registrationId" required><option value="">Kies een gezin</option>' +
-    t.summary
-      .filter(row => row.remainingCents > 0)
-      .map(
-        row =>
-          '<option value="' + esc(row.id) + '">' + esc(row.name) + " — " + euro(row.remainingCents) + " open</option>"
-      )
-      .join("") +
-    '</select></label><label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Datum<input name="date" type="date" value="' +
-    today() +
-    '" required></label><label class="bh-span-2">Wijze<select name="method"><option value="cash">Cash</option><option value="bank">Overschrijving</option></select></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Betaling registreren</button></div></form></details>' +
-    (t.summary.some(row => row.creditCents > 0)
-      ? '<details class="bh-add"><summary>+ Terugbetaling registreren</summary><p class="bh-note">Geld dat je teruggeeft aan een gezin dat meer voorschoot dan zijn aandeel.</p><form id="add-refund-form" class="bh-form-grid"><label class="bh-span-2">Aan<select name="registrationId" required><option value="">Kies een gezin</option>' +
-        t.summary
-          .filter(row => row.creditCents > 0)
-          .map(
-            row =>
-              '<option value="' +
-              esc(row.id) +
-              '">' +
-              esc(row.name) +
-              " — " +
-              euro(row.creditCents) +
-              " terug te geven</option>"
-          )
-          .join("") +
-        '</select></label><label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Datum<input name="date" type="date" value="' +
-        today() +
-        '" required></label><label class="bh-span-2">Wijze<select name="method"><option value="cash">Cash</option><option value="bank">Overschrijving</option></select></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Terugbetaling registreren</button></div></form></details>'
-      : "") +
-    "</section>" +
-    "</div>" +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Afrekening per gezin</h2><span class="bh-chip ' +
-    (balanced ? "bh-chip-ok" : "bh-chip-due") +
-    '">' +
-    (balanced
-      ? "✓ Sluitend: alle kosten zijn verdeeld"
-      : "Niet sluitend: " + euro(splitCosts - splitShares) + " niet verdeeld") +
-    "</span>" +
-    barCheck(barBalance()) +
-    "</header>" +
-    (regs.length
-      ? '<div class="bh-table-wrap"><table class="bh-table bh-table-money"><thead><tr><th>Gezin</th><th>Aandeel</th><th>Voorgeschoten</th><th>Betaald</th><th>Saldo</th></tr></thead><tbody>' +
-        settlementRows +
-        "</tbody><tfoot><tr><th>Totaal</th><th>" +
-        euro(shareTotal) +
-        "</th><th>" +
-        euro(t.summary.reduce((s, r) => s + r.advancedCents, 0)) +
-        "</th><th>" +
-        euro(t.received) +
-        "</th><th></th></tr></tfoot></table></div>"
-      : '<p class="bh-empty">Nog geen gezinnen.</p>') +
-    (balanced
-      ? ""
-      : '<p class="bh-note">Een kost wordt niet verdeeld als niemand in aanmerking komt, bv. een vleeskost terwijl nog niemand vlees bestelde, of een 18+-kost zonder volwassenen.</p>') +
-    "</section>"
-  );
+  return html`${pageHead("Financiën", "Kosten, betalingen en de afrekening per gezin.", statusChip())}<section
+      class="bh-kpis
+      bh-kpis-4">${kpi(euro(t.costs), "kosten")}${kpi(euro(t.received), "ontvangen")}${kpi(euro(t.outstanding), "nog te ontvangen")}${kpi(euro(t.toRefund), "terug te geven")}</section>
+      <section class="bh-card bh-finalize ${state.costsFinalized ? "is-final" : ""}">
+        <div>
+          <h2>${state.costsFinalized ? "De afrekening is definitief" : "De afrekening is voorlopig"}</h2>
+          <p>${
+            state.costsFinalized
+              ? "Gezinnen zien hun bedrag als definitief. Een wijziging aan kosten of bestellingen maakt het weer voorlopig."
+              : "Zodra alle facturen binnen zijn, bevestig je de afrekening. Gezinnen zien dan een definitief bedrag."
+          }</p>
+        </div>${
+          state.costsFinalized
+            ? html`<button type="button" class="bh-btn" data-action="reopen-costs">Terug naar voorlopig</button>`
+            : html`<button type="button" class="bh-btn bh-btn-primary" data-action="finalize-costs">Alle kosten zijn
+                binnen</button>`
+        }</section>
+      <div class="bh-grid-2">
+        <section class="bh-card">
+          <header class="bh-card-head">
+            <h2>Kosten</h2>
+            <span class="bh-count">${(state.expenses || []).length}</span>
+          </header>${groups || html`<p class="bh-empty">Nog geen kosten. Voeg hieronder de eerste toe.</p>`}<details
+              class="bh-add"${(state.expenses || []).length ? "" : " open"}>
+            <summary>+ Nieuwe kost</summary>${
+              state.editingExpenseId
+                ? html`<p class="bh-note">Bewaar eerst de kost die je aan het wijzigen bent.</p>`
+                : renderExpenseForm()
+            }</details>
+        </section>
+        <section class="bh-card">
+          <header class="bh-card-head">
+            <h2>Betalingen</h2>
+            <span class="bh-count">${payments.length}</span>
+          </header>${
+            payments.length
+              ? html`<ul class="bh-lines">${payments.map(payment => paymentLine(payment, true))}</ul>`
+              : html`<p class="bh-empty">Nog geen betalingen.</p>`
+          }<details class="bh-add">
+            <summary>+ Betaling registreren</summary>
+            <form id="add-payment-form" class="bh-form-grid">
+              <label class="bh-span-2">Van<select name="registrationId" required>
+                  <option value="">Kies een gezin</option>${joinHtml(
+                    t.summary
+                      .filter(row => row.remainingCents > 0)
+                      .map(
+                        row => html`<option value="${row.id}">${row.name} — ${euro(row.remainingCents)} open</option>`
+                      ),
+                    ""
+                  )}</select>
+              </label>
+              <label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" required>
+              </label>
+              <label>Datum<input name="date" type="date" value="${today()}" required>
+              </label>
+              <label class="bh-span-2">Wijze<select name="method">
+                  <option value="cash">Cash</option>
+                  <option value="bank">Overschrijving</option>
+                </select>
+              </label>
+              <div class="bh-actions bh-span-2">
+                <button type="submit" class="bh-btn bh-btn-primary">Betaling registreren</button>
+              </div>
+            </form>
+          </details>${
+            t.summary.some(row => row.creditCents > 0)
+              ? html`<details class="bh-add">
+          <summary>+ Terugbetaling registreren</summary>
+          <p class="bh-note">Geld dat je teruggeeft aan een gezin dat meer voorschoot dan zijn aandeel.</p>
+          <form id="add-refund-form" class="bh-form-grid">
+            <label class="bh-span-2">Aan<select name="registrationId" required>
+                <option value="">Kies een gezin</option>${joinHtml(
+                  t.summary
+                    .filter(row => row.creditCents > 0)
+                    .map(
+                      row =>
+                        html`<option value="${row.id}">${row.name} — ${euro(row.creditCents)} terug te geven</option>`
+                    ),
+                  ""
+                )}</select>
+            </label>
+            <label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" required>
+            </label>
+            <label>Datum<input name="date" type="date" value="${today()}" required>
+            </label>
+            <label class="bh-span-2">Wijze<select name="method">
+                <option value="cash">Cash</option>
+                <option value="bank">Overschrijving</option>
+              </select>
+            </label>
+            <div class="bh-actions bh-span-2">
+              <button type="submit" class="bh-btn bh-btn-primary">Terugbetaling registreren</button>
+            </div>
+          </form>
+        </details>`
+              : ""
+          }</section>
+      </div>
+      <section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Afrekening per gezin</h2>
+          <span class="bh-chip ${balanced ? "bh-chip-ok" : "bh-chip-due"}">${
+            balanced
+              ? "✓ Sluitend: alle kosten zijn verdeeld"
+              : "Niet sluitend: " + euro(splitCosts - splitShares) + " niet verdeeld"
+          }</span>${barCheck(barBalance())}</header>${
+            regs.length
+              ? html`<div class="bh-table-wrap">
+          <table class="bh-table bh-table-money">
+            <thead>
+              <tr>
+                <th>Gezin</th>
+                <th>Aandeel</th>
+                <th>Voorgeschoten</th>
+                <th>Betaald</th>
+                <th>Saldo</th>
+              </tr>
+            </thead>
+            <tbody>${settlementRows}</tbody>
+            <tfoot>
+              <tr>
+                <th>Totaal</th>
+                <th>${euro(shareTotal)}</th>
+                <th>${euro(t.summary.reduce((s, r) => s + r.advancedCents, 0))}</th>
+                <th>${euro(t.received)}</th>
+                <th>
+                </th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>`
+              : html`<p class="bh-empty">Nog geen gezinnen.</p>`
+          }${
+            balanced
+              ? ""
+              : html`<p class="bh-note">Een kost wordt niet verdeeld als niemand in aanmerking komt, bv. een vleeskost
+                  terwijl nog niemand vlees bestelde, of een 18+-kost zonder volwassenen.</p>`
+          }</section>`;
 }
 
 // ---------------- Producten & editie ----------------
 
 function renderProducts() {
-  const rows = state.catalog
-    .map(
+  const rows = joinHtml(
+    state.catalog.map(
       item =>
-        '<li class="bh-product-row"><div class="bh-product-thumb">' +
-        (item.image ? '<img src="' + esc(item.image) + '" alt="">' : "<span>🍖</span>") +
-        "</div>" +
-        '<span class="bh-family-name"><strong>' +
-        esc(item.name) +
-        "</strong><small>" +
-        (item.active ? "Zichtbaar voor gezinnen" : "Verborgen voor gezinnen") +
-        "</small></span>" +
-        '<div class="bh-actions catalog-admin-actions"><label class="bh-btn bh-btn-sm" for="photo-' +
-        esc(item.id) +
-        '">' +
-        (item.image ? "Foto wijzigen" : "Foto toevoegen") +
-        '</label><input class="visually-hidden" id="photo-' +
-        esc(item.id) +
-        '" type="file" accept="image/png,image/jpeg,image/webp" data-upload-image="' +
-        esc(item.id) +
-        '">' +
-        (item.image
-          ? '<button type="button" class="bh-btn bh-btn-sm" data-action="remove-image" data-id="' +
-            esc(item.id) +
-            '">Foto wissen</button>'
-          : "") +
-        '<button type="button" class="bh-btn bh-btn-sm' +
-        (item.active ? "" : " bh-btn-primary") +
-        '" data-action="toggle-product" data-id="' +
-        esc(item.id) +
-        '">' +
-        (item.active ? "Verbergen" : "Tonen") +
-        "</button></div></li>"
-    )
-    .join("");
-  return (
-    '<section class="bh-card"><header class="bh-card-head"><h2>Producten</h2><span class="bh-count">' +
-    state.catalog.length +
-    '</span></header><ul class="bh-product-list">' +
-    rows +
-    "</ul>" +
-    '<form id="add-product-form" class="bh-inline-form"><label for="new-product-name">Nieuw product</label><div><input id="new-product-name" name="productName" maxlength="60" placeholder="Bijvoorbeeld: Kippenbrochette" required><button type="submit" class="bh-btn bh-btn-primary">+ Toevoegen</button></div></form></section>'
+        html`<li class="bh-product-row">
+            <div class="bh-product-thumb">${
+              item.image
+                ? html`<img src="${item.image}"
+                alt="">`
+                : html`<span>🍖</span>`
+            }</div>
+            <span class="bh-family-name">
+              <strong>${item.name}</strong>
+              <small>${item.active ? "Zichtbaar voor gezinnen" : "Verborgen voor gezinnen"}</small>
+            </span>
+            <div class="bh-actions catalog-admin-actions">
+              <label class="bh-btn bh-btn-sm"
+                  for="photo-${item.id}">${item.image ? "Foto wijzigen" : "Foto toevoegen"}</label>
+              <input class="visually-hidden" id="photo-${item.id}" type="file" accept="image/png,image/jpeg,image/webp"
+                  data-upload-image="${item.id}">${
+                    item.image
+                      ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="remove-image"
+                      data-id="${item.id}">Foto wissen</button>`
+                      : ""
+                  }<button type="button" class="bh-btn bh-btn-sm${item.active ? "" : " bh-btn-primary"}"
+                  data-action="toggle-product" data-id="${item.id}">${item.active ? "Verbergen" : "Tonen"}</button>
+            </div>
+          </li>`
+    ),
+    ""
   );
+  return html`<section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Producten</h2>
+          <span class="bh-count">${state.catalog.length}</span>
+        </header>
+        <ul class="bh-product-list">${rows}</ul>
+        <form id="add-product-form" class="bh-inline-form">
+          <label for="new-product-name">Nieuw product</label>
+          <div>
+            <input id="new-product-name" name="productName" maxlength="60" placeholder="Bijvoorbeeld: Kippenbrochette"
+                required>
+            <button type="submit" class="bh-btn bh-btn-primary">+ Toevoegen</button>
+          </div>
+        </form>
+      </section>`;
 }
 
 const deadlineText = () => {
@@ -1290,159 +1347,216 @@ function renderMessageCard() {
   const all = recipientCount("all"),
     noOrder = recipientCount("no-order");
   const draft = state.beheerMessageDraft || {};
-  return (
-    '<section class="bh-card"><header class="bh-card-head"><h2>Bericht aan gezinnen</h2></header>' +
-    '<p class="bh-note">Verstuur een e-mail vanaf registratie@datuur.be naar de gezinnen van deze editie, met een knop naar het familieportaal.</p>' +
-    '<div class="bh-actions"><button type="button" class="bh-btn bh-btn-sm" data-action="message-template" data-template="reminder">Herinnering bestellen</button><button type="button" class="bh-btn bh-btn-sm" data-action="message-template" data-template="info">Praktische info</button></div>' +
-    '<form id="family-message-form" class="bh-form-grid">' +
-    '<label class="bh-span-2">Naar<select name="audience"><option value="all"' +
-    (draft.audience !== "no-order" ? " selected" : "") +
-    ">Alle ingeschreven gezinnen (" +
-    plural(all.people, "ontvanger", "ontvangers") +
-    ')</option><option value="no-order"' +
-    (draft.audience === "no-order" ? " selected" : "") +
-    ">Alleen gezinnen zonder bestelling (" +
-    plural(noOrder.people, "ontvanger", "ontvangers") +
-    ")</option></select></label>" +
-    '<label class="bh-span-2">Onderwerp<input name="subject" maxlength="150" value="' +
-    esc(draft.subject || "") +
-    '" required></label>' +
-    '<label class="bh-span-2">Bericht<textarea name="message" rows="8" maxlength="5000" required>' +
-    esc(draft.message || "") +
-    "</textarea></label>" +
-    '<p class="bh-note bh-span-2">Elke ontvanger krijgt "Dag [naam]," bovenaan en "Groeten, de organisatie van ' +
-    esc(eventTitle()) +
-    '" onderaan. Alleen gezinnen met een account ontvangen het bericht.</p>' +
-    '<div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Bericht versturen</button></div></form></section>'
-  );
+  return html`<section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Bericht aan gezinnen</h2>
+        </header>
+        <p class="bh-note">Verstuur een e-mail vanaf registratie@datuur.be naar de gezinnen van deze editie, met een knop
+            naar het familieportaal.</p>
+        <div class="bh-actions">
+          <button type="button" class="bh-btn bh-btn-sm" data-action="message-template"
+              data-template="reminder">Herinnering bestellen</button>
+          <button type="button" class="bh-btn bh-btn-sm" data-action="message-template" data-template="info">Praktische
+              info</button>
+        </div>
+        <form id="family-message-form" class="bh-form-grid">
+          <label class="bh-span-2">Naar<select name="audience">
+              <option value="all"${draft.audience !== "no-order" ? " selected" : ""}>Alle ingeschreven gezinnen
+                  (${plural(all.people, "ontvanger", "ontvangers")})</option>
+              <option value="no-order"${draft.audience === "no-order" ? " selected" : ""}>Alleen gezinnen zonder
+                  bestelling (${plural(noOrder.people, "ontvanger", "ontvangers")})</option>
+            </select>
+          </label>
+          <label class="bh-span-2">Onderwerp<input name="subject" maxlength="150" value="${draft.subject || ""}"
+              required>
+          </label>
+          <label class="bh-span-2">Bericht<textarea name="message" rows="8" maxlength="5000"
+              required>${draft.message || ""}</textarea>
+          </label>
+          <p class="bh-note bh-span-2">Elke ontvanger krijgt "Dag [naam]," bovenaan en "Groeten, de organisatie
+              van ${eventTitle()}" onderaan. Alleen gezinnen met een account ontvangen het bericht.</p>
+          <div class="bh-actions bh-span-2">
+            <button type="submit" class="bh-btn bh-btn-primary">Bericht versturen</button>
+          </div>
+        </form>
+      </section>`;
 }
 
 function renderEventSettings() {
   const event = (state.events || []).find(item => item.id === state.activeEventId);
   const others = (event?.editions || []).filter(edition => edition.id !== state.activeEditionId);
   const archived = state.editionStatus === "archived";
-  const otherRows = others
-    .map(
+  const editionCounts = [
+    plural((state.registrations || []).length, "gezin", "gezinnen"),
+    plural((state.expenses || []).length, "kost", "kosten"),
+    plural((state.payments || []).length, "betaling", "betalingen")
+  ].join(" · ");
+  const otherRows = joinHtml(
+    others.map(
       edition =>
-        "<li><span><strong>" +
-        esc(edition.label) +
-        "</strong><small>" +
-        (edition.status === "archived" ? "Afgesloten" : "Actief") +
-        '</small></span><button type="button" class="bh-btn bh-btn-sm" data-action="open-edition" data-id="' +
-        esc(edition.id) +
-        '">Openen ›</button></li>'
-    )
-    .join("");
-  return (
-    '<section class="bh-card"><header class="bh-card-head"><h2>Evenement & editie</h2>' +
-    (archived ? '<span class="bh-chip">Afgesloten</span>' : '<span class="bh-chip bh-chip-ok">Actief</span>') +
-    "</header>" +
-    '<p class="bh-note">Een evenement komt terug in <strong>edities</strong>. Gezinnen en hun accounts blijven bestaan; per editie schrijven ze zich opnieuw in, met hun eigen bestellingen, kosten en betalingen.</p>' +
-    '<form id="event-settings-form" class="bh-form-grid"><label>Evenement<input name="eventName" maxlength="80" value="' +
-    esc(eventName()) +
-    '" placeholder="Bijvoorbeeld: Nieuwjaar" required></label><label>Deze editie<input name="editionName" maxlength="80" value="' +
-    esc(editionName()) +
-    '" placeholder="Bijvoorbeeld: 2026–2027" required></label><label class="bh-span-2">Bestellen kan tot<input name="orderDeadline" type="datetime-local" value="' +
-    esc(
-      state.orderDeadline
-        ? state.orderDeadline.length === 10
-          ? state.orderDeadline + "T23:59"
-          : state.orderDeadline
-        : ""
-    ) +
-    '"><small class="bh-muted">Daarna kunnen gezinnen hun bestelling niet meer wijzigen (jij als beheerder wel). Leeg laten = altijd open.</small></label><label class="bh-span-2">Datum en uur van het feest<input name="startsAt" type="datetime-local" value="' +
-    esc(state.startsAt ? (state.startsAt.length === 10 ? state.startsAt + "T20:00" : state.startsAt) : "") +
-    '"><small class="bh-muted">Gezinnen zien hiermee een aftelling in hun portaal.</small></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Namen bewaren</button></div></form>' +
-    '<p class="bh-note">' +
-    plural((state.registrations || []).length, "gezin", "gezinnen") +
-    " · " +
-    plural((state.expenses || []).length, "kost", "kosten") +
-    " · " +
-    plural((state.payments || []).length, "betaling", "betalingen") +
-    " in deze editie.</p></section>" +
-    (archived ? "" : renderMessageCard()) +
-    (archived
-      ? ""
-      : '<section class="bh-card"><header class="bh-card-head"><h2>Volgende editie starten</h2></header><p class="bh-note">Doe dit pas als ' +
-        esc(eventTitle()) +
-        ' volledig is afgerond. Deze editie wordt dan afgesloten (je kan ze nog altijd openen). Gezinnen en accounts blijven bestaan en kunnen zich inschrijven voor de nieuwe editie.</p><form id="new-edition-form" class="bh-form-grid"><label class="bh-span-2">Naam nieuwe editie<input name="editionName" maxlength="80" placeholder="Bijvoorbeeld: 2027–2028" required></label><label class="bh-check bh-span-2"><input type="checkbox" name="copyCatalog" checked> Producten en foto\'s overnemen</label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-danger">Afsluiten & nieuwe editie starten</button></div></form></section>') +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Andere edities van ' +
-    esc(eventName()) +
-    '</h2><span class="bh-count">' +
-    others.length +
-    "</span></header>" +
-    (otherRows ? '<ul class="bh-lines">' + otherRows + "</ul>" : '<p class="bh-empty">Nog geen andere edities.</p>') +
-    "</section>"
+        html`<li>
+            <span>
+              <strong>${edition.label}</strong>
+              <small>${edition.status === "archived" ? "Afgesloten" : "Actief"}</small>
+            </span>
+            <button type="button" class="bh-btn bh-btn-sm" data-action="open-edition" data-id="${edition.id}">Openen
+                ›</button>
+          </li>`
+    ),
+    ""
   );
+  return html`<section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Evenement & editie</h2>${
+            archived
+              ? html`<span class="bh-chip">Afgesloten</span>`
+              : html`<span
+              class="bh-chip bh-chip-ok">Actief</span>`
+          }</header>
+        <p class="bh-note">Een evenement komt terug in <strong>edities</strong>. Gezinnen en hun accounts blijven
+            bestaan; per editie schrijven ze zich opnieuw in, met hun eigen bestellingen, kosten en betalingen.</p>
+        <form id="event-settings-form" class="bh-form-grid">
+          <label>Evenement<input name="eventName" maxlength="80" value="${eventName()}" placeholder="Bijvoorbeeld:
+              Nieuwjaar" required>
+          </label>
+          <label>Deze editie<input name="editionName" maxlength="80" value="${editionName()}" placeholder="Bijvoorbeeld:
+              2026–2027" required>
+          </label>
+          <label class="bh-span-2">Bestellen kan tot<input name="orderDeadline" type="datetime-local" value="${
+            state.orderDeadline
+              ? state.orderDeadline.length === 10
+                ? state.orderDeadline + "T23:59"
+                : state.orderDeadline
+              : ""
+          }">
+            <small class="bh-muted">Daarna kunnen gezinnen hun bestelling niet meer wijzigen (jij als beheerder wel).
+                Leeg laten = altijd open.</small>
+          </label>
+          <label class="bh-span-2">Datum en uur van het feest<input name="startsAt" type="datetime-local"
+              value="${state.startsAt ? (state.startsAt.length === 10 ? state.startsAt + "T20:00" : state.startsAt) : ""}">
+            <small class="bh-muted">Gezinnen zien hiermee een aftelling in hun portaal.</small>
+          </label>
+          <div class="bh-actions bh-span-2">
+            <button type="submit" class="bh-btn bh-btn-primary">Namen bewaren</button>
+          </div>
+        </form>
+        <p class="bh-note">${editionCounts} in deze editie.</p>
+      </section>${archived ? "" : renderMessageCard()}${
+        archived
+          ? ""
+          : html`<section class="bh-card">
+          <header class="bh-card-head">
+            <h2>Volgende editie starten</h2>
+          </header>
+          <p class="bh-note">Doe dit pas als ${eventTitle()} volledig is afgerond. Deze editie wordt dan afgesloten (je
+              kan ze nog altijd openen). Gezinnen en accounts blijven bestaan en kunnen zich inschrijven voor de nieuwe
+              editie.</p>
+          <form id="new-edition-form" class="bh-form-grid">
+            <label class="bh-span-2">Naam nieuwe editie<input name="editionName" maxlength="80"
+                placeholder="Bijvoorbeeld: 2027–2028" required>
+            </label>
+            <label class="bh-check bh-span-2">
+              <input type="checkbox" name="copyCatalog" checked> Producten en foto's overnemen</label>
+            <div class="bh-actions bh-span-2">
+              <button type="submit" class="bh-btn bh-btn-danger">Afsluiten & nieuwe editie starten</button>
+            </div>
+          </form>
+        </section>`
+      }<section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Andere edities van ${eventName()}</h2>
+          <span class="bh-count">${others.length}</span>
+        </header>${
+          otherRows
+            ? html`<ul class="bh-lines">${otherRows}</ul>`
+            : html`<p class="bh-empty">Nog geen andere
+            edities.</p>`
+        }</section>`;
 }
 
 function renderMail() {
-  return '<section class="bh-card"><header class="bh-card-head"><h2>E-mail testen</h2></header><p class="bh-note">Uitnodigingen en wachtwoordherstel worden verstuurd vanaf registratie@datuur.be via Microsoft 365. Stuur een testmail om de koppeling te controleren.</p><form id="mail-test-form" class="bh-inline-form"><label for="mail-test-recipient">Testmail naar</label><div><input id="mail-test-recipient" name="recipient" type="email" maxlength="254" placeholder="jouw e-mailadres" required><button type="submit" class="bh-btn bh-btn-primary">Testmail versturen</button></div></form></section>';
+  return html`<section class="bh-card">
+      <header class="bh-card-head">
+        <h2>E-mail testen</h2>
+      </header>
+      <p class="bh-note">Uitnodigingen en wachtwoordherstel worden verstuurd vanaf registratie@datuur.be via Microsoft
+          365. Stuur een testmail om de koppeling te controleren.</p>
+      <form id="mail-test-form" class="bh-inline-form">
+        <label for="mail-test-recipient">Testmail naar</label>
+        <div>
+          <input id="mail-test-recipient" name="recipient" type="email" maxlength="254" placeholder="jouw e-mailadres"
+              required>
+          <button type="submit" class="bh-btn bh-btn-primary">Testmail versturen</button>
+        </div>
+      </form>
+    </section>`;
 }
 
 // ---------------- Evenementen ----------------
 function renderEvents() {
   const events = state.events || [];
-  const cards = events
-    .map(event => {
+  const cards = joinHtml(
+    events.map(event => {
       const editions = event.editions || [];
-      const rows = editions
-        .map(edition => {
+      const rows = joinHtml(
+        editions.map(edition => {
           const loaded = edition.id === state.activeEditionId;
           const t = loaded ? eventTotals() : null;
           const stats = t
-            ? '<span class="bh-edition-stats"><span><b>' +
-              t.families +
-              "</b> gezinnen</span><span><b>" +
-              t.people +
-              "</b> deelnemers</span><span><b>" +
-              t.portions +
-              "</b> porties</span><span><b>" +
-              euro(t.outstanding) +
-              "</b> open</span></span>"
-            : '<span class="bh-edition-stats"></span>';
-          return (
-            '<button type="button" class="bh-edition-row' +
-            (edition.status === "archived" ? " bh-edition-archived" : "") +
-            '" data-action="open-edition" data-id="' +
-            esc(edition.id) +
-            '">' +
-            '<span class="bh-edition-label"><strong>' +
-            esc(edition.label) +
-            "</strong><small>" +
-            (edition.status === "archived" ? "Afgesloten editie" : "Actieve editie") +
-            (loaded ? " · geopend" : "") +
-            "</small></span>" +
-            stats +
-            '<span class="bh-btn' +
-            (edition.status === "archived" ? "" : " bh-btn-primary") +
-            '">Openen ›</span></button>'
-          );
-        })
-        .join("");
-      return (
-        '<article class="bh-card bh-event-card"><header class="bh-card-head"><div><h2 class="bh-event-name">' +
-        esc(event.name) +
-        '</h2><small class="bh-muted">' +
-        plural(editions.length, "editie", "edities") +
-        "</small></div>" +
-        (event.status === "archived"
-          ? '<span class="bh-chip">Afgesloten</span>'
-          : '<span class="bh-chip bh-chip-ok">Actief</span>') +
-        "</header>" +
-        (rows || '<p class="bh-empty">Nog geen edities.</p>') +
-        "</article>"
+            ? html`<span class="bh-edition-stats">
+                <span>
+                  <b>${t.families}</b> gezinnen</span>
+                <span>
+                  <b>${t.people}</b> deelnemers</span>
+                <span>
+                  <b>${t.portions}</b> porties</span>
+                <span>
+                  <b>${euro(t.outstanding)}</b> open</span>
+              </span>`
+            : html`<span class="bh-edition-stats">
+              </span>`;
+          return html`<button type="button"
+              class="bh-edition-row${edition.status === "archived" ? " bh-edition-archived" : ""}"
+              data-action="open-edition" data-id="${edition.id}">
+                <span class="bh-edition-label">
+                  <strong>${edition.label}</strong>
+                  <small>${edition.status === "archived" ? "Afgesloten editie" : "Actieve editie"}${loaded ? " · geopend" : ""}</small>
+                </span>${stats}<span class="bh-btn${edition.status === "archived" ? "" : " bh-btn-primary"}">Openen
+                    ›</span>
+              </button>`;
+        }),
+        ""
       );
-    })
-    .join("");
-  return (
-    pageHead(
-      "Evenementen",
-      "Elk evenement komt terug in edities. Open een editie om inschrijvingen, bestellingen en financiën te beheren."
-    ) +
-    (cards || '<p class="bh-empty">Nog geen evenementen.</p>') +
-    '<details class="bh-card bh-card-dashed bh-add"><summary>+ Nieuw evenement</summary><p class="bh-note">Bijvoorbeeld een BBQ of schoolfeest. Gezinnen en accounts worden gedeeld over alle evenementen; per editie schrijven ze zich in.</p><form id="create-event-form" class="bh-form-grid"><label>Naam evenement<input name="eventName" maxlength="80" placeholder="Bijvoorbeeld: Zomer-BBQ" required></label><label>Eerste editie<input name="editionName" maxlength="80" placeholder="Bijvoorbeeld: 2027" required></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Evenement aanmaken</button></div></form></details>'
+      return html`<article class="bh-card bh-event-card">
+            <header class="bh-card-head">
+              <div>
+                <h2 class="bh-event-name">${event.name}</h2>
+                <small class="bh-muted">${plural(editions.length, "editie", "edities")}</small>
+              </div>${
+                event.status === "archived"
+                  ? html`<span class="bh-chip">Afgesloten</span>`
+                  : html`<span class="bh-chip bh-chip-ok">Actief</span>`
+              }</header>${rows || html`<p class="bh-empty">Nog geen edities.</p>`}</article>`;
+    }),
+    ""
   );
+  return html`${pageHead(
+    "Evenementen",
+    "Elk evenement komt terug in edities. Open een editie om inschrijvingen, bestellingen en financiën te beheren."
+  )}${cards || html`<p class="bh-empty">Nog geen evenementen.</p>`}<details class="bh-card bh-card-dashed bh-add">
+        <summary>+ Nieuw evenement</summary>
+        <p class="bh-note">Bijvoorbeeld een BBQ of schoolfeest. Gezinnen en accounts worden gedeeld over alle
+            evenementen; per editie schrijven ze zich in.</p>
+        <form id="create-event-form" class="bh-form-grid">
+          <label>Naam evenement<input name="eventName" maxlength="80" placeholder="Bijvoorbeeld: Zomer-BBQ" required>
+          </label>
+          <label>Eerste editie<input name="editionName" maxlength="80" placeholder="Bijvoorbeeld: 2027" required>
+          </label>
+          <div class="bh-actions bh-span-2">
+            <button type="submit" class="bh-btn bh-btn-primary">Evenement aanmaken</button>
+          </div>
+        </form>
+      </details>`;
 }
 
 function renderEdition() {
@@ -1461,69 +1575,73 @@ function renderEdition() {
               : tab === "bar"
                 ? renderBar()
                 : renderOverview();
-  return (
-    '<nav class="bh-crumbs" aria-label="Kruimelpad"><button type="button" class="bh-link" data-action="close-edition">Evenementen</button><span aria-hidden="true">›</span><span>' +
-    esc(eventName()) +
-    '</span><span aria-hidden="true">›</span><strong>' +
-    esc(editionName()) +
-    "</strong></nav>" +
-    '<header class="bh-edition-head"><div><p class="bh-eyebrow">' +
-    esc(eventName()) +
-    "</p><h1>Editie " +
-    esc(editionName()) +
-    '</h1></div><div class="bh-page-actions">' +
-    (state.editionStatus === "archived" ? '<span class="bh-chip">Afgesloten editie</span>' : "") +
-    statusChip() +
-    "</div></header>" +
-    '<nav class="bh-subtabs bh-subtabs-sticky" aria-label="Editie">' +
-    EDITION_TABS.map(
-      entry =>
-        '<button type="button" data-action="edition-tab" data-tab="' +
-        entry.id +
-        '" aria-current="' +
-        (entry.id === tab) +
-        '">' +
-        esc(entry.label) +
-        "</button>"
-    ).join("") +
-    "</nav>" +
-    body
-  );
+  return html`<nav class="bh-crumbs" aria-label="Kruimelpad">
+        <button type="button" class="bh-link" data-action="close-edition">Evenementen</button>
+        <span aria-hidden="true">›</span>
+        <span>${eventName()}</span>
+        <span aria-hidden="true">›</span>
+        <strong>${editionName()}</strong>
+      </nav>
+      <header class="bh-edition-head">
+        <div>
+          <p class="bh-eyebrow">${eventName()}</p>
+          <h1>Editie ${editionName()}</h1>
+        </div>
+        <div class="bh-page-actions">${
+          state.editionStatus === "archived"
+            ? html`<span class="bh-chip">Afgesloten
+            editie</span>`
+            : ""
+        }${statusChip()}</div>
+      </header>
+      <nav class="bh-subtabs bh-subtabs-sticky" aria-label="Editie">${joinHtml(
+        EDITION_TABS.map(
+          entry =>
+            html`<button type="button" data-action="edition-tab" data-tab="${entry.id}"
+                aria-current="${entry.id === tab}">${entry.label}</button>`
+        ),
+        ""
+      )}</nav>${body}`;
 }
 
 // ---------------- Gebruikers ----------------
 function participationRow(family) {
-  const rows = (family.registrations || [])
-    .map(reg => {
+  const rows = joinHtml(
+    (family.registrations || []).map(reg => {
       const loaded = reg.editionId === state.activeEditionId;
       const live = loaded ? state.registrations.find(item => item.id === reg.id) : null;
       const summary = live
         ? getFinancialSummary(state.registrations, state.expenses, state.payments).find(item => item.id === reg.id)
         : null;
-      return (
-        "<li><span><strong>" +
-        esc(reg.event) +
-        " " +
-        esc(reg.edition) +
-        "</strong><small>" +
-        (reg.editionStatus === "archived" ? "Afgesloten editie" : "Actieve editie") +
-        (live
-          ? " · " + plural(familyPortions(live), "portie", "porties") + " · aandeel " + euro(summary?.shareCents || 0)
-          : "") +
-        '</small></span><span class="bh-line-end">' +
-        (summary ? familyBalanceChip(summary) : "") +
-        (loaded
-          ? '<button type="button" class="bh-btn bh-btn-sm" data-action="open-family" data-id="' +
-            esc(reg.id) +
-            '">Inschrijving ›</button>'
-          : '<button type="button" class="bh-btn bh-btn-sm" data-action="open-edition" data-id="' +
-            esc(reg.editionId) +
-            '">Editie openen ›</button>') +
-        "</span></li>"
-      );
-    })
-    .join("");
-  return rows || '<li><span class="bh-muted">Nog nergens ingeschreven.</span></li>';
+      return html`<li>
+            <span>
+              <strong>${reg.event} ${reg.edition}</strong>
+              <small>${reg.editionStatus === "archived" ? "Afgesloten editie" : "Actieve editie"}${
+                live
+                  ? " · " +
+                    plural(familyPortions(live), "portie", "porties") +
+                    " · aandeel " +
+                    euro(summary?.shareCents || 0)
+                  : ""
+              }</small>
+            </span>
+            <span class="bh-line-end">${summary ? familyBalanceChip(summary) : ""}${
+              loaded
+                ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="open-family"
+                    data-id="${reg.id}">Inschrijving ›</button>`
+                : html`<button type="button" class="bh-btn bh-btn-sm" data-action="open-edition"
+                    data-id="${reg.editionId}">Editie openen ›</button>`
+            }</span>
+          </li>`;
+    }),
+    ""
+  );
+  return (
+    rows ||
+    html`<li>
+      <span class="bh-muted">Nog nergens ingeschreven.</span>
+    </li>`
+  );
 }
 
 function renderUserFamily(family) {
@@ -1531,211 +1649,221 @@ function renderUserFamily(family) {
   const latest = (family.registrations || [])[0];
   if (registration) state.managingRegistrationId = registration.id; // member handlers act on this
   const members = registration ? registration.members || [] : latest?.members || [];
-  const rows = members
-    .map((person, index) =>
+  const rows = joinHtml(
+    members.map((person, index) =>
       registration && state.editingAdminMemberIndex === index
-        ? '<li><form id="edit-admin-member-form" data-index="' +
-          index +
-          '" class="bh-member-edit"><input name="memberName" maxlength="80" value="' +
-          esc(person.name) +
-          '" aria-label="Naam" required><select name="memberType" aria-label="Categorie">' +
-          typeOptions(person.type) +
-          "</select>" +
-          dietFields(person) +
-          '<div class="bh-actions"><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-edit-admin-member">Annuleren</button></div></form></li>'
-        : '<li><span class="bh-person"><span class="bh-avatar bh-avatar-sm">' +
-          esc((person.name || "?").charAt(0).toUpperCase()) +
-          '</span><span class="bh-family-name"><strong>' +
-          esc(person.name) +
-          "</strong><small>" +
-          esc(typeLabel(person.type)) +
-          "</small>" +
-          dietChips(person) +
-          "</span></span>" +
-          (registration
-            ? '<span class="bh-line-end"><button type="button" class="bh-btn bh-btn-sm" data-action="edit-member" data-index="' +
-              index +
-              '">Wijzigen</button><button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-member" data-index="' +
-              index +
-              '">Verwijderen</button></span>'
-            : "") +
-          "</li>"
-    )
-    .join("");
-  const name = registration?.name || family.name;
-  const membersCard =
-    '<section class="bh-card"><header class="bh-card-head"><h2>Gezinsleden</h2><span class="bh-count">' +
-    members.length +
-    "</span></header>" +
-    (registration
-      ? ""
-      : '<p class="bh-note">' +
-        (latest ? "Zoals bij de laatste inschrijving (" + esc(latest.event) + " " + esc(latest.edition) + "). " : "") +
-        "Niet ingeschreven voor " +
-        esc(eventTitle()) +
-        ".</p>") +
-    (members.length
-      ? '<ul class="bh-lines bh-people">' + rows + "</ul>"
-      : '<p class="bh-empty">Nog geen gezinsleden.</p>') +
-    (registration
-      ? '<form id="add-member-form" class="bh-form-grid bh-form-compact"><label>Naam<input name="memberName" maxlength="80" placeholder="Voornaam en naam" required></label><label>Categorie<select name="memberType">' +
-        typeOptions("Volwassene") +
-        '</select></label><button type="submit" class="bh-btn">+ Persoon toevoegen</button></form>'
-      : state.editionStatus === "archived"
-        ? ""
-        : '<button type="button" class="bh-btn bh-btn-primary" data-action="register-family" data-id="' +
-          esc(family.id) +
-          '">Inschrijven voor ' +
-          esc(eventTitle()) +
-          "</button>") +
-    "</section>";
-  return (
-    '<button type="button" class="bh-back" data-action="close-user-family">‹ Alle gezinnen</button>' +
-    '<header class="bh-page-head"><div>' +
-    (registration && state.beheerRenaming
-      ? '<form id="rename-registration-form" data-id="' +
-        esc(registration.id) +
-        '" class="bh-rename"><input name="registrationName" maxlength="80" value="' +
-        esc(name) +
-        '" aria-label="Naam gezin" required><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-rename">Annuleren</button></form>'
-      : "<h1>" +
-        esc(name) +
-        (registration
-          ? ' <button type="button" class="bh-icon-btn" data-action="rename-registration" aria-label="Naam wijzigen">✎</button>'
-          : "") +
-        "</h1>") +
-    "<p>" +
-    countsText(members) +
-    '</p></div><div class="bh-page-actions">' +
-    accessChip(family.id) +
-    "</div></header>" +
-    '<div class="bh-grid-2">' +
-    membersCard +
-    '<div class="bh-stack">' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Toegang</h2></header>' +
-    renderAccess(family.id) +
-    "</section>" +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Deelname aan evenementen</h2></header><ul class="bh-lines">' +
-    participationRow(family) +
-    "</ul></section>" +
-    "</div>" +
-    "</div>"
+        ? html`<li>
+            <form id="edit-admin-member-form" data-index="${index}" class="bh-member-edit">
+              <input name="memberName" maxlength="80" value="${person.name}" aria-label="Naam" required>
+              <select name="memberType"
+                  aria-label="Categorie">${typeOptions(person.type)}</select>${dietFields(person)}<div
+                  class="bh-actions">
+                <button type="submit" class="bh-btn bh-btn-primary">Bewaren</button>
+                <button type="button" class="bh-btn" data-action="cancel-edit-admin-member">Annuleren</button>
+              </div>
+            </form>
+          </li>`
+        : html`<li>
+            <span class="bh-person">
+              <span class="bh-avatar bh-avatar-sm">${(person.name || "?").charAt(0).toUpperCase()}</span>
+              <span class="bh-family-name">
+                <strong>${person.name}</strong>
+                <small>${typeLabel(person.type)}</small>${dietChips(person)}</span>
+            </span>${
+              registration
+                ? html`<span class="bh-line-end">
+                <button type="button" class="bh-btn bh-btn-sm" data-action="edit-member"
+                    data-index="${index}">Wijzigen</button>
+                <button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-member"
+                    data-index="${index}">Verwijderen</button>
+              </span>`
+                : ""
+            }</li>`
+    ),
+    ""
   );
+  const name = registration?.name || family.name;
+  const membersCard = html`<section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Gezinsleden</h2>
+          <span class="bh-count">${members.length}</span>
+        </header>${
+          registration
+            ? ""
+            : html`<p
+                class="bh-note">${latest ? "Zoals bij de laatste inschrijving (" + latest.event + " " + latest.edition + "). " : ""}Niet
+                ingeschreven voor ${eventTitle()}.</p>`
+        }${
+          members.length
+            ? html`<ul class="bh-lines bh-people">${rows}</ul>`
+            : html`<p class="bh-empty">Nog geen gezinsleden.</p>`
+        }${
+          registration
+            ? html`<form id="add-member-form" class="bh-form-grid bh-form-compact">
+          <label>Naam<input name="memberName" maxlength="80" placeholder="Voornaam en naam" required>
+          </label>
+          <label>Categorie<select name="memberType">${typeOptions("Volwassene")}</select>
+          </label>
+          <button type="submit" class="bh-btn">+ Persoon toevoegen</button>
+        </form>`
+            : state.editionStatus === "archived"
+              ? ""
+              : html`<button type="button" class="bh-btn bh-btn-primary" data-action="register-family"
+                  data-id="${family.id}">Inschrijven voor ${eventTitle()}</button>`
+        }</section>`;
+  return html`<button type="button" class="bh-back" data-action="close-user-family">‹ Alle gezinnen</button>
+      <header class="bh-page-head">
+        <div>${
+          registration && state.beheerRenaming
+            ? html`<form id="rename-registration-form" data-id="${registration.id}" class="bh-rename">
+          <input name="registrationName" maxlength="80" value="${name}" aria-label="Naam gezin" required>
+          <button type="submit" class="bh-btn bh-btn-primary">Bewaren</button>
+          <button type="button" class="bh-btn" data-action="cancel-rename">Annuleren</button>
+        </form>`
+            : html`<h1>${name}${
+                registration
+                  ? html` <button type="button" class="bh-icon-btn" data-action="rename-registration" aria-label="Naam
+                      wijzigen">✎</button>`
+                  : ""
+              }</h1>`
+        }<p>${countsText(members)}</p>
+        </div>
+        <div class="bh-page-actions">${accessChip(family.id)}</div>
+      </header>
+      <div class="bh-grid-2">${membersCard}<div class="bh-stack">
+          <section class="bh-card">
+            <header class="bh-card-head">
+              <h2>Toegang</h2>
+            </header>${renderAccess(family.id)}</section>
+          <section class="bh-card">
+            <header class="bh-card-head">
+              <h2>Deelname aan evenementen</h2>
+            </header>
+            <ul class="bh-lines">${participationRow(family)}</ul>
+          </section>
+        </div>
+      </div>`;
 }
 
 function renderUserFamilies() {
   const list = allFamilies();
-  const rows = list
-    .map(family => {
+  const rows = joinHtml(
+    list.map(family => {
       const registration = state.registrations.find(item => item.familyId === family.id);
       const members = registration?.members || family.registrations?.[0]?.members || [];
-      const editions = (family.registrations || [])
-        .map(
+      const editions = joinHtml(
+        (family.registrations || []).map(
           reg =>
-            '<span class="bh-chip' +
-            (reg.editionId === state.activeEditionId ? " bh-chip-info" : "") +
-            '">' +
-            esc(reg.event + " " + reg.edition) +
-            "</span>"
-        )
-        .join("");
-      return (
-        '<li><button type="button" class="bh-family-row bh-family-row-user" data-action="open-user-family" data-id="' +
-        esc(family.id) +
-        '">' +
-        '<span class="bh-avatar">' +
-        esc((family.name || "?").charAt(0).toUpperCase()) +
-        "</span>" +
-        '<span class="bh-family-name"><strong>' +
-        esc(registration?.name || family.name) +
-        "</strong><small>" +
-        (members.length ? countsText(members) : "Leden nog niet ingevuld") +
-        "</small></span>" +
-        '<span class="bh-family-chips">' +
-        accessChip(family.id) +
-        (editions || '<span class="bh-chip bh-chip-muted">Niet ingeschreven</span>') +
-        "</span>" +
-        '<i class="bh-chev" aria-hidden="true">›</i></button></li>'
+            html`<span
+                class="bh-chip${reg.editionId === state.activeEditionId ? " bh-chip-info" : ""}">${reg.event + " " + reg.edition}</span>`
+        ),
+        ""
       );
-    })
-    .join("");
-  return (
-    '<section class="bh-card"><form id="add-registration-form" data-context="users" class="bh-inline-form"><label for="bh-new-user-family">Nieuw gezin</label><div><input id="bh-new-user-family" name="registrationName" maxlength="80" placeholder="Bijvoorbeeld: Jan & Els" required><button type="submit" class="bh-btn bh-btn-primary">+ Gezin toevoegen</button></div><small class="bh-muted">' +
-    (state.editionStatus === "archived"
-      ? "Open eerst een actieve editie om een nieuw gezin in te schrijven."
-      : "Een nieuw gezin wordt meteen ingeschreven voor " + esc(eventTitle()) + ".") +
-    "</small></form></section>" +
-    (rows ? '<ul class="bh-family-list">' + rows + "</ul>" : '<p class="bh-empty">Nog geen gezinnen.</p>')
+      return html`<li>
+            <button type="button" class="bh-family-row bh-family-row-user" data-action="open-user-family"
+                data-id="${family.id}">
+              <span class="bh-avatar">${(family.name || "?").charAt(0).toUpperCase()}</span>
+              <span class="bh-family-name">
+                <strong>${registration?.name || family.name}</strong>
+                <small>${members.length ? countsText(members) : "Leden nog niet ingevuld"}</small>
+              </span>
+              <span class="bh-family-chips">${accessChip(family.id)}${
+                editions ||
+                html`<span class="bh-chip
+                  bh-chip-muted">Niet ingeschreven</span>`
+              }</span>
+              <i class="bh-chev" aria-hidden="true">›</i>
+            </button>
+          </li>`;
+    }),
+    ""
   );
+  return html`<section class="bh-card">
+        <form id="add-registration-form" data-context="users" class="bh-inline-form">
+          <label for="bh-new-user-family">Nieuw gezin</label>
+          <div>
+            <input id="bh-new-user-family" name="registrationName" maxlength="80" placeholder="Bijvoorbeeld: Jan & Els"
+                required>
+            <button type="submit" class="bh-btn bh-btn-primary">+ Gezin toevoegen</button>
+          </div>
+          <small class="bh-muted">${
+            state.editionStatus === "archived"
+              ? "Open eerst een actieve editie om een nieuw gezin in te schrijven."
+              : "Een nieuw gezin wordt meteen ingeschreven voor " + eventTitle() + "."
+          }</small>
+        </form>
+      </section>${
+        rows
+          ? html`<ul class="bh-family-list">${rows}</ul>`
+          : html`<p class="bh-empty">Nog geen
+          gezinnen.</p>`
+      }`;
 }
 
 function renderAccounts() {
-  const rows = accounts
-    .map(user => {
+  const rows = joinHtml(
+    accounts.map(user => {
       const status =
         user.status === "active"
-          ? '<span class="bh-chip bh-chip-ok">Actief</span>'
+          ? html`<span class="bh-chip bh-chip-ok">Actief</span>`
           : user.status === "disabled"
-            ? '<span class="bh-chip bh-chip-due">Geblokkeerd</span>'
-            : '<span class="bh-chip bh-chip-warn">Uitgenodigd</span>';
+            ? html`<span class="bh-chip bh-chip-due">Geblokkeerd</span>`
+            : html`<span class="bh-chip bh-chip-warn">Uitgenodigd</span>`;
       const fams =
-        (user.families || [])
-          .map(
+        joinHtml(
+          (user.families || []).map(
             link =>
-              '<button type="button" class="bh-chip bh-chip-info" data-action="open-user-family" data-id="' +
-              esc(link.familyId) +
-              '">' +
-              esc(link.familyName || "Gezin") +
-              "</button>"
-          )
-          .join("") || '<span class="bh-chip bh-chip-muted">Geen gezin</span>';
-      const actions =
-        (user.status === "invited"
-          ? '<button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite" data-user="' +
-            esc(user.id) +
-            '">Opnieuw sturen</button>'
-          : "") +
-        (user.status === "active"
-          ? '<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="' +
-            esc(user.id) +
-            '" data-status="disabled">Blokkeren</button><button type="button" class="bh-btn bh-btn-sm" data-action="account-sessions" data-user="' +
-            esc(user.id) +
-            '">Afmelden op alle toestellen</button>'
-          : "") +
-        (user.status === "disabled"
-          ? '<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="' +
-            esc(user.id) +
-            '" data-status="active">Deblokkeren</button>'
-          : "") +
-        '<button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="account-delete" data-user="' +
-        esc(user.id) +
-        '" data-email="' +
-        esc(user.email) +
-        '">Verwijderen</button>';
-      return (
-        '<li class="bh-account"><div class="bh-account-main"><strong>' +
-        esc(user.displayName || user.email) +
-        "</strong><small>" +
-        esc(user.email) +
-        (user.lastLoginAt
-          ? " · laatst aangemeld " + new Date(user.lastLoginAt * 1000).toLocaleDateString("nl-BE")
-          : "") +
-        '</small><div class="bh-family-chips">' +
-        status +
-        fams +
-        '</div></div><div class="bh-actions">' +
-        actions +
-        "</div></li>"
-      );
-    })
-    .join("");
-  return (
-    '<section class="bh-card"><header class="bh-card-head"><h2>Accounts</h2><span class="bh-count">' +
-    accounts.length +
-    '</span></header><p class="bh-note">Uitnodigen doe je bij het gezin (Gezinnen → gezin → Toegang). Een account hoort bij een gezin, niet bij één editie.</p>' +
-    (rows ? '<ul class="bh-accounts">' + rows + "</ul>" : '<p class="bh-empty">Nog geen accounts.</p>') +
-    "</section>"
+              html`<button type="button" class="bh-chip bh-chip-info" data-action="open-user-family"
+                  data-id="${link.familyId}">${link.familyName || "Gezin"}</button>`
+          ),
+          ""
+        ) || html`<span class="bh-chip bh-chip-muted">Geen gezin</span>`;
+      const actions = html`${
+        user.status === "invited"
+          ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite"
+              data-user="${user.id}">Opnieuw sturen</button>`
+          : ""
+      }${
+        user.status === "active"
+          ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="${user.id}"
+              data-status="disabled">Blokkeren</button>
+            <button type="button" class="bh-btn bh-btn-sm" data-action="account-sessions" data-user="${user.id}">Afmelden
+                op alle toestellen</button>`
+          : ""
+      }${
+        user.status === "disabled"
+          ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="${user.id}"
+              data-status="active">Deblokkeren</button>`
+          : ""
+      }<button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="account-delete" data-user="${user.id}"
+          data-email="${user.email}">Verwijderen</button>`;
+      return html`<li class="bh-account">
+            <div class="bh-account-main">
+              <strong>${user.displayName || user.email}</strong>
+              <small>${user.email}${
+                user.lastLoginAt
+                  ? " · laatst aangemeld " + new Date(user.lastLoginAt * 1000).toLocaleDateString("nl-BE")
+                  : ""
+              }</small>
+              <div class="bh-family-chips">${status}${fams}</div>
+            </div>
+            <div class="bh-actions">${actions}</div>
+          </li>`;
+    }),
+    ""
   );
+  return html`<section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Accounts</h2>
+          <span class="bh-count">${accounts.length}</span>
+        </header>
+        <p class="bh-note">Uitnodigen doe je bij het gezin (Gezinnen → gezin → Toegang). Een account hoort bij een gezin,
+            niet bij één editie.</p>${
+              rows
+                ? html`<ul class="bh-accounts">${rows}</ul>`
+                : html`<p class="bh-empty">Nog
+            geen accounts.</p>`
+            }</section>`;
 }
 
 export const USERS_TABS = [
@@ -1747,64 +1875,72 @@ function renderUsers() {
   const family = allFamilies().find(item => item.id === state.beheerUserFamilyId);
   if (family) return renderUserFamily(family);
   const tab = USERS_TABS.some(entry => entry.id === state.beheerUsersTab) ? state.beheerUsersTab : "families";
-  return (
-    pageHead(
-      "Gebruikers",
-      "Gezinnen, hun leden en de accounts waarmee ze aanmelden. Een gezin bestaat één keer en kan deelnemen aan alle evenementen."
-    ) +
-    '<nav class="bh-subtabs" aria-label="Gebruikers">' +
+  return html`${pageHead(
+    "Gebruikers",
+    "Gezinnen, hun leden en de accounts waarmee ze aanmelden. Een gezin bestaat één keer en kan deelnemen aan alle evenementen."
+  )}<nav class="bh-subtabs" aria-label="Gebruikers">${joinHtml(
     USERS_TABS.map(
       entry =>
-        '<button type="button" data-action="users-tab" data-tab="' +
-        entry.id +
-        '" aria-current="' +
-        (entry.id === tab) +
-        '">' +
-        esc(entry.label) +
-        "</button>"
-    ).join("") +
-    "</nav>" +
-    (tab === "accounts" ? renderAccounts() : renderUserFamilies())
-  );
+        html`<button type="button" data-action="users-tab" data-tab="${entry.id}"
+            aria-current="${entry.id === tab}">${entry.label}</button>`
+    ),
+    ""
+  )}</nav>${tab === "accounts" ? renderAccounts() : renderUserFamilies()}`;
 }
 
 // ---------------- Instellingen (global) ----------------
 function renderBackups() {
   const list = state.backups;
-  const rows = (list || [])
-    .slice(0, 10)
-    .map(backup => {
+  const rows = joinHtml(
+    (list || []).slice(0, 10).map(backup => {
       const file = backup.key.slice("backups/".length);
-      return (
-        "<li><span><strong>" +
-        esc(formatDate(file.slice(3, 13))) +
-        "</strong><small>" +
-        Math.max(1, Math.round((backup.size || 0) / 1024)) +
-        ' kB</small></span><a class="bh-btn bh-btn-sm" href="/api/admin/backups/' +
-        encodeURIComponent(file) +
-        '" download>Downloaden</a></li>'
-      );
-    })
-    .join("");
-  return (
-    '<section class="bh-card"><header class="bh-card-head"><h2>Back-ups</h2><button type="button" class="bh-btn bh-btn-sm" data-action="create-backup">Nu back-up maken</button></header>' +
-    '<p class="bh-note">Elke nacht wordt automatisch een volledige kopie van de gegevens bewaard (de laatste 35 dagen), in de beveiligde opslag van de app. Daarnaast houdt Cloudflare zelf 7 dagen herstelpunten bij.</p>' +
-    (list === undefined
-      ? '<p class="bh-empty">Back-ups laden…</p>'
-      : rows
-        ? '<ul class="bh-lines">' + rows + "</ul>"
-        : '<p class="bh-empty">Nog geen back-ups. De eerste wordt vannacht gemaakt, of klik op "Nu back-up maken".</p>') +
-    "</section>"
+      return html`<li>
+            <span>
+              <strong>${formatDate(file.slice(3, 13))}</strong>
+              <small>${Math.max(1, Math.round((backup.size || 0) / 1024))} kB</small>
+            </span>
+            <a class="bh-btn bh-btn-sm" href="/api/admin/backups/${encodeURIComponent(file)}" download>Downloaden</a>
+          </li>`;
+    }),
+    ""
   );
+  return html`<section class="bh-card">
+        <header class="bh-card-head">
+          <h2>Back-ups</h2>
+          <button type="button" class="bh-btn bh-btn-sm" data-action="create-backup">Nu back-up maken</button>
+        </header>
+        <p class="bh-note">Elke nacht wordt automatisch een volledige kopie van de gegevens bewaard (de laatste 35
+            dagen), in de beveiligde opslag van de app. Daarnaast houdt Cloudflare zelf 7 dagen herstelpunten bij.</p>${
+              list === undefined
+                ? html`<p class="bh-empty">Back-ups laden…</p>`
+                : rows
+                  ? html`<ul class="bh-lines">${rows}</ul>`
+                  : html`<p class="bh-empty">Nog geen back-ups. De eerste wordt vannacht gemaakt, of klik op "Nu back-up
+                  maken".</p>`
+            }</section>`;
 }
 
 function renderSettings() {
-  return (
-    pageHead("Instellingen", "Algemene instellingen voor de hele app.") +
-    renderMail() +
-    renderBackups() +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Over deze app</h2></header><ul class="bh-lines"><li><span>Adres</span><b>nieuwjaar.datuur.be</b></li><li><span>Afzender e-mails</span><b>registratie@datuur.be</b></li><li><span>Familieportaal</span><b>nieuwjaar.datuur.be/familie</b></li></ul></section>'
-  );
+  return html`${pageHead("Instellingen", "Algemene instellingen voor de hele app.")}${renderMail()}${renderBackups()}<section
+      class="bh-card">
+        <header class="bh-card-head">
+          <h2>Over deze app</h2>
+        </header>
+        <ul class="bh-lines">
+          <li>
+            <span>Adres</span>
+            <b>nieuwjaar.datuur.be</b>
+          </li>
+          <li>
+            <span>Afzender e-mails</span>
+            <b>registratie@datuur.be</b>
+          </li>
+          <li>
+            <span>Familieportaal</span>
+            <b>nieuwjaar.datuur.be/familie</b>
+          </li>
+        </ul>
+      </section>`;
 }
 
 export function renderBeheer({ section, notice = "", platformHtml }) {
@@ -1817,28 +1953,31 @@ export function renderBeheer({ section, notice = "", platformHtml }) {
         : state.beheerEventView === "edition"
           ? renderEdition()
           : renderEvents();
-  const nav = SECTIONS.map(
-    entry =>
-      '<button type="button" data-section="' +
-      entry.id +
-      '" aria-current="' +
-      (entry.id === active ? "page" : "false") +
-      '"><span aria-hidden="true">' +
-      entry.icon +
-      "</span>" +
-      esc(entry.label) +
-      "</button>"
-  ).join("");
-  return (
-    '<div class="bh-app">' +
-    '<header class="bh-top"><div class="bh-brand"><span class="bh-brand-mark" aria-hidden="true">✳</span><span><strong>Evenementen</strong><small>Beheer · datuur.be</small></span></div><button type="button" class="bh-btn bh-btn-ghost" data-action="admin-logout">Afmelden</button></header>' +
-    '<nav class="bh-nav" aria-label="Beheer">' +
-    nav +
-    "</nav>" +
-    '<main class="bh-main content">' +
-    (notice ? '<div class="bh-alert" role="alert">' + notice + "</div>" : "") +
-    content +
-    "</main>" +
-    "</div>"
+  const nav = joinHtml(
+    SECTIONS.map(
+      entry =>
+        html`<button type="button" data-section="${entry.id}" aria-current="${entry.id === active ? "page" : "false"}">
+          <span aria-hidden="true">${entry.icon}</span>${entry.label}</button>`
+    ),
+    ""
   );
+  return html`<div class="bh-app">
+        <header class="bh-top">
+          <div class="bh-brand">
+            <span class="bh-brand-mark" aria-hidden="true">✳</span>
+            <span>
+              <strong>Evenementen</strong>
+              <small>Beheer · datuur.be</small>
+            </span>
+          </div>
+          <button type="button" class="bh-btn bh-btn-ghost" data-action="admin-logout">Afmelden</button>
+        </header>
+        <nav class="bh-nav" aria-label="Beheer">${nav}</nav>
+        <main class="bh-main content">${
+          notice
+            ? html`<div class="bh-alert"
+            role="alert">${notice}</div>`
+            : ""
+        }${content}</main>
+      </div>`;
 }

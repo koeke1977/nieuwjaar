@@ -95,7 +95,10 @@ groene controles door naar `main`, en publiceer vanaf daar.
 ## Afspraken
 
 1. Autorisatie wordt altijd door de Worker afgedwongen; iets verbergen in het scherm is geen beveiliging.
-2. Tekst in HTML wordt altijd ontsnapt via `esc()` uit `src/utils/html.js`.
+2. Schermen bouwen HTML met `` html`…` `` uit `src/utils/html.js`: elke `${waarde}` wordt automatisch ontsnapt,
+   behalve stukken die zelf met `` html`…` `` gemaakt zijn. Lijsten: `${lijst.map(x => html`…`)}` of
+   `joinHtml(lijst, scheiding)`. Een regeleinde in de sjabloontekst verdwijnt naast een tag en wordt elders één
+   spatie. Plak nooit HTML met `+` aan elkaar (dan wordt die als tekst getoond).
 3. Geldberekeningen staan in `src/utils/finance.js`, niet in schermen.
 4. Nieuwe velden per persoon toevoegen in `edition-payload.js` (anders wist een opslag in het beheer ze) en een test
    schrijven die dat bewaakt.

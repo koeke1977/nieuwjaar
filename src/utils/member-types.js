@@ -1,4 +1,4 @@
-import { esc } from "./html.js";
+import { html, joinHtml } from "./html.js";
 
 // Categories of participants, shared by the server, the admin and the family portal.
 //   Volwassene  — 18+, shares in all costs including 18+ costs
@@ -18,16 +18,12 @@ export const TYPE_LABELS = { [ADULT]: "Volwassene (18+)", [CHILD]: "Kind", [EVEN
 export const typeLabel = type => TYPE_LABELS[type] || "Deelnemer";
 
 export const typeOptions = selected =>
-  MEMBER_TYPES.map(
-    type =>
-      '<option value="' +
-      type +
-      '"' +
-      (type === selected ? " selected" : "") +
-      ">" +
-      esc(TYPE_LABELS[type]) +
-      "</option>"
-  ).join("");
+  joinHtml(
+    MEMBER_TYPES.map(
+      type => html`<option value="${type}"${type === selected ? " selected" : ""}>${TYPE_LABELS[type]}</option>`
+    ),
+    ""
+  );
 
 export function countByType(members = []) {
   return {

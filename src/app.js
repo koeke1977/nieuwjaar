@@ -9,7 +9,7 @@ import {
   barBalance
 } from "./pages/beheer/beheer-view.js";
 import "./pages/beheer/beheer.css";
-import { euro } from "./utils/html.js";
+import { esc, euro } from "./utils/html.js";
 import { isMemberType, EVENING } from "./utils/member-types.js";
 import { getExpenseShares, getFinancialSummary, SHARED_FUND } from "./utils/finance.js";
 import {
@@ -213,7 +213,7 @@ function renderLandingPage() {
     </main>`;
 }
 function renderAdminLogin() {
-  return `<main class="admin-login-shell"><section class="admin-login-card"><p class="eyebrow">EVENEMENTEN · BEHEER</p><h1>Admin aanmelden</h1><p>Deze omgeving is uitsluitend toegankelijk voor de organisator.</p><form id="admin-login-form"><label for="admin-password">Adminwachtwoord</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required>${loginError ? `<p class="admin-login-error" role="alert">${loginError}</p>` : ""}<button class="button button-dark full" type="submit">Aanmelden</button></form></section></main>`;
+  return `<main class="admin-login-shell"><section class="admin-login-card"><p class="eyebrow">EVENEMENTEN · BEHEER</p><h1>Admin aanmelden</h1><p>Deze omgeving is uitsluitend toegankelijk voor de organisator.</p><form id="admin-login-form"><label for="admin-password">Adminwachtwoord</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required>${loginError ? `<p class="admin-login-error" role="alert">${esc(loginError)}</p>` : ""}<button class="button button-dark full" type="submit">Aanmelden</button></form></section></main>`;
 }
 function renderApp() {
   if (!adminAuthenticated) {
