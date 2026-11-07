@@ -24,7 +24,7 @@ function renderRows(users) {
   if (!users.length) { list.innerHTML = '<p class="catalog-note">Nog geen familieaccounts. Nodig hierboven het eerste gezin uit.</p>'; return; }
   list.innerHTML = users.map(user => {
     const status = user.status === "active" ? "Actief" : user.status === "disabled" ? "Geblokkeerd" : "Uitgenodigd";
-    const links = user.registrations.map(link => '<span class="family-user-link"><span>'+escapeHtml(registrations.find(item => item.id === link.registrationId)?.name || link.registrationId)+'</span><button type="button" data-user-action="unlink" data-user-id="'+user.id+'" data-link-id="'+link.linkId+'" aria-label="Koppeling verwijderen">×</button></span>').join("");
+    const links = user.registrations.map(link => '<span class="family-user-link"><span>'+escapeHtml(registrations.find(item => item.id === link.registrationId)?.name || link.registrationId)+'</span><select aria-label="Toegangsrol" data-user-action="role" data-user-id="'+user.id+'" data-link-id="'+link.linkId+'"><option value="owner" '+(link.role==="owner"?"selected":"")+'>Beheerder</option><option value="editor" '+(link.role==="editor"?"selected":"")+'>Bewerker</option><option value="viewer" '+(link.role==="viewer"?"selected":"")+'>Lezer</option></select><button type="button" data-user-action="unlink" data-user-id="'+user.id+'" data-link-id="'+link.linkId+'" aria-label="Koppeling verwijderen">×</button></span>').join("");
     const available = registrations.filter(item => !user.registrations.some(link => link.registrationId === item.id));
     const linkEditor = available.length ? '<form class="family-user-link-form" data-link-user="'+user.id+'"><select name="registrationId" aria-label="Extra inschrijving"><option value="">Extra inschrijving koppelen</option>'+available.map(item => '<option value="'+escapeHtml(item.id)+'">'+escapeHtml(item.name)+'</option>').join("")+'</select><button type="submit">Koppelen</button></form>' : '';
     return '<article class="family-user-row"><div class="family-user-main"><strong>'+escapeHtml(user.displayName || user.email)+'</strong><small>'+escapeHtml(user.email)+' · <span class="family-user-status '+(user.status==="disabled"?"disabled":"")+'">'+status+'</span></small><div class="family-user-links">'+(links || '<span>Geen koppeling in deze omgeving</span>')+'</div>'+linkEditor+'</div><div class="family-user-actions">'+(user.status==="invited" ? '<button class="button button-small button-outline" data-user-action="resend" data-user-id="'+user.id+'">Opnieuw uitnodigen</button>' : '')+(user.status==="disabled" ? '<button class="button button-small button-outline" data-user-action="activate" data-user-id="'+user.id+'">Deblokkeren</button>' : user.status==="active" ? '<button class="button button-small button-outline" data-user-action="disable" data-user-id="'+user.id+'">Blokkeren</button>' : '')+(user.status==="active" ? '<button class="text-button" data-user-action="sessions" data-user-id="'+user.id+'">Sessies intrekken</button>' : '')+'<button class="text-button danger-text" data-user-action="delete" data-user-id="'+user.id+'" data-user-email="'+escapeHtml(user.email)+'">Definitief verwijderen</button>'+'</div></article>';
@@ -78,6 +78,22 @@ export function initAdminUsersSection() {
       feedback("Inschrijving gekoppeld.");
       await loadUsers();
     } catch (error) { feedback(error.message, true); button.disabled = false; }
+  });
+  root.querySelector("[data-family-users-list]").addEventListener("change", async event => {
+    const select = event.target.closest('select[data-user-action="role"]');
+    if (!select) return;
+    const previous = select.dataset.previousRole || "editor";
+    select.disabled = true;
+    try {
+      await api("/api/admin/family-users/"+select.dataset.userId+"/registrations", {
+        method: "PATCH", body: JSON.stringify({ linkId: Number(select.dataset.linkId), role: select.value })
+      });
+      feedback("Toegangsrol aangepast.");
+      select.dataset.previousRole = select.value;
+    } catch (error) {
+      select.value = previous;
+      feedback(error.message, true);
+    } finally { select.disabled = false; }
   });
   root.querySelector("[data-family-users-list]").addEventListener("click", async event => {
     const button = event.target.closest("[data-user-action]");
