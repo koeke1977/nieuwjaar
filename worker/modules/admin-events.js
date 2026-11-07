@@ -14,7 +14,7 @@ export async function handleAdminEvents(request, env, url, dependencies) {
   if (url.pathname === "/api/admin/events" && request.method === "GET") {
     try {
       const result = await env.DB.prepare(
-        "SELECT e.id, e.slug, e.name, e.description, e.finance_strategy, e.status, e.created_at, e.updated_at, d.id AS edition_id, d.label AS edition_label, d.starts_at, d.ends_at, d.status AS edition_status FROM events e LEFT JOIN event_editions d ON d.event_id = e.id ORDER BY e.created_at DESC, d.starts_at DESC, d.created_at DESC"
+        "SELECT e.id, e.slug, e.name, e.description, e.finance_strategy, e.status, e.created_at, e.updated_at, d.id AS edition_id, d.label AS edition_label, d.starts_at, d.ends_at, d.status AS edition_status, d.config_json AS edition_config_json FROM events e LEFT JOIN event_editions d ON d.event_id = e.id ORDER BY e.created_at DESC, d.starts_at DESC, d.created_at DESC"
       ).all();
       const events = new Map();
       for (const row of result.results || []) {
@@ -24,7 +24,8 @@ export async function handleAdminEvents(request, env, url, dependencies) {
         });
         if (row.edition_id) events.get(row.id).editions.push({
           id: row.edition_id, label: row.edition_label, startsAt: row.starts_at,
-          endsAt: row.ends_at, status: row.edition_status
+          endsAt: row.ends_at, status: row.edition_status,
+          catalog: (() => { try { const config = JSON.parse(row.edition_config_json || "{}"); return Array.isArray(config.catalog) ? config.catalog : []; } catch { return []; } })()
         });
       }
       return json({ events: [...events.values()] });
@@ -79,6 +80,37 @@ export async function handleAdminEvents(request, env, url, dependencies) {
     await env.DB.prepare("UPDATE events SET name = ?, description = ?, finance_strategy = ?, status = ?, updated_at = ? WHERE id = ?")
       .bind(name, description, financeStrategy, status, now, eventId).run();
     return json({ updated: true });
+  }
+
+  const catalogMatch = url.pathname.match(/^\/api\/admin\/events\/([0-9a-f-]+)\/editions\/([0-9a-f-]+)\/catalog$/i);
+  if (catalogMatch && request.method === "PUT") {
+    const [, eventId, editionId] = catalogMatch;
+    const body = await request.json().catch(() => null);
+    if (!Array.isArray(body?.catalog) || body.catalog.length > 200) {
+      return json({ error: "De catalogus moet een lijst van maximaal 200 producten zijn." }, 400);
+    }
+    const seen = new Set();
+    const catalog = [];
+    for (const raw of body.catalog) {
+      const id = typeof raw?.id === "string" ? raw.id.trim() : "";
+      const name = typeof raw?.name === "string" ? raw.name.trim() : "";
+      const image = typeof raw?.image === "string" ? raw.image.trim() : "";
+      if (!/^[a-zA-Z0-9_-]{1,64}$/.test(id) || !name || name.length > 100 || seen.has(id) ||
+          image.length > 1000 || (image && !(/^(https:\/\/|\/)/i.test(image)))) {
+        return json({ error: "Elk catalogusitem heeft een unieke code, naam en optioneel een veilige HTTPS- of relatieve afbeeldingslocatie nodig." }, 400);
+      }
+      seen.add(id);
+      catalog.push({ id, name, ...(image ? { image } : {}), active: raw.active !== false });
+    }
+    const current = await env.DB.prepare("SELECT config_json FROM event_editions WHERE id = ? AND event_id = ?").bind(editionId, eventId).first();
+    if (!current) return json({ error: "Editie niet gevonden." }, 404);
+    let config = {};
+    try { config = JSON.parse(current.config_json || "{}"); } catch { return json({ error: "De bestaande editieconfiguratie is ongeldig. Er is niets gewijzigd." }, 409); }
+    config.catalog = catalog;
+    const now = Math.floor(Date.now() / 1000);
+    await env.DB.prepare("UPDATE event_editions SET config_json = ?, updated_at = ? WHERE id = ? AND event_id = ?")
+      .bind(JSON.stringify(config), now, editionId, eventId).run();
+    return json({ updated: true, catalog });
   }
 
   const editionMatch = url.pathname.match(/^\/api\/admin\/events\/([0-9a-f-]+)\/editions\/([0-9a-f-]+)$/i);
