@@ -173,13 +173,35 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       await env.DB.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES (?, ?, ?, ?)")
         .bind(userId, environment, registrationId, now).run();
     } catch { return json({ error: "Deze inschrijving is al aan dit account gekoppeld." }, 409); }
+    // Dual-write the relational family membership when the migration/backfill is active.
+    try {
+      const relational = await env.DB.prepare("SELECT family_id FROM event_registrations WHERE legacy_environment = ? AND legacy_registration_id = ?").bind(environment, registrationId).first();
+      if (relational?.family_id) {
+        await env.DB.prepare("INSERT OR IGNORE INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, 'editor', ?)")
+          .bind("legacy-membership-" + environment + "-" + registrationId + "-" + userId, relational.family_id, userId, now).run();
+      }
+    } catch (error) {
+      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+    }
     return json({ linked: true });
   }
 
   if (action === "registrations" && request.method === "DELETE") {
     const linkId = Number(url.searchParams.get("linkId"));
     if (!Number.isSafeInteger(linkId) || linkId < 1) return json({ error: "Ongeldige koppeling." }, 400);
+    const link = await env.DB.prepare("SELECT edition_id, registration_id FROM family_user_registrations WHERE id = ? AND user_id = ?").bind(linkId, userId).first();
     await env.DB.prepare("DELETE FROM family_user_registrations WHERE id = ? AND user_id = ?").bind(linkId, userId).run();
+    if (link) {
+      try {
+        const stillLinked = await env.DB.prepare("SELECT 1 AS linked FROM family_user_registrations WHERE user_id = ? AND edition_id = ? AND registration_id = ?").bind(userId, link.edition_id, link.registration_id).first();
+        if (!stillLinked) {
+          const relational = await env.DB.prepare("SELECT family_id FROM event_registrations WHERE legacy_environment = ? AND legacy_registration_id = ?").bind(link.edition_id, link.registration_id).first();
+          if (relational?.family_id) await env.DB.prepare("DELETE FROM family_memberships WHERE family_id = ? AND user_id = ?").bind(relational.family_id, userId).run();
+        }
+      } catch (error) {
+        if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+      }
+    }
     return json({ unlinked: true });
   }
 
