@@ -54,6 +54,29 @@ export function initAdminEventsSection() {
   root = document.querySelector(".content");
   if (!root?.querySelector("#admin-event-create-form")) return;
   loadEvents();
+
+  root.querySelector("[data-backfill-preview]")?.addEventListener("click", async event => {
+    const button = event.currentTarget;
+    const target = root.querySelector("[data-backfill-result]");
+    button.disabled = true;
+    button.textContent = "Controleren…";
+    target.textContent = "Bestaande gegevens worden alleen gelezen…";
+    try {
+      const result = await api("/api/admin/events/backfill-preview");
+      const totals = result.totals || {};
+      const rows = (result.environments || []).map(row =>
+        '<div class="admin-backfill-row"><strong>'+escapeHtml(row.eventName)+' · '+escapeHtml(row.environment)+'</strong><span>'+row.registrations+' inschrijvingen</span><span>'+row.registrationsWithAccounts+' met account</span><span>'+row.accountLinks+' accountkoppelingen</span><span>'+row.orphanedRegistrationLinks+' verweesde koppelingen</span></div>'
+      ).join("");
+      target.innerHTML = '<div class="admin-backfill-totals"><strong>'+Number(totals.familyAccounts||0)+' accounts</strong><strong>'+Number(totals.registrations||0)+' inschrijvingen</strong><strong>'+Number(totals.registrationsWithoutAccounts||0)+' zonder account</strong><strong>'+Number(totals.orphanedRegistrationLinks||0)+' verweesde koppelingen</strong></div>'+rows+'<p class="catalog-note">Alleen-lezen controle. Er zijn geen gegevens aangemaakt, aangepast of verwijderd.</p>';
+      feedback("Controle afgerond. Er is niets gewijzigd.");
+    } catch (error) {
+      target.textContent = error.message;
+      feedback(error.message, true);
+    } finally {
+      button.disabled = false;
+      button.textContent = "Controle opnieuw uitvoeren";
+    }
+  });
   root.querySelector("#admin-event-create-form").addEventListener("submit", async event => {
     event.preventDefault();
     const form = event.currentTarget;
