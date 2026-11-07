@@ -141,7 +141,7 @@ export function initAdminUsersSection() {
   });
   root.querySelector("[data-normalized-families]")?.addEventListener("click", event => {
     const cancel = event.target.closest("[data-cancel-registration-edit]");
-    if (cancel) { cancel.closest("[data-registration-card]")?.querySelector("[data-registration-editor-slot]")?.replaceChildren(); return; }
+    if (cancel) { const card = cancel.closest("[data-registration-card]"); card?.querySelector("[data-registration-editor-slot]")?.replaceChildren(); const edit = card?.querySelector("[data-edit-registration]"); if (edit) edit.hidden = false; return; }
     const button = event.target.closest("[data-edit-registration]");
     if (!button) return;
     const card = button.closest("[data-registration-card]");
