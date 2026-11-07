@@ -177,3 +177,16 @@ Het familieportaal ondersteunt naast de tijdelijke test/live-koppeling nu ook re
 - De catalogus wordt gelezen uit `event_editions.config_json.catalog`, met een compatibele fallback naar `data_json.catalog`.
 
 **Nog open vóór productie:** het aanmaken en beheren van nieuwe event-native families, registraties en uitnodigingen vanuit het beheerpaneel; de volledige financiële UI/strategie per editie; integratietests op een geïsoleerde D1-kopie; migratievolgorde en rollback-oefening. Deze codewijzigingen voeren geen migraties uit en wijzigen geen bestaande productiegegevens.
+
+
+## Relationeel familiebeheer (admin-overzicht)
+
+Het bestaande accountbeheer toont nu aanvullend een read-only overzicht uit het nieuwe model:
+
+- Families worden als zelfstandige entiteit getoond, los van een test/live-omgeving.
+- Per familie worden alle gekoppelde accounts met hun status en rol gegroepeerd.
+- Alle gekoppelde evenementinschrijvingen tonen evenement, editie, status en financiële strategie.
+- De oude test/live accountacties blijven voorlopig bestaan als overgangsbeheer.
+- De nieuwe lijst is bewust read-only: families, memberships of inschrijvingen worden niet aangemaakt, verwijderd of gewijzigd vanuit dit overzicht.
+
+Volgende stap is de volledige beheerworkflow: familie aanmaken, bestaande account uitnodigen of koppelen, event-native inschrijving aanmaken, en membership beheren. Daarbij moeten owner/editor/viewer-rechten en accountuitnodigingen transactioneel worden afgehandeld. Verwijderen blijft buiten scope tot de datamigratie en rollback volledig zijn gevalideerd.
