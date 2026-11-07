@@ -48,7 +48,7 @@ function renderNormalizedFamilyOptions(families) {
   select.innerHTML = '<option value="">Kies een familie</option>' + families.map(family => '<option value="'+escapeHtml(family.id)+'">'+escapeHtml(family.name)+'</option>').join("");
 }
 
-async function loadNormalizedFamilies() {
+async async function loadNormalizedFamilies() {
   const target = root?.querySelector("[data-normalized-families]");
   if (!target) return;
   try {
