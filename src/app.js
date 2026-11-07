@@ -387,6 +387,18 @@ async function handleSubmit(event) {
     return;
   }
 
+  if (id === "order-for-family-form") {
+    event.preventDefault();
+    const registration = state.registrations.find(item => item.id === form.elements.registrationId.value);
+    if (!registration) return;
+    // Open the family's order screen with every member expanded, ready for + / −.
+    Object.assign(state, { activeSection: "events", beheerEventView: "edition", beheerEditionTab: "registrations", beheerFamilyId: registration.id, editingAdminMemberIndex: null, beheerRenaming: false,
+      beheerOpenMembers: new Set((registration.members || []).map(person => person.id)) });
+    renderApp();
+    document.querySelector(".bh-members")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
   if (id === "register-family-form") {
     event.preventDefault();
     const familyId = form.elements.familyId.value;

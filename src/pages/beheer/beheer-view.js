@@ -278,6 +278,15 @@ function renderDietOverview() {
     '<ul class="bh-lines">' + rows.map(({ reg, person }) => '<li><span><strong>' + esc(person.name) + '</strong><small>' + esc(reg.name) + (person.type === "Kind" ? " · kind" : "") + '</small></span>' + dietChips(person) + '</li>').join("") + '</ul></section>';
 }
 
+// Admin fills in the order on behalf of a family (e.g. someone who does not use the app).
+function orderForFamilyCard() {
+  const regs = [...(state.registrations || [])].sort((a, b) => String(a.name).localeCompare(String(b.name), "nl"));
+  if (!regs.length) return "";
+  return '<section class="bh-card bh-order-for"><form id="order-for-family-form" class="bh-inline-form"><label for="bh-order-family">Bestelling invullen voor een gezin</label><div><select id="bh-order-family" name="registrationId" required><option value="">Kies een gezin</option>' +
+    regs.map(reg => '<option value="' + esc(reg.id) + '">' + esc(reg.name) + ' — ' + plural(familyPortions(reg), "portie", "porties") + '</option>').join("") +
+    '</select><button type="submit" class="bh-btn bh-btn-primary">Bestelling invullen</button></div><small class="bh-muted">Voor gezinnen die liever niet zelf met de app werken. Staat het gezin er nog niet in? <button type="button" class="bh-link" data-action="edition-tab" data-tab="registrations">Schrijf het eerst in</button>.</small></form></section>';
+}
+
 function renderOrder() {
   const regs = state.registrations || [];
   const products = state.catalog.filter(product => product.active || regs.some(r => (r.members || []).some(p => Number(p.orders?.[product.id]) > 0)));
@@ -297,7 +306,7 @@ function renderOrder() {
   }).join("");
   const foot = '<tfoot><tr><th>Totaal</th>' + products.map(product => '<th>' + countFor(allMembers, product.id) + '</th>').join("") + '<th>' + total + '</th></tr></tfoot>';
   return pageHead("Bestelling", plural(total, "portie", "porties") + " in totaal, door " + plural(regs.filter(r => familyPortions(r) > 0).length, "gezin", "gezinnen") + ".", '<button type="button" class="bh-btn" data-action="print">Afdrukken</button>') +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Voor de slager</h2></header><div class="bh-products">' + (cards || '<p class="bh-empty">Geen producten.</p>') + '</div></section>' +
+    orderForFamilyCard() + '<section class="bh-card"><header class="bh-card-head"><h2>Voor de slager</h2></header><div class="bh-products">' + (cards || '<p class="bh-empty">Geen producten.</p>') + '</div></section>' +
     '<section class="bh-card"><header class="bh-card-head"><h2>Wie bestelde wat?</h2></header>' + (regs.length ? '<div class="bh-table-wrap"><table class="bh-table">' + '<thead>' + head + '</thead>' + body + foot + '</table></div>' : '<p class="bh-empty">Nog geen gezinnen.</p>') + '</section>' + renderDietOverview();
 }
 
