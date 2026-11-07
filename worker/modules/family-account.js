@@ -137,6 +137,39 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       // The relational schema may not yet be installed; legacy account links remain authoritative.
       if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
     }
+    // New registrations are resolved directly from the normalized model. Legacy-backed
+    // rows are excluded here because they are already rendered from app_state below.
+    const normalizedOnly = [];
+    try {
+      const result = await env.DB.prepare(
+        "SELECT er.id AS registration_id, er.edition_id, er.data_json, er.updated_at, d.label AS edition_label, d.config_json, e.name AS event_name, fm.role AS membership_role FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE fm.user_id = ? AND er.legacy_environment IS NULL AND er.legacy_registration_id IS NULL AND er.status != 'deleted' ORDER BY d.starts_at, e.name, d.label"
+      ).bind(session.user_id).all();
+      for (const row of result.results || []) {
+        let registration, config;
+        try { registration = JSON.parse(row.data_json || "{}"); config = JSON.parse(row.config_json || "{}"); } catch { continue; }
+        const members = Array.isArray(registration.members) ? registration.members : [];
+        normalizedOnly.push({
+          edition: row.edition_id,
+          editionLabel: row.edition_label || "Editie",
+          event: row.event_name || "Evenement",
+          accessRole: row.membership_role || "viewer",
+          registration: {
+            id: row.registration_id,
+            name: registration.name || "",
+            adults: Math.max(0, Number(registration.adults) || members.filter(person => person.type === "Volwassene").length),
+            children: Math.max(0, Number(registration.children) || members.filter(person => person.type === "Kind").length),
+            members: members.map(person => ({
+              id: person.id, name: person.name, type: person.type,
+              orders: person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {}
+            }))
+          },
+          catalog: (Array.isArray(config.catalog) ? config.catalog : Array.isArray(registration.catalog) ? registration.catalog : []).filter(item => item && item.active !== false).map(item => ({ id: item.id, name: item.name, image: item.image || null })),
+          revision: Number(row.updated_at) || 0
+        });
+      }
+    } catch (error) {
+      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+    }
     const links = [...linksByKey.values()].sort((a,b) => a.edition_id.localeCompare(b.edition_id));
     const registrations = [];
     const catalogByEdition = {};
@@ -169,6 +202,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
         revision: stateRow.updated_at
       });
     }
+    registrations.push(...normalizedOnly);
     return json({ authenticated: true, user: { email: session.email, displayName: session.display_name }, registrations });
   }
 
