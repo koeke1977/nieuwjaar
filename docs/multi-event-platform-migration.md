@@ -163,3 +163,17 @@ De preview toont dezelfde blokkades vóór de gebruiker de migratie kan starten.
 - Accountkoppelingen die via uitnodiging of accountbeheer worden gelegd, schrijven de legacy link en relationele membership nu atomair in één D1-batch zodra de registratie is overgenomen.
 
 Dit blijft een overgangsroute voor bestaande test/live-registraties. Volledig nieuwe event-edities zonder legacy `app_state` zijn nog niet geschikt voor het huidige account-/bestelportaal. De bestaande legacy token-portalroutes en de event-accountportal zijn nog twee afzonderlijke flows; die mogen niet worden uitgefaseerd voordat de nieuwe route alle registratieacties en autorisatie volledig vervangt.
+
+
+## Event-native familieportaal (codefase)
+
+Het familieportaal ondersteunt naast de tijdelijke test/live-koppeling nu ook registraties die uitsluitend in het relationele model bestaan:
+
+- De sessie haalt relationele registraties op via `family_memberships`, `event_registrations`, `event_editions` en `events`.
+- Registraties met een legacy-omgeving blijven via `app_state` lopen en worden niet dubbel getoond.
+- Event-native registraties tonen evenementnaam, editienaam, toegangsrol, deelnemers en catalogus.
+- Bewerkingen zijn beperkt tot de gekoppelde familie en de rollen owner/editor; viewer blijft alleen-lezen.
+- De update gebruikt `event_registrations.updated_at` als afzonderlijke optimistische revisie. Revisies van andere registraties binnen dezelfde editie worden dus niet onterecht aangepast.
+- De catalogus wordt gelezen uit `event_editions.config_json.catalog`, met een compatibele fallback naar `data_json.catalog`.
+
+**Nog open vóór productie:** het aanmaken en beheren van nieuwe event-native families, registraties en uitnodigingen vanuit het beheerpaneel; de volledige financiële UI/strategie per editie; integratietests op een geïsoleerde D1-kopie; migratievolgorde en rollback-oefening. Deze codewijzigingen voeren geen migraties uit en wijzigen geen bestaande productiegegevens.
