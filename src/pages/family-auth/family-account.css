@@ -1271,3 +1271,19 @@
 .fa-member-evening small {
   color: #5b4f8a;
 }
+
+/* Order tab: a person at dinner without any meat ordered gets a soft red touch. */
+.fa-order-person-empty {
+  border-color: #f0c8b8;
+  background: var(--fa-due-bg);
+}
+.fa-order-person-empty .fa-pill {
+  border-color: #f0c8b8;
+  background: #fff;
+  color: var(--fa-due);
+  font-weight: 700;
+}
+.fa-order-person-empty .fa-portions-inline {
+  color: var(--fa-due);
+  font-weight: 700;
+}

@@ -72,16 +72,20 @@ export function renderOrder(item, view) {
       );
       const portions = portionsOf(person);
       const open = view.openPeople ? view.openPeople.has(person.id) : members.length <= 2;
-      return html`<details class="fa-order-person" data-order-person="${person.id}"${open ? " open" : ""}>
+      return html`<details class="fa-order-person${portions ? "" : " fa-order-person-empty"}"
+              data-order-person="${person.id}"${open ? " open" : ""}>
             <summary>
               <span class="fa-avatar">${(person.name || "?").charAt(0).toUpperCase()}</span>
               <span class="fa-member-name">
                 <strong>${person.name}</strong>
                 <small>${typeLabel(person.type)}<span
-                    class="fa-portions-inline"> · ${plural(portions, UNITS.meat)}</span>
+                    class="fa-portions-inline"> · ${portions ? plural(portions, UNITS.meat) : "nog niets besteld"}</span>
                 </small>
               </span>
-              <span class="fa-pill">${plural(portions, UNITS.meat)}</span>${memberCostTotal(item, person)}</summary>
+              <span class="fa-pill">${portions ? plural(portions, UNITS.meat) : "Nog niets besteld"}</span>${memberCostTotal(
+                item,
+                person
+              )}</summary>
             <div class="fa-steppers">${controls}</div>
           </details>`;
     }),
