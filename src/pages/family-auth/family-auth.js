@@ -167,9 +167,11 @@ export async function startFamilyAuth() {
       item.registration = result.registration;
       // Alle inschrijvingen van dezelfde editie delen één app_state-revisie.
       // Werk die dus samen bij om onnodige conflicten bij een volgende save te vermijden.
-      (window.__familyRegistrations || []).forEach(entry => {
-        if (entry.edition === item.edition) entry.revision = result.revision;
-      });
+      if (["test", "live"].includes(item.edition)) {
+        (window.__familyRegistrations || []).forEach(entry => {
+          if (entry.edition === item.edition) entry.revision = result.revision;
+        });
+      }
       renderRegistrations(window.__familyRegistrations || []);
       feedback("De wijzigingen zijn bewaard.", "success");
     } catch (error) {
