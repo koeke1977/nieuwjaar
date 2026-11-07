@@ -66,12 +66,13 @@ export function initAdminEventsSection() {
     try {
       const result = await api("/api/admin/events/backfill-preview");
       const totals = result.totals || {};
-      migrationPreviewSafe = result.readOnly === true && Number(totals.orphanedRegistrationLinks || 0) === 0;
+      migrationPreviewSafe = result.readOnly === true && result.canBackfill === true && Number(totals.orphanedRegistrationLinks || 0) === 0;
       if (migrateButton) migrateButton.disabled = !migrationPreviewSafe;
       const rows = (result.environments || []).map(row =>
         '<div class="admin-backfill-row"><strong>'+escapeHtml(row.eventName)+' · '+escapeHtml(row.environment)+'</strong><span>'+row.registrations+' inschrijvingen</span><span>'+row.registrationsWithAccounts+' met account</span><span>'+row.accountLinks+' accountkoppelingen</span><span>'+row.orphanedRegistrationLinks+' verweesde koppelingen</span></div>'
       ).join("");
-      target.innerHTML = '<div class="admin-backfill-totals"><strong>'+Number(totals.familyAccounts||0)+' accounts</strong><strong>'+Number(totals.registrations||0)+' inschrijvingen</strong><strong>'+Number(totals.registrationsWithoutAccounts||0)+' zonder account</strong><strong>'+Number(totals.orphanedRegistrationLinks||0)+' verweesde koppelingen</strong></div>'+rows+'<p class="catalog-note">Alleen-lezen controle. Er zijn geen gegevens aangemaakt, aangepast of verwijderd.</p>';
+      const validation = (result.validationErrors || []).map(message => '<p class="catalog-note" data-error="true">'+escapeHtml(message)+'</p>').join("");
+      target.innerHTML = validation + '<div class="admin-backfill-totals"><strong>'+Number(totals.familyAccounts||0)+' accounts</strong><strong>'+Number(totals.registrations||0)+' inschrijvingen</strong><strong>'+Number(totals.registrationsWithoutAccounts||0)+' zonder account</strong><strong>'+Number(totals.orphanedRegistrationLinks||0)+' verweesde koppelingen</strong></div>'+rows+'<p class="catalog-note">'+(migrationPreviewSafe ? "Controle geslaagd. De gegevensovername kan veilig worden gestart." : "Controle niet volledig geslaagd. De gegevensovername blijft geblokkeerd.")+' Er zijn geen gegevens aangemaakt, aangepast of verwijderd.</p>';
       feedback("Controle afgerond. Er is niets gewijzigd.");
     } catch (error) {
       migrationPreviewSafe = false;
