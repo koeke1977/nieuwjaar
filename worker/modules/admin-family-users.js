@@ -85,6 +85,91 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     }
   }
 
+  if (path === "/api/admin/families" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    const name = typeof body?.name === "string" ? body.name.trim().slice(0, 160) : "";
+    const contactEmail = typeof body?.contactEmail === "string" ? body.contactEmail.trim().toLowerCase() : "";
+    const editionId = typeof body?.editionId === "string" ? body.editionId.trim() : "";
+    const registrationName = typeof body?.registrationName === "string" ? body.registrationName.trim().slice(0, 160) : name;
+    if (!name || !editionId || !registrationName || (contactEmail && !validEmail(contactEmail))) {
+      return json({ error: "Vul een familienaam, geldige editie en eventueel een geldig e-mailadres in." }, 400);
+    }
+    const edition = await env.DB.prepare(
+      "SELECT d.id, d.status, d.config_json, e.status AS event_status FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?"
+    ).bind(editionId).first();
+    if (!edition) return json({ error: "De gekozen editie bestaat niet." }, 404);
+    if (edition.status === "archived" || edition.event_status === "archived") return json({ error: "Aan een gearchiveerd evenement of editie kan je geen nieuwe inschrijving toevoegen." }, 409);
+    const familyId = crypto.randomUUID();
+    const registrationId = crypto.randomUUID();
+    const emptyRegistration = { name: registrationName, adults: 0, children: 0, members: [] };
+    try {
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO families (id, display_name, contact_email, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+          .bind(familyId, name, contactEmail || null, now, now),
+        env.DB.prepare("INSERT INTO event_registrations (id, edition_id, family_id, status, data_json, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?)")
+          .bind(registrationId, editionId, familyId, JSON.stringify(emptyRegistration), now, now)
+      ]);
+      return json({ created: true, family: { id: familyId, name, contactEmail: contactEmail || null }, registration: { id: registrationId, name: registrationName, editionId } }, 201);
+    } catch (error) {
+      console.error("Normalized family creation failed:", error);
+      return json({ error: "Familie en inschrijving konden niet samen worden aangemaakt." }, 503);
+    }
+  }
+
+  if (path === "/api/admin/families/memberships" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    const familyId = typeof body?.familyId === "string" ? body.familyId : "";
+    const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+    const displayName = typeof body?.displayName === "string" ? body.displayName.trim().slice(0, 100) : "";
+    const role = body?.role || "editor";
+    if (!familyId || !validEmail(email) || !displayName || !["owner", "editor", "viewer"].includes(role)) {
+      return json({ error: "Vul familie, naam, geldig e-mailadres en een geldige rol in." }, 400);
+    }
+    const family = await env.DB.prepare("SELECT id FROM families WHERE id = ?").bind(familyId).first();
+    if (!family) return json({ error: "Familie niet gevonden." }, 404);
+    let user = await env.DB.prepare("SELECT id, status FROM family_users WHERE email = ?").bind(email).first();
+    let newlyCreatedUser = false;
+    if (user?.status === "disabled") return json({ error: "Dit account is geblokkeerd. Activeer het eerst opnieuw." }, 409);
+    if (!user) {
+      const userId = crypto.randomUUID();
+      try {
+        await env.DB.prepare("INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'invited', ?, ?)")
+          .bind(userId, email, displayName, now, now).run();
+        user = { id: userId, status: "invited" };
+        newlyCreatedUser = true;
+      } catch (error) {
+        console.error("Family invitation account creation failed:", error);
+        return json({ error: "Het account kon niet worden aangemaakt." }, 503);
+      }
+    }
+    try {
+      await env.DB.prepare("INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(crypto.randomUUID(), familyId, user.id, role, now).run();
+    } catch (error) {
+      if (newlyCreatedUser) {
+        try { await env.DB.prepare("DELETE FROM family_users WHERE id = ?").bind(user.id).run(); } catch (cleanupError) { console.error("New account rollback failed:", cleanupError); }
+      }
+      if (/UNIQUE|constraint/i.test(String(error?.message || ""))) return json({ error: "Dit account is al aan deze familie gekoppeld." }, 409);
+      console.error("Family membership creation failed:", error);
+      return json({ error: "De familiekoppeling kon niet veilig worden opgeslagen." }, 503);
+    }
+    if (newlyCreatedUser || user.status === "invited") {
+      const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
+      const inviteId = crypto.randomUUID();
+      try {
+        await env.DB.prepare("INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
+          .bind(inviteId, user.id, await sha256(token), now, now + 7 * 24 * 60 * 60).run();
+        const inviteUrl = "https://nieuwjaar.datuur.be/familie/activeren/" + token;
+        const html = '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Toegang tot een familie-inschrijving</h2><p>Dag ' + escapeHtml(displayName) + ',</p><p><a href="' + inviteUrl + '">Activeer je account</a></p><p>Deze link is 7 dagen geldig.</p></div>';
+        await sendGraphMail(env, email, "Uitnodiging familieportaal", html);
+      } catch (error) {
+        console.error("Family membership invitation mail failed:", error);
+        return json({ linked: true, invited: true, mailFailed: true, error: "De koppeling is opgeslagen, maar de uitnodigingsmail kon niet worden verzonden. Verstuur de uitnodiging opnieuw vanuit accountbeheer." }, 502);
+      }
+    }
+    return json({ linked: true, userId: user.id, role, invited: newlyCreatedUser || user.status === "invited" }, 201);
+  }
+
   if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
 
   if (path === base && request.method === "POST") {
