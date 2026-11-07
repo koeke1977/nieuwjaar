@@ -31,6 +31,32 @@ function renderRows(users) {
   }).join("");
 }
 
+async function loadNormalizedFamilies() {
+  const target = root?.querySelector("[data-normalized-families]");
+  if (!target) return;
+  try {
+    const result = await api("/api/admin/families");
+    const families = result.families || [];
+    root.querySelector("[data-normalized-family-count]").textContent = families.length + (families.length === 1 ? " families" : " families");
+    if (!families.length) {
+      target.innerHTML = '<p class="catalog-note">Er zijn nog geen relationele families aangemaakt.</p>';
+      return;
+    }
+    target.innerHTML = families.map(family => {
+      const accounts = family.accounts.map(account =>
+        '<span class="family-user-link"><span>'+escapeHtml(account.displayName || account.email)+' · '+escapeHtml(account.email)+'</span><small>'+escapeHtml(({owner:"Beheerder",editor:"Bewerker",viewer:"Lezer"})[account.role] || account.role || "Geen rol")+' · '+escapeHtml(account.status || "")+'</small></span>'
+      ).join("");
+      const registrations = family.registrations.map(item =>
+        '<div class="family-normalized-registration"><strong>'+escapeHtml(item.event || "Evenement")+'</strong><span>'+escapeHtml(item.edition || "Editie")+' · '+escapeHtml(item.name || "Inschrijving")+'</span><small>'+escapeHtml(item.status || "")+' · '+escapeHtml(item.financeStrategy || "geen financiële strategie")+(item.invalidData ? " · gegevens nakijken" : "")+'</small></div>'
+      ).join("");
+      return '<article class="family-user-row"><div class="family-user-main"><strong>'+escapeHtml(family.name || "Familie")+'</strong><small>'+escapeHtml(family.contactEmail || "Geen contactadres")+'</small><div class="family-users-links">'+(accounts || '<span>Geen accounts gekoppeld</span>')+'</div><div class="family-normalized-registrations">'+(registrations || '<span>Geen evenementinschrijvingen</span>')+'</div></div></article>';
+    }).join("");
+  } catch (error) {
+    target.innerHTML = '<p class="catalog-note">'+escapeHtml(error.message || "Relationele gegevens niet beschikbaar.")+'</p>';
+    root.querySelector("[data-normalized-family-count]").textContent = "Niet beschikbaar";
+  }
+}
+
 async function loadUsers() {
   const result = await api("/api/admin/family-users?environment="+encodeURIComponent(environment));
   renderRows(result.users || []);
@@ -50,6 +76,7 @@ export function initAdminUsersSection() {
   root = document.querySelector(".content");
   if (!root?.querySelector("#family-user-create-form")) return;
   loadUsers().catch(error => feedback(error.message, true));
+  loadNormalizedFamilies();
   const form = root.querySelector("#family-user-create-form");
   form.addEventListener("submit", async event => {
     event.preventDefault();
