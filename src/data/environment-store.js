@@ -9,9 +9,10 @@ const fields = [
   "costsFinalizedAt",
   "registrations",
   "payments",
-  "catalog",
-  "activeRegistrationId",
-  "managingRegistrationId"
+  "catalog"
+  // activeRegistrationId / managingRegistrationId are UI selection only. They are no longer
+  // persisted: saving them made merely browsing the admin bump the shared app_state revision,
+  // which caused needless "intussen gewijzigd" conflicts for families saving at the same time.
 ];
 
 function captureEnvironment() {
