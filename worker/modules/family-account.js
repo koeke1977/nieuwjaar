@@ -213,6 +213,53 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     const body = await request.json().catch(() => null);
     const edition = body?.edition;
     const registrationId = typeof body?.registrationId === "string" ? body.registrationId : "";
+    if (typeof edition === "string" && !["test", "live"].includes(edition)) {
+      if (!registrationId || !Number.isSafeInteger(body?.revision) || !Array.isArray(body?.members) || body.members.length < 1 || body.members.length > 30) {
+        return json({ error: "Ongeldige inschrijvingsgegevens." }, 400);
+      }
+      let row;
+      try {
+        row = await env.DB.prepare(
+          "SELECT er.id, er.data_json, er.updated_at, d.config_json, fm.role FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN family_memberships fm ON fm.family_id = er.family_id WHERE er.id = ? AND er.edition_id = ? AND fm.user_id = ? AND er.legacy_environment IS NULL AND er.legacy_registration_id IS NULL"
+        ).bind(registrationId, edition, session.user_id).first();
+      } catch (error) {
+        if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+        return json({ error: "De nieuwe registratieomgeving is nog niet beschikbaar." }, 503);
+      }
+      if (!row) return json({ error: "Deze inschrijving is niet aan je account gekoppeld." }, 403);
+      if (row.role === "viewer") return json({ error: "Je hebt alleen leesrechten voor deze inschrijving." }, 403);
+      if (Number(row.updated_at) !== body.revision) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
+      let registration, config;
+      try { registration = JSON.parse(row.data_json || "{}"); config = JSON.parse(row.config_json || "{}"); }
+      catch { return json({ error: "De inschrijvingsgegevens zijn ongeldig." }, 500); }
+      const catalog = (Array.isArray(config.catalog) ? config.catalog : Array.isArray(registration.catalog) ? registration.catalog : []).filter(item => item && item.active !== false);
+      const catalogIds = new Set(catalog.map(item => item.id));
+      const memberIds = new Set(), members = [];
+      for (const person of body.members) {
+        if (!person || typeof person.id !== "string" || !person.id || person.id.length > 100 ||
+            typeof person.name !== "string" || !person.name.trim() || person.name.trim().length > 80 ||
+            !["Volwassene", "Kind"].includes(person.type)) {
+          return json({ error: "Controleer de namen en categorieën van alle gezinsleden." }, 400);
+        }
+        if (memberIds.has(person.id)) return json({ error: "Een gezinslid komt meer dan één keer voor." }, 400);
+        memberIds.add(person.id);
+        const orders = { ...(person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {}) };
+        for (const productId of catalogIds) {
+          const quantity = Number(orders[productId] ?? 0);
+          if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) return json({ error: "Ongeldig aantal in de bestelling." }, 400);
+          orders[productId] = quantity;
+        }
+        members.push({ id: person.id, name: person.name.trim(), type: person.type, orders });
+      }
+      registration.members = members;
+      registration.adults = members.filter(person => person.type === "Volwassene").length;
+      registration.children = members.filter(person => person.type === "Kind").length;
+      const updated = await env.DB.prepare(
+        "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND edition_id = ? AND updated_at = ? RETURNING updated_at"
+      ).bind(JSON.stringify(registration), now, registrationId, edition, body.revision).first();
+      if (!updated) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
+      return json({ saved: true, revision: updated.updated_at, registration });
+    }
     if (!["test", "live"].includes(edition) || !registrationId || !Number.isSafeInteger(body?.revision) ||
         !Array.isArray(body?.members) || body.members.length < 1 || body.members.length > 30) {
       return json({ error: "Ongeldige inschrijvingsgegevens." }, 400);
