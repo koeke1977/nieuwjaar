@@ -38,3 +38,9 @@
 .family-users-normalized .family-user-links{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
 .family-users-normalized .family-user-link{display:flex;align-items:center;gap:8px;padding:5px 8px}
 .family-users-normalized .family-user-link small{font-size:11px;color:var(--muted,#777)}
+
+.family-users-normalized .family-user-link select{max-width:120px;min-height:30px;padding:4px 7px;border:1px solid var(--line,#e8e4dd);border-radius:7px;background:#fff;color:var(--ink,#292720);font:inherit;font-size:11px}
+.family-users-normalized .family-user-link button{width:25px;height:25px;padding:0;border:1px solid var(--line,#e8e4dd);border-radius:50%;background:#fff;color:#a34b43;font-size:16px;line-height:1;cursor:pointer}
+.family-users-normalized .family-user-link button:disabled,.family-users-normalized .family-user-link select:disabled{opacity:.5;cursor:wait}
+.family-users-normalized-create{display:grid;gap:18px}
+.family-users-normalized-create .family-user-form+.family-user-form{padding-top:16px;border-top:1px solid var(--line,#e8e4dd)}
