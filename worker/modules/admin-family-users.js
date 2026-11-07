@@ -60,11 +60,8 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       "SELECT er.id, er.edition_id, er.data_json, er.updated_at, er.status, er.legacy_environment, er.legacy_registration_id, d.status AS edition_status, e.status AS event_status, d.config_json FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE er.id = ?"
     ).bind(registrationId).first();
     if (!row) return json({ error: "Inschrijving niet gevonden." }, 404);
-    if (row.legacy_environment || row.legacy_registration_id) {
-      return json({ error: "Deze historische inschrijving blijft voorlopig alleen-lezen om de oude gegevens en accountkoppelingen te beschermen." }, 409);
-    }
-    if (row.status === "deleted" || row.edition_status === "archived" || row.edition_status === "closed" || row.event_status === "archived") {
-      return json({ error: "Deze inschrijving behoort tot een afgesloten editie en kan niet worden aangepast." }, 409);
+    if (row.status === "deleted") {
+      return json({ error: "Een verwijderde inschrijving kan niet worden aangepast." }, 409);
     }
     if (Number(row.updated_at) !== body.revision) {
       return json({ error: "De inschrijving is intussen gewijzigd. Herlaad de gegevens en probeer opnieuw." }, 409);
@@ -117,7 +114,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
   if (path === "/api/admin/families" && request.method === "GET") {
     try {
       const rows = await env.DB.prepare(
-        "SELECT f.id AS family_id, f.display_name AS family_name, f.contact_email, f.created_at AS family_created_at, er.id AS registration_id, er.status AS registration_status, er.data_json, er.updated_at AS registration_updated_at, er.legacy_environment, er.legacy_registration_id, d.id AS edition_id, d.label AS edition_label, d.status AS edition_status, d.config_json AS edition_config_json, e.id AS event_id, e.name AS event_name, e.finance_strategy, fm.user_id, fm.role, u.email, u.display_name AS user_name, u.status AS user_status FROM families f LEFT JOIN event_registrations er ON er.family_id = f.id LEFT JOIN event_editions d ON d.id = er.edition_id LEFT JOIN events e ON e.id = d.event_id LEFT JOIN family_memberships fm ON fm.family_id = f.id LEFT JOIN family_users u ON u.id = fm.user_id ORDER BY f.display_name COLLATE NOCASE, e.name, d.label, u.email COLLATE NOCASE"
+        "SELECT f.id AS family_id, f.display_name AS family_name, f.contact_email, f.created_at AS family_created_at, er.id AS registration_id, er.status AS registration_status, er.data_json, er.updated_at AS registration_updated_at, er.legacy_environment, er.legacy_registration_id, ast.updated_at AS legacy_revision, ast.data_json AS legacy_data_json, d.id AS edition_id, d.label AS edition_label, d.status AS edition_status, d.config_json AS edition_config_json, e.id AS event_id, e.name AS event_name, e.finance_strategy, fm.user_id, fm.role, u.email, u.display_name AS user_name, u.status AS user_status FROM families f LEFT JOIN event_registrations er ON er.family_id = f.id LEFT JOIN app_state ast ON ast.environment = er.legacy_environment LEFT JOIN event_editions d ON d.id = er.edition_id LEFT JOIN events e ON e.id = d.event_id LEFT JOIN family_memberships fm ON fm.family_id = f.id LEFT JOIN family_users u ON u.id = fm.user_id ORDER BY f.display_name COLLATE NOCASE, e.name, d.label, u.email COLLATE NOCASE"
       ).all();
       const families = new Map();
       for (const row of rows.results || []) {
@@ -128,7 +125,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
         const family = families.get(row.family_id);
         if (row.registration_id && !family.registrations.some(item => item.id === row.registration_id)) {
           let data = {}, config = {};
-          try { data = JSON.parse(row.data_json || "{}"); } catch { /* Ongeldige payload blijft zichtbaar als waarschuwing. */ }
+          try { data = JSON.parse(row.legacy_environment ? (row.legacy_data_json || "{}") : (row.data_json || "{}")); } catch { /* Ongeldige payload blijft zichtbaar als waarschuwing. */ }
           try { config = JSON.parse(row.edition_config_json || "{}"); } catch { /* Catalogus blijft leeg bij ongeldige configuratie. */ }
           const members = Array.isArray(data.members) ? data.members : [];
           const catalog = Array.isArray(config.catalog) ? config.catalog : [];
@@ -149,8 +146,8 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
             catalog: catalog.filter(product => product && typeof product.id === "string").map(product => ({
               id: product.id, name: typeof product.name === "string" ? product.name.slice(0, 100) : product.id
             })),
-            updatedAt: row.registration_updated_at,
-            legacyReadOnly: Boolean(row.legacy_environment || row.legacy_registration_id),
+            updatedAt: row.legacy_environment ? row.legacy_revision : row.registration_updated_at,
+            legacyReadOnly: false,
             invalidData: !row.data_json || !Object.keys(data).length
           });
         }
