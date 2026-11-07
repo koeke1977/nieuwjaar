@@ -8,16 +8,27 @@ const clone = value => JSON.parse(JSON.stringify(value ?? null));
 
 // Every stored member field must be listed here, otherwise an admin save would drop it.
 const memberPayload = person => ({
-  id: person.id, name: person.name, type: person.type, orders: { ...(person.orders || {}) },
+  id: person.id,
+  name: person.name,
+  type: person.type,
+  orders: { ...(person.orders || {}) },
   ...((person.diet || []).length ? { diet: [...person.diet] } : {}),
   ...(person.notes ? { notes: person.notes } : {}),
   ...(Number(person.barCents) > 0 ? { barCents: Number(person.barCents) } : {})
 });
 const registrationPayload = reg => ({
-  id: reg.id, familyId: reg.familyId || null, name: reg.name,
-  members: (reg.members || []).map(memberPayload), revision: Number(reg.revision) || 0
+  id: reg.id,
+  familyId: reg.familyId || null,
+  name: reg.name,
+  members: (reg.members || []).map(memberPayload),
+  revision: Number(reg.revision) || 0
 });
-const productPayload = product => ({ id: product.id, name: product.name, image: product.image || null, active: product.active !== false });
+const productPayload = product => ({
+  id: product.id,
+  name: product.name,
+  image: product.image || null,
+  active: product.active !== false
+});
 
 // Canonical payload: fixed field order so it can be compared as text.
 export function payloadFrom(source) {
@@ -61,7 +72,8 @@ function keepSelectionValid() {
   const ids = new Set((state.registrations || []).map(item => item.id));
   if (!ids.has(state.managingRegistrationId)) state.managingRegistrationId = state.registrations[0]?.id || null;
   if (state.beheerFamilyId && !ids.has(state.beheerFamilyId)) state.beheerFamilyId = null;
-  if (state.editingExpenseId && !(state.expenses || []).some(item => item.id === state.editingExpenseId)) state.editingExpenseId = null;
+  if (state.editingExpenseId && !(state.expenses || []).some(item => item.id === state.editingExpenseId))
+    state.editingExpenseId = null;
 }
 
 // Apply an edition (API shape or payload) to the admin state.
@@ -70,7 +82,11 @@ export function applyEdition(edition, { keepUi = true } = {}) {
   state.activeEditionId = edition.editionId;
   if (edition.eventId) state.activeEventId = edition.eventId;
   state.eventName = edition.eventName;
-  state.activeEvent = { id: edition.editionId, name: edition.editionLabel, status: edition.editionStatus || state.activeEvent?.status || "open" };
+  state.activeEvent = {
+    id: edition.editionId,
+    name: edition.editionLabel,
+    status: edition.editionStatus || state.activeEvent?.status || "open"
+  };
   if (edition.editionStatus) state.editionStatus = edition.editionStatus;
   if (edition.financeStrategy) state.financeStrategy = edition.financeStrategy;
   state.startsAt = edition.startsAt || null;

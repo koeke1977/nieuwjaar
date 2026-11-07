@@ -12,9 +12,9 @@ function json(data, status = 200, headers = {}) {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
 
-
 async function sendGraphMail(env, recipient, subject, html) {
-  const tenantId = env.O365_TENANT_ID, clientId = env.O365_CLIENT_ID;
+  const tenantId = env.O365_TENANT_ID,
+    clientId = env.O365_CLIENT_ID;
   const clientSecret = env.O365_CLIENT_SECRET;
   // Transactionele mail mag uitsluitend vanuit deze mailbox vertrekken.
   const fromEmail = "registratie@datuur.be";
@@ -33,17 +33,31 @@ async function sendGraphMail(env, recipient, subject, html) {
   if (typeof html !== "string" || html.length > 100000) {
     throw new Error("Ongeldige e-mailinhoud.");
   }
-  const tokenResponse = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`, {
-    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, scope: "https://graph.microsoft.com/.default", grant_type: "client_credentials" })
-  });
+  const tokenResponse = await fetch(
+    `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        scope: "https://graph.microsoft.com/.default",
+        grant_type: "client_credentials"
+      })
+    }
+  );
   if (!tokenResponse.ok) {
     let authError = null;
-    try { authError = await tokenResponse.json(); } catch { /* Microsoft-response was geen JSON. */ }
+    try {
+      authError = await tokenResponse.json();
+    } catch {
+      /* Microsoft-response was geen JSON. */
+    }
     const errorCode = typeof authError?.error === "string" ? authError.error : "unknown_error";
-    const description = typeof authError?.error_description === "string"
-      ? authError.error_description.replace(/[\\r\\n]+/g, " ").slice(0, 700)
-      : "Microsoft gaf geen foutomschrijving terug.";
+    const description =
+      typeof authError?.error_description === "string"
+        ? authError.error_description.replace(/[\\r\\n]+/g, " ").slice(0, 700)
+        : "Microsoft gaf geen foutomschrijving terug.";
     const correlationId = typeof authError?.correlation_id === "string" ? authError.correlation_id : "";
     const traceId = typeof authError?.trace_id === "string" ? authError.trace_id : "";
     console.error("Microsoft OAuth token request failed:", {
@@ -59,10 +73,20 @@ async function sendGraphMail(env, recipient, subject, html) {
   if (!tokenData.access_token) throw new Error("Microsoft 365 gaf geen toegangstoken terug.");
   const sendResponse = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`, {
     method: "POST",
-    headers: { "Authorization": `Bearer ${tokenData.access_token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ message: { subject, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: recipient } }] }, saveToSentItems: true })
+    headers: { Authorization: `Bearer ${tokenData.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: {
+        subject,
+        body: { contentType: "HTML", content: html },
+        toRecipients: [{ emailAddress: { address: recipient } }]
+      },
+      saveToSentItems: true
+    })
   });
-  if (!sendResponse.ok) throw new Error(`Microsoft Graph heeft de e-mail geweigerd (HTTP ${sendResponse.status}). Controleer de mailboxmachtiging.`);
+  if (!sendResponse.ok)
+    throw new Error(
+      `Microsoft Graph heeft de e-mail geweigerd (HTTP ${sendResponse.status}). Controleer de mailboxmachtiging.`
+    );
 }
 
 function base64Url(bytes) {
@@ -73,7 +97,7 @@ function base64Url(bytes) {
 
 function fromBase64Url(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
+  const binary = atob(normalized + "=".repeat((4 - (normalized.length % 4)) % 4));
   return Uint8Array.from(binary, char => char.charCodeAt(0));
 }
 
@@ -86,7 +110,11 @@ async function verifyPassword(password, stored) {
   const [salt, expected] = String(stored || "").split(":");
   if (!salt || !expected) return false;
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: fromBase64Url(salt), iterations: 100000, hash: "SHA-256" }, key, 256);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt: fromBase64Url(salt), iterations: 100000, hash: "SHA-256" },
+    key,
+    256
+  );
   const actual = base64Url(new Uint8Array(bits));
   if (actual.length !== expected.length) return false;
   let mismatch = 0;
@@ -96,7 +124,10 @@ async function verifyPassword(password, stored) {
 
 function cookieValue(request, name) {
   const cookies = request.headers.get("Cookie") || "";
-  const entry = cookies.split(";").map(part => part.trim()).find(part => part.startsWith(name + "="));
+  const entry = cookies
+    .split(";")
+    .map(part => part.trim())
+    .find(part => part.startsWith(name + "="));
   return entry ? entry.slice(name.length + 1) : "";
 }
 
@@ -113,9 +144,9 @@ async function adminSession(request, env) {
   const token = cookieValue(request, SESSION_COOKIE);
   if (!token || !env.DB) return null;
   const tokenHash = await sha256(token);
-  const row = await env.DB.prepare(
-    "SELECT id, expires_at FROM admin_sessions WHERE token_hash = ? AND expires_at > ?"
-  ).bind(tokenHash, Math.floor(Date.now() / 1000)).first();
+  const row = await env.DB.prepare("SELECT id, expires_at FROM admin_sessions WHERE token_hash = ? AND expires_at > ?")
+    .bind(tokenHash, Math.floor(Date.now() / 1000))
+    .first();
   return row || null;
 }
 
@@ -123,7 +154,7 @@ async function handleAdminApi(request, env, url) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
 
   if (url.pathname === "/api/admin/receipts" && request.method === "GET") {
-    if (!await adminSession(request, env)) return json({ error: "Niet aangemeld." }, 401);
+    if (!(await adminSession(request, env))) return json({ error: "Niet aangemeld." }, 401);
     return (await streamReceipt(env, url.searchParams.get("key") || "")) || json({ error: "Niet gevonden." }, 404);
   }
 
@@ -132,7 +163,10 @@ async function handleAdminApi(request, env, url) {
   }
 
   if (url.pathname.startsWith("/api/admin/editions/")) {
-    return (await handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession, sendGraphMail })) || json({ error: "Niet gevonden." }, 404);
+    return (
+      (await handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession, sendGraphMail })) ||
+      json({ error: "Niet gevonden." }, 404)
+    );
   }
 
   if (url.pathname === "/api/admin/events" || url.pathname.startsWith("/api/admin/events/")) {
@@ -140,9 +174,15 @@ async function handleAdminApi(request, env, url) {
   }
 
   if (url.pathname.startsWith("/api/admin/family-users") || url.pathname.startsWith("/api/admin/families")) {
-    return handleAdminFamilyUsers(request, env, url, { json, sameOrigin, adminSession, sha256, base64Url, sendGraphMail });
+    return handleAdminFamilyUsers(request, env, url, {
+      json,
+      sameOrigin,
+      adminSession,
+      sha256,
+      base64Url,
+      sendGraphMail
+    });
   }
-
 
   if (url.pathname === "/api/admin/mail-test" && request.method === "POST") {
     if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
@@ -150,8 +190,12 @@ async function handleAdminApi(request, env, url) {
     if (!session) return json({ error: "Niet aangemeld." }, 401);
     const body = await request.json().catch(() => null);
     const recipient = typeof body?.recipient === "string" ? body.recipient.trim() : "";
-    if (recipient.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return json({ error: "Vul een geldig e-mailadres in." }, 400);
-    const safeRecipient = recipient.replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+    if (recipient.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient))
+      return json({ error: "Vul een geldig e-mailadres in." }, 400);
+    const safeRecipient = recipient.replace(
+      /[&<>"']/g,
+      char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]
+    );
     const html = `<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Nieuwjaar – mailtest geslaagd</h2><p>Deze test bevestigt dat de Nieuwjaar-app e-mail kan versturen via Microsoft 365.</p><p>Verzonden vanuit <strong>registratie@datuur.be</strong>.</p><p>Ontvanger: ${safeRecipient}</p></div>`;
     try {
       await sendGraphMail(env, recipient, "[Nieuwjaar] Test e-mailverbinding", html);
@@ -171,18 +215,23 @@ async function handleAdminApi(request, env, url) {
     const now = Math.floor(Date.now() / 1000);
     const failures = await env.DB.prepare(
       "SELECT COUNT(*) AS total FROM auth_events WHERE event_type = 'admin_login_failed' AND created_at > ?"
-    ).bind(now - 15 * 60).first();
-    if ((failures?.total || 0) >= 10) return json({ error: "Te veel mislukte pogingen. Probeer over 15 minuten opnieuw." }, 429);
+    )
+      .bind(now - 15 * 60)
+      .first();
+    if ((failures?.total || 0) >= 10)
+      return json({ error: "Te veel mislukte pogingen. Probeer over 15 minuten opnieuw." }, 429);
     const valid = await verifyPassword(password, env.ADMIN_PASSWORD_HASH);
     if (!valid) {
       await env.DB.prepare("INSERT INTO auth_events (event_type, created_at) VALUES ('admin_login_failed', ?)")
-        .bind(Math.floor(Date.now() / 1000)).run();
+        .bind(Math.floor(Date.now() / 1000))
+        .run();
       return json({ error: "Onjuist wachtwoord." }, 401);
     }
     const tokenBytes = crypto.getRandomValues(new Uint8Array(32));
     const token = base64Url(tokenBytes);
     await env.DB.prepare("INSERT INTO admin_sessions (token_hash, created_at, expires_at) VALUES (?, ?, ?)")
-      .bind(await sha256(token), now, now + SESSION_TTL_SECONDS).run();
+      .bind(await sha256(token), now, now + SESSION_TTL_SECONDS)
+      .run();
     return json({ authenticated: true, expiresAt: now + SESSION_TTL_SECONDS }, 200, {
       "Set-Cookie": cookieHeader(token, SESSION_TTL_SECONDS)
     });
@@ -191,7 +240,10 @@ async function handleAdminApi(request, env, url) {
   if (url.pathname === "/api/admin/logout" && request.method === "POST") {
     if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
     const token = cookieValue(request, SESSION_COOKIE);
-    if (token) await env.DB.prepare("DELETE FROM admin_sessions WHERE token_hash = ?").bind(await sha256(token)).run();
+    if (token)
+      await env.DB.prepare("DELETE FROM admin_sessions WHERE token_hash = ?")
+        .bind(await sha256(token))
+        .run();
     return json({ authenticated: false }, 200, { "Set-Cookie": cookieHeader("", 0) });
   }
 
@@ -203,9 +255,14 @@ async function handleAdminApi(request, env, url) {
     const form = await request.formData().catch(() => null);
     const file = form?.get("file");
     const productId = form?.get("productId");
-    if (!(file instanceof File) || !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-        file.size < 1 || file.size > 5 * 1024 * 1024 ||
-        typeof productId !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(productId)) {
+    if (
+      !(file instanceof File) ||
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+      file.size < 1 ||
+      file.size > 5 * 1024 * 1024 ||
+      typeof productId !== "string" ||
+      !/^[a-zA-Z0-9_-]{1,120}$/.test(productId)
+    ) {
       return json({ error: "Ongeldig afbeeldingsbestand. Gebruik JPG, PNG of WebP tot 5 MB." }, 400);
     }
     const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
@@ -240,8 +297,16 @@ async function handleAdminApi(request, env, url) {
 export default {
   // Daily backup (cron in wrangler.jsonc).
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(backupDatabase(env).then(result => console.log("Backup written:", result)).catch(error => console.error("Backup failed:", error)));
-    ctx.waitUntil(pruneOrphanReceipts(env).then(removed => console.log("Orphan receipts removed:", removed)).catch(error => console.error("Receipt cleanup failed:", error)));
+    ctx.waitUntil(
+      backupDatabase(env)
+        .then(result => console.log("Backup written:", result))
+        .catch(error => console.error("Backup failed:", error))
+    );
+    ctx.waitUntil(
+      pruneOrphanReceipts(env)
+        .then(removed => console.log("Orphan receipts removed:", removed))
+        .catch(error => console.error("Receipt cleanup failed:", error))
+    );
   },
 
   async fetch(request, env) {
@@ -260,7 +325,8 @@ export default {
       if (url.pathname.startsWith("/media/") && request.method === "GET") {
         if (!env.PHOTOS) return new Response("Foto-opslag niet beschikbaar.", { status: 503 });
         const key = url.pathname.slice("/media/".length);
-        if (!/^products\/(?:test|live)\/[A-Za-z0-9_-]+-[0-9a-f-]+\.(?:jpg|png|webp)$/i.test(key)) return new Response("Niet gevonden.", { status: 404 });
+        if (!/^products\/(?:test|live)\/[A-Za-z0-9_-]+-[0-9a-f-]+\.(?:jpg|png|webp)$/i.test(key))
+          return new Response("Niet gevonden.", { status: 404 });
         const object = await env.PHOTOS.get(key);
         if (!object) return new Response("Niet gevonden.", { status: 404 });
         const headers = new Headers();
@@ -271,7 +337,15 @@ export default {
       }
 
       if (url.pathname.startsWith("/api/family-account/")) {
-        return await handleFamilyAccountApi(request, env, url, { json, sameOrigin, cookieValue, sha256, base64Url, fromBase64Url, sendGraphMail });
+        return await handleFamilyAccountApi(request, env, url, {
+          json,
+          sameOrigin,
+          cookieValue,
+          sha256,
+          base64Url,
+          fromBase64Url,
+          sendGraphMail
+        });
       }
 
       if (url.pathname.startsWith("/api/admin/")) {

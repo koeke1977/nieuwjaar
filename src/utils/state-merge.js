@@ -14,20 +14,25 @@ function mergeValue(base, mine, theirs) {
 }
 
 function mergeList(base = [], mine = [], theirs = [], conflicts, label) {
-  const byId = list => new Map((Array.isArray(list) ? list : []).filter(item => item && item.id != null).map(item => [item.id, item]));
-  const baseMap = byId(base), mineMap = byId(mine), theirsMap = byId(theirs);
+  const byId = list =>
+    new Map((Array.isArray(list) ? list : []).filter(item => item && item.id != null).map(item => [item.id, item]));
+  const baseMap = byId(base),
+    mineMap = byId(mine),
+    theirsMap = byId(theirs);
   const result = [];
   const seen = new Set();
   const decide = id => {
-    const b = baseMap.get(id), m = mineMap.get(id), t = theirsMap.get(id);
+    const b = baseMap.get(id),
+      m = mineMap.get(id),
+      t = theirsMap.get(id);
     if (m && t) {
       if (same(m, b)) return t;
       if (same(t, b) || same(m, t)) return m;
       conflicts.push(label + ":" + id);
       return m;
     }
-    if (m && !t) return b && same(m, b) ? null : m;   // they deleted it; keep only if I changed it
-    if (!m && t) return b && same(t, b) ? null : t;   // I deleted it; keep only if they changed it
+    if (m && !t) return b && same(m, b) ? null : m; // they deleted it; keep only if I changed it
+    if (!m && t) return b && same(t, b) ? null : t; // I deleted it; keep only if they changed it
     return null;
   };
   // Keep the server order, then append items that only exist locally.

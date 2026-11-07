@@ -20,4 +20,3 @@ test("on the day it shows hours and minutes, then celebrates, then disappears", 
   assert.equal(countdownState("2026-12-31T20:00", "Nieuwjaar", at("2027-01-02T12:00")).phase, "over");
   assert.equal(countdownState(null, "Nieuwjaar"), null, "no date, no countdown");
 });
-

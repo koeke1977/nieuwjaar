@@ -5,14 +5,20 @@ import { createD1 } from "./helpers/d1.js";
 import { handleFamilyAccountApi } from "../worker/modules/family-account.js";
 
 // Family A: 2 adults + 1 child, 10 portions. Family B: 1 adult, 90 portions. Total 100 portions.
-const familyA = { id: "a", name: "Familie A", members: [
-  { id: "a1", name: "Jan", type: "Volwassene", orders: { p1: 4 } },
-  { id: "a2", name: "Els", type: "Volwassene", orders: { p1: 4 } },
-  { id: "a3", name: "Kobe", type: "Kind", orders: { p1: 2 } }
-] };
-const familyB = { id: "b", name: "Familie B", members: [
-  { id: "b1", name: "Piet", type: "Volwassene", orders: { p1: 90 } }
-] };
+const familyA = {
+  id: "a",
+  name: "Familie A",
+  members: [
+    { id: "a1", name: "Jan", type: "Volwassene", orders: { p1: 4 } },
+    { id: "a2", name: "Els", type: "Volwassene", orders: { p1: 4 } },
+    { id: "a3", name: "Kobe", type: "Kind", orders: { p1: 2 } }
+  ]
+};
+const familyB = {
+  id: "b",
+  name: "Familie B",
+  members: [{ id: "b1", name: "Piet", type: "Volwassene", orders: { p1: 90 } }]
+};
 const registrations = [familyA, familyB];
 const expenses = [
   { id: "e1", description: "Vlees", amountCents: 40000, method: "meat", advancedBy: "b", date: "2026-12-20" },
@@ -47,7 +53,10 @@ test("member amounts add up exactly to the family share and match the existing e
   assert.equal(finance.totals.shareCents, engine.shareCents);
   assert.equal(finance.totals.remainingCents, engine.remainingCents);
   const legacyMembers = getMemberCostSummary(familyA, registrations, expenses);
-  assert.deepEqual(finance.members.map(member => member.totalCents), legacyMembers.map(member => member.cents));
+  assert.deepEqual(
+    finance.members.map(member => member.totalCents),
+    legacyMembers.map(member => member.cents)
+  );
   const categorySum = finance.categories.reduce((sum, category) => sum + category.familyCents, 0);
   assert.equal(categorySum, finance.totals.shareCents);
 });
@@ -68,10 +77,18 @@ test("a family that advanced more than its share gets a credit", () => {
 });
 
 test("breakdown never exposes other families' names or payments", () => {
-  const finance = getFamilyFinanceBreakdown(familyA, registrations, expenses, payments.concat({ id: "pay2", registrationId: "b", amountCents: 5, method: "cash" }));
+  const finance = getFamilyFinanceBreakdown(
+    familyA,
+    registrations,
+    expenses,
+    payments.concat({ id: "pay2", registrationId: "b", amountCents: 5, method: "cash" })
+  );
   const text = JSON.stringify(finance);
   assert.ok(!text.includes("Familie B") && !text.includes("Piet"));
-  assert.deepEqual(finance.payments.map(payment => payment.id), ["pay1"]);
+  assert.deepEqual(
+    finance.payments.map(payment => payment.id),
+    ["pay1"]
+  );
   assert.ok(!("advancedBy" in finance.expenses[0]));
 });
 
@@ -84,11 +101,17 @@ test("no expenses yields an empty but valid breakdown", () => {
 
 // ---- Route: GET /api/family-account/session returns the family's own finance ----
 
-const sha256 = async value => Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))).toString("hex");
+const sha256 = async value =>
+  Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))).toString("hex");
 const deps = {
-  json: (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...headers } }),
+  json: (data, status = 200, headers = {}) =>
+    new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...headers } }),
   sameOrigin: () => true,
-  cookieValue: (request, name) => (request.headers.get("Cookie") || "").split(/;\s*/).map(part => part.split("=")).find(([key]) => key === name)?.[1] || "",
+  cookieValue: (request, name) =>
+    (request.headers.get("Cookie") || "")
+      .split(/;\s*/)
+      .map(part => part.split("="))
+      .find(([key]) => key === name)?.[1] || "",
   sha256,
   base64Url: bytes => Buffer.from(bytes).toString("base64url"),
   fromBase64Url: text => new Uint8Array(Buffer.from(text, "base64url")),
@@ -99,19 +122,41 @@ test("family session includes a finance breakdown limited to the own registratio
   const DB = createD1();
   const db = DB.raw;
   const now = Math.floor(Date.now() / 1000);
-  db.prepare("INSERT INTO events (id, slug, name, finance_strategy, created_at, updated_at) VALUES ('ev', 'nieuwjaar', 'Nieuwjaar', 'nieuwjaar', 1, 1)").run();
-  db.prepare("INSERT INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES ('ed', 'ev', '2026–2027', 'open', ?, 1, 1)").run(JSON.stringify({ catalog: [{ id: "p1", name: "Biefstuk", active: true }] }));
-  db.prepare("INSERT INTO edition_finance_snapshots (edition_id, expenses_json, payments_json, created_at, updated_at) VALUES ('ed', ?, ?, 1, 1)").run(JSON.stringify(expenses), JSON.stringify(payments));
+  db.prepare(
+    "INSERT INTO events (id, slug, name, finance_strategy, created_at, updated_at) VALUES ('ev', 'nieuwjaar', 'Nieuwjaar', 'nieuwjaar', 1, 1)"
+  ).run();
+  db.prepare(
+    "INSERT INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES ('ed', 'ev', '2026–2027', 'open', ?, 1, 1)"
+  ).run(JSON.stringify({ catalog: [{ id: "p1", name: "Biefstuk", active: true }] }));
+  db.prepare(
+    "INSERT INTO edition_finance_snapshots (edition_id, expenses_json, payments_json, created_at, updated_at) VALUES ('ed', ?, ?, 1, 1)"
+  ).run(JSON.stringify(expenses), JSON.stringify(payments));
   for (const reg of registrations) {
-    db.prepare("INSERT INTO families (id, display_name, created_at, updated_at) VALUES (?, ?, 1, 1)").run("f" + reg.id, reg.name);
-    db.prepare("INSERT INTO event_registrations (id, edition_id, family_id, data_json, created_at, updated_at) VALUES (?, 'ed', ?, ?, 1, 1)").run(reg.id, "f" + reg.id, JSON.stringify({ name: reg.name, members: reg.members }));
+    db.prepare("INSERT INTO families (id, display_name, created_at, updated_at) VALUES (?, ?, 1, 1)").run(
+      "f" + reg.id,
+      reg.name
+    );
+    db.prepare(
+      "INSERT INTO event_registrations (id, edition_id, family_id, data_json, created_at, updated_at) VALUES (?, 'ed', ?, ?, 1, 1)"
+    ).run(reg.id, "f" + reg.id, JSON.stringify({ name: reg.name, members: reg.members }));
   }
-  db.prepare("INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES ('u1', 'jan@example.be', 'Jan', 'active', 1, 1)").run();
-  db.prepare("INSERT INTO family_user_sessions (user_id, token_hash, created_at, expires_at) VALUES ('u1', ?, ?, ?)").run(await sha256("tok"), now, now + 3600);
-  db.prepare("INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES ('m1', 'fa', 'u1', 'owner', 1)").run();
+  db.prepare(
+    "INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES ('u1', 'jan@example.be', 'Jan', 'active', 1, 1)"
+  ).run();
+  db.prepare(
+    "INSERT INTO family_user_sessions (user_id, token_hash, created_at, expires_at) VALUES ('u1', ?, ?, ?)"
+  ).run(await sha256("tok"), now, now + 3600);
+  db.prepare(
+    "INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES ('m1', 'fa', 'u1', 'owner', 1)"
+  ).run();
 
   const url = new URL("https://nieuwjaar.datuur.be/api/family-account/session");
-  const response = await handleFamilyAccountApi(new Request(url, { headers: { Cookie: "ny_family_account=tok" } }), { DB }, url, deps);
+  const response = await handleFamilyAccountApi(
+    new Request(url, { headers: { Cookie: "ny_family_account=tok" } }),
+    { DB },
+    url,
+    deps
+  );
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.registrations.length, 1);
@@ -124,12 +169,23 @@ test("family session includes a finance breakdown limited to the own registratio
 test("a refund to a family that advanced too much reduces what it still gets back", () => {
   const before = getFamilyFinanceBreakdown(familyB, registrations, expenses, payments).totals;
   assert.ok(before.creditCents > 0);
-  const refund = { id: "r1", registrationId: "b", amountCents: before.creditCents - 100, date: "2027-01-05", method: "bank", kind: "refund" };
+  const refund = {
+    id: "r1",
+    registrationId: "b",
+    amountCents: before.creditCents - 100,
+    date: "2027-01-05",
+    method: "bank",
+    kind: "refund"
+  };
   const after = getFamilyFinanceBreakdown(familyB, registrations, expenses, payments.concat(refund)).totals;
   assert.equal(after.refundedCents, before.creditCents - 100);
   assert.equal(after.creditCents, 100);
   assert.equal(after.paymentStatus, "Gedeeltelijk terugbetaald");
-  const settled = getFinancialSummary(registrations, expenses, payments.concat({ ...refund, amountCents: before.creditCents })).find(row => row.id === "b");
+  const settled = getFinancialSummary(
+    registrations,
+    expenses,
+    payments.concat({ ...refund, amountCents: before.creditCents })
+  ).find(row => row.id === "b");
   assert.equal(settled.creditCents, 0);
   assert.equal(settled.paymentStatus, "Terugbetaald");
   assert.equal(settled.paidCents, 0, "a refund is not counted as money paid in");
@@ -138,14 +194,30 @@ test("a refund to a family that advanced too much reduces what it still gets bac
 test("a cost paid from the shared kitty gives nobody an advance but is still shared", () => {
   const kitty = [{ id: "k1", description: "Zaal", amountCents: 9000, method: "general", advancedBy: "kas" }];
   const rows = getFinancialSummary(registrations, kitty, []);
-  assert.equal(rows.reduce((sum, row) => sum + row.advancedCents, 0), 0);
-  assert.equal(rows.reduce((sum, row) => sum + row.shareCents, 0), 9000);
-  assert.equal(rows.reduce((sum, row) => sum + row.remainingCents, 0), 9000, "families owe the full amount to the kitty");
+  assert.equal(
+    rows.reduce((sum, row) => sum + row.advancedCents, 0),
+    0
+  );
+  assert.equal(
+    rows.reduce((sum, row) => sum + row.shareCents, 0),
+    9000
+  );
+  assert.equal(
+    rows.reduce((sum, row) => sum + row.remainingCents, 0),
+    9000,
+    "families owe the full amount to the kitty"
+  );
 });
 
 test("a personal bar bill is charged to that person only; bar purchases are not split", async () => {
   const { getFinancialSummary: summary } = await import("../src/utils/finance.js");
-  const a = { id: "a", members: [{ id: "a1", name: "Jan", type: "Volwassene", orders: {}, barCents: 2100 }, { id: "a2", name: "Kobe", type: "Kind", orders: {}, barCents: 900 }] };
+  const a = {
+    id: "a",
+    members: [
+      { id: "a1", name: "Jan", type: "Volwassene", orders: {}, barCents: 2100 },
+      { id: "a2", name: "Kobe", type: "Kind", orders: {}, barCents: 900 }
+    ]
+  };
   const b = { id: "b", members: [{ id: "b1", name: "Piet", type: "Volwassene", orders: {} }] };
   const purchase = [{ id: "bar1", description: "Drank", amountCents: 5000, method: "bar", advancedBy: "b" }];
   const rows = summary([a, b], purchase, []);
@@ -153,29 +225,61 @@ test("a personal bar bill is charged to that person only; bar purchases are not 
   assert.equal(rows.find(r => r.id === "b").shareCents, 0, "the purchase is not split over anyone");
   assert.equal(rows.find(r => r.id === "b").creditCents, 5000, "whoever bought the drinks gets it back");
   const breakdown = getFamilyFinanceBreakdown(a, [a, b], purchase, []);
-  assert.deepEqual(breakdown.members.map(m => m.byMethod.bar), [2100, 900]);
-  assert.deepEqual(breakdown.members.map(m => m.totalCents), [2100, 900]);
+  assert.deepEqual(
+    breakdown.members.map(m => m.byMethod.bar),
+    [2100, 900]
+  );
+  assert.deepEqual(
+    breakdown.members.map(m => m.totalCents),
+    [2100, 900]
+  );
   const bar = breakdown.categories.find(c => c.method === "bar");
   assert.equal(bar.personal, true);
   assert.equal(bar.familyCents, 3000);
-  assert.deepEqual(bar.perMember.map(m => m.name), ["Jan", "Kobe"]);
+  assert.deepEqual(
+    bar.perMember.map(m => m.name),
+    ["Jan", "Kobe"]
+  );
   assert.equal(breakdown.expenses.length, 0, "family A does not see family B's bar purchase");
-  assert.equal(getFamilyFinanceBreakdown(b, [a, b], purchase, []).expenses[0].notShared, true, "the buyer sees it in its own costs");
+  assert.equal(
+    getFamilyFinanceBreakdown(b, [a, b], purchase, []).expenses[0].notShared,
+    true,
+    "the buyer sees it in its own costs"
+  );
 });
 
 test("evening guests share in no cost at all; they only pay their own bar bill", async () => {
   const { getFinancialSummary: summary, getRegistrationCounts } = await import("../src/utils/finance.js");
-  const dinner = { id: "d", members: [{ id: "d1", name: "Jan", type: "Volwassene", orders: { p1: 2 } }, { id: "d2", name: "Kobe", type: "Kind", orders: { p1: 1 } }] };
-  const late = { id: "l", members: [{ id: "l1", name: "Tom", type: "Avondgast", orders: { p1: 5 }, barCents: 1500 }, { id: "l2", name: "Sara", type: "Avondgast", orders: {} }] };
+  const dinner = {
+    id: "d",
+    members: [
+      { id: "d1", name: "Jan", type: "Volwassene", orders: { p1: 2 } },
+      { id: "d2", name: "Kobe", type: "Kind", orders: { p1: 1 } }
+    ]
+  };
+  const late = {
+    id: "l",
+    members: [
+      { id: "l1", name: "Tom", type: "Avondgast", orders: { p1: 5 }, barCents: 1500 },
+      { id: "l2", name: "Sara", type: "Avondgast", orders: {} }
+    ]
+  };
   const costs = [
     { id: "g", amountCents: 9000, method: "general", advancedBy: "kas" },
     { id: "c", amountCents: 6000, method: "adults", advancedBy: "kas" },
     { id: "m", amountCents: 3000, method: "meat", advancedBy: "kas" }
   ];
-  assert.deepEqual(getRegistrationCounts(late), { people: 0, adults: 0, children: 0, meat: 0 }, "evening guests are not counted and their orders are ignored");
+  assert.deepEqual(
+    getRegistrationCounts(late),
+    { people: 0, adults: 0, children: 0, meat: 0 },
+    "evening guests are not counted and their orders are ignored"
+  );
   const rows = summary([dinner, late], costs, []);
   assert.equal(rows.find(r => r.id === "d").shareCents, 18000, "the dinner family carries all shared costs");
   assert.equal(rows.find(r => r.id === "l").shareCents, 1500, "the evening guests only their bar bill");
   const breakdown = getFamilyFinanceBreakdown(late, [dinner, late], costs, []);
-  assert.deepEqual(breakdown.members.map(m => m.totalCents), [1500, 0]);
+  assert.deepEqual(
+    breakdown.members.map(m => m.totalCents),
+    [1500, 0]
+  );
 });

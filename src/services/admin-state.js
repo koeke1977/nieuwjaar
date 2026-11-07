@@ -11,7 +11,11 @@ let version = null;
 const MAX_MERGE_ATTEMPTS = 3;
 
 async function api(path, options = {}) {
-  const response = await fetch(path, { credentials: "same-origin", ...options, headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) } });
+  const response = await fetch(path, {
+    credentials: "same-origin",
+    ...options,
+    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) }
+  });
   const result = await response.json().catch(() => ({}));
   return { response, result };
 }
@@ -65,7 +69,9 @@ function hasUnsavedAdminChanges() {
 // Pull changes made by families or another admin when nothing is pending locally.
 export async function refreshAdminStateIfChanged() {
   if (!state.activeEditionId || hasUnsavedAdminChanges()) return false;
-  const { response, result } = await api("/api/admin/editions/" + encodeURIComponent(state.activeEditionId) + "/version");
+  const { response, result } = await api(
+    "/api/admin/editions/" + encodeURIComponent(state.activeEditionId) + "/version"
+  );
   if (!response.ok || !result.version || result.version === version) return false;
   const serverState = await fetchEdition(state.activeEditionId);
   if (hasUnsavedAdminChanges()) return false; // the admin started editing meanwhile
@@ -81,7 +87,9 @@ function withServerRevisions(merged, theirs) {
     ...merged,
     financeRevision: theirs.financeRevision,
     configRevision: theirs.configRevision,
-    registrations: merged.registrations.map(reg => theirRegs.has(reg.id) ? { ...reg, revision: theirRegs.get(reg.id).revision } : { ...reg, revision: 0 })
+    registrations: merged.registrations.map(reg =>
+      theirRegs.has(reg.id) ? { ...reg, revision: theirRegs.get(reg.id).revision } : { ...reg, revision: 0 }
+    )
   };
 }
 
@@ -94,14 +102,19 @@ export async function saveAdminState() {
   let createdRegistrations = mine.registrations.some(reg => !base.registrations.some(item => item.id === reg.id));
   for (let attempt = 0; attempt < MAX_MERGE_ATTEMPTS; attempt++) {
     const sent = mine;
-    const { response, result } = await api("/api/admin/editions/" + encodeURIComponent(editionId) + "/state", { method: "PUT", body: JSON.stringify({ base, data: sent }) });
+    const { response, result } = await api("/api/admin/editions/" + encodeURIComponent(editionId) + "/state", {
+      method: "PUT",
+      body: JSON.stringify({ base, data: sent })
+    });
     if (response.ok) {
       remember(result.state);
       // Keep edits made while the request was in flight; only adopt the new revisions.
       const stillEditing = JSON.stringify(currentPayload()) !== JSON.stringify(sent);
       if (stillEditing) {
         const fresh = new Map(result.state.registrations.map(reg => [reg.id, reg.revision]));
-        state.registrations.forEach(reg => { if (fresh.has(reg.id)) reg.revision = fresh.get(reg.id); });
+        state.registrations.forEach(reg => {
+          if (fresh.has(reg.id)) reg.revision = fresh.get(reg.id);
+        });
         state.financeRevision = result.state.financeRevision;
         state.configRevision = result.state.configRevision;
       } else {
@@ -120,11 +133,16 @@ export async function saveAdminState() {
     applyEdition({ ...theirsState, ...mine });
     if (JSON.stringify(mine) === lastSaved) return { saved: true, unchanged: true, merged: true, conflicts };
   }
-  throw new Error("Deze editie werd meerdere keren tegelijk gewijzigd. Herlaad de pagina om de nieuwste gegevens op te halen.");
+  throw new Error(
+    "Deze editie werd meerdere keren tegelijk gewijzigd. Herlaad de pagina om de nieuwste gegevens op te halen."
+  );
 }
 
 export async function startNextEdition(label, copyCatalog) {
-  const { response, result } = await api("/api/admin/editions/" + encodeURIComponent(state.activeEditionId) + "/next", { method: "POST", body: JSON.stringify({ label, copyCatalog }) });
+  const { response, result } = await api("/api/admin/editions/" + encodeURIComponent(state.activeEditionId) + "/next", {
+    method: "POST",
+    body: JSON.stringify({ label, copyCatalog })
+  });
   if (!response.ok) throw new Error(result.error || "De nieuwe editie kon niet worden gestart.");
   await loadEvents();
   await loadEdition(result.editionId);
@@ -132,9 +150,15 @@ export async function startNextEdition(label, copyCatalog) {
 }
 
 export async function createEvent(name, editionLabel) {
-  const created = await api("/api/admin/events", { method: "POST", body: JSON.stringify({ name, description: "", financeStrategy: "nieuwjaar" }) });
+  const created = await api("/api/admin/events", {
+    method: "POST",
+    body: JSON.stringify({ name, description: "", financeStrategy: "nieuwjaar" })
+  });
   if (!created.response.ok) throw new Error(created.result.error || "Het evenement kon niet worden aangemaakt.");
-  const edition = await api("/api/admin/events/" + encodeURIComponent(created.result.event.id) + "/editions", { method: "POST", body: JSON.stringify({ label: editionLabel }) });
+  const edition = await api("/api/admin/events/" + encodeURIComponent(created.result.event.id) + "/editions", {
+    method: "POST",
+    body: JSON.stringify({ label: editionLabel })
+  });
   if (!edition.response.ok) throw new Error(edition.result.error || "De eerste editie kon niet worden aangemaakt.");
   await loadEvents();
   await loadEdition(edition.result.edition.id);

@@ -1,10 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  getExpenseShares,
-  getFinancialSummary,
-  getMemberCostSummary
-} from "../src/utils/finance.js";
+import { getExpenseShares, getFinancialSummary, getMemberCostSummary } from "../src/utils/finance.js";
 
 const registrations = [
   {
@@ -19,58 +15,73 @@ const registrations = [
   {
     id: "family-b",
     name: "Familie B",
-    members: [
-      { id: "b1", name: "Volwassene", type: "Volwassene", orders: { burger: 1 } }
-    ]
+    members: [{ id: "b1", name: "Volwassene", type: "Volwassene", orders: { burger: 1 } }]
   }
 ];
 
 test("Nieuwjaar baseline: general is weighted by number of people", () => {
-  assert.deepEqual(
-    getExpenseShares({ amountCents: 10000, method: "general" }, registrations, { strict: true }),
-    [{ id: "family-a", cents: 7500 }, { id: "family-b", cents: 2500 }]
-  );
+  assert.deepEqual(getExpenseShares({ amountCents: 10000, method: "general" }, registrations, { strict: true }), [
+    { id: "family-a", cents: 7500 },
+    { id: "family-b", cents: 2500 }
+  ]);
 });
 
 test("Nieuwjaar baseline: 18+ costs exclude children", () => {
-  assert.deepEqual(
-    getExpenseShares({ amountCents: 6000, method: "adults" }, registrations, { strict: true }),
-    [{ id: "family-a", cents: 4000 }, { id: "family-b", cents: 2000 }]
-  );
+  assert.deepEqual(getExpenseShares({ amountCents: 6000, method: "adults" }, registrations, { strict: true }), [
+    { id: "family-a", cents: 4000 },
+    { id: "family-b", cents: 2000 }
+  ]);
 });
 
 test("Nieuwjaar baseline: meat costs follow ordered portions, not headcount", () => {
-  assert.deepEqual(
-    getExpenseShares({ amountCents: 9001, method: "meat" }, registrations, { strict: true }),
-    [{ id: "family-a", cents: 6751 }, { id: "family-b", cents: 2250 }]
-  );
+  assert.deepEqual(getExpenseShares({ amountCents: 9001, method: "meat" }, registrations, { strict: true }), [
+    { id: "family-a", cents: 6751 },
+    { id: "family-b", cents: 2250 }
+  ]);
 });
 
 test("Nieuwjaar baseline: combined expenses, advances and partial payment stay exact", () => {
-  const summary = getFinancialSummary(registrations, [
-    { id: "general", amountCents: 10000, method: "general", advancedBy: "family-a" },
-    { id: "adults", amountCents: 6000, method: "adults", advancedBy: "family-b" },
-    { id: "meat", amountCents: 9001, method: "meat", advancedBy: "family-a" }
-  ], [{ registrationId: "family-a", amountCents: 1000 }]);
+  const summary = getFinancialSummary(
+    registrations,
+    [
+      { id: "general", amountCents: 10000, method: "general", advancedBy: "family-a" },
+      { id: "adults", amountCents: 6000, method: "adults", advancedBy: "family-b" },
+      { id: "meat", amountCents: 9001, method: "meat", advancedBy: "family-a" }
+    ],
+    [{ registrationId: "family-a", amountCents: 1000 }]
+  );
 
-  assert.deepEqual(summary.map(row => ({
-    id: row.id,
-    advancedCents: row.advancedCents,
-    shareCents: row.shareCents,
-    balanceCents: row.balanceCents,
-    paidCents: row.paidCents,
-    remainingCents: row.remainingCents,
-    overpaidCents: row.overpaidCents
-  })), [
-    {
-      id: "family-a", advancedCents: 19001, shareCents: 18251,
-      balanceCents: 750, paidCents: 1000, remainingCents: 0, overpaidCents: 1000
-    },
-    {
-      id: "family-b", advancedCents: 6000, shareCents: 6750,
-      balanceCents: -750, paidCents: 0, remainingCents: 750, overpaidCents: 0
-    }
-  ]);
+  assert.deepEqual(
+    summary.map(row => ({
+      id: row.id,
+      advancedCents: row.advancedCents,
+      shareCents: row.shareCents,
+      balanceCents: row.balanceCents,
+      paidCents: row.paidCents,
+      remainingCents: row.remainingCents,
+      overpaidCents: row.overpaidCents
+    })),
+    [
+      {
+        id: "family-a",
+        advancedCents: 19001,
+        shareCents: 18251,
+        balanceCents: 750,
+        paidCents: 1000,
+        remainingCents: 0,
+        overpaidCents: 1000
+      },
+      {
+        id: "family-b",
+        advancedCents: 6000,
+        shareCents: 6750,
+        balanceCents: -750,
+        paidCents: 0,
+        remainingCents: 750,
+        overpaidCents: 0
+      }
+    ]
+  );
 });
 
 test("Nieuwjaar baseline: member-level allocation retains adult and meat eligibility", () => {
@@ -85,17 +96,17 @@ test("Nieuwjaar baseline: member-level allocation retains adult and meat eligibi
   ]);
 });
 
-
 test("Nieuwjaar baseline: largest-remainder ties retain registration order", () => {
   const equalFamilies = [
     { id: "first", members: [{ id: "one", type: "Volwassene", orders: {} }] },
     { id: "second", members: [{ id: "two", type: "Volwassene", orders: {} }] },
     { id: "third", members: [{ id: "three", type: "Volwassene", orders: {} }] }
   ];
-  assert.deepEqual(
-    getExpenseShares({ amountCents: 2, method: "general" }, equalFamilies, { strict: true }),
-    [{ id: "first", cents: 1 }, { id: "second", cents: 1 }, { id: "third", cents: 0 }]
-  );
+  assert.deepEqual(getExpenseShares({ amountCents: 2, method: "general" }, equalFamilies, { strict: true }), [
+    { id: "first", cents: 1 },
+    { id: "second", cents: 1 },
+    { id: "third", cents: 0 }
+  ]);
 });
 
 test("Nieuwjaar baseline: adult-only expense rejects an edition without adults in strict mode", () => {
@@ -107,10 +118,12 @@ test("Nieuwjaar baseline: adult-only expense rejects an edition without adults i
 });
 
 test("Nieuwjaar baseline: aggregate registrations preserve their declared counts", () => {
-  const aggregate = [{
-    id: "aggregate-family",
-    aggregateCounts: { people: 5, adults: 2, children: 3, meat: 7 }
-  }];
+  const aggregate = [
+    {
+      id: "aggregate-family",
+      aggregateCounts: { people: 5, adults: 2, children: 3, meat: 7 }
+    }
+  ];
   assert.deepEqual(getExpenseShares({ amountCents: 777, method: "general" }, aggregate), [
     { id: "aggregate-family", cents: 777 }
   ]);

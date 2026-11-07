@@ -5,7 +5,11 @@ import { localToDate, ordersClosed } from "../src/utils/time.js";
 test("Belgian local time is converted correctly in winter and summer", () => {
   assert.equal(localToDate("2026-12-20T23:59").toISOString(), "2026-12-20T22:59:00.000Z");
   assert.equal(localToDate("2027-07-01T12:00").toISOString(), "2027-07-01T10:00:00.000Z");
-  assert.equal(localToDate("2026-12-20").toISOString(), "2026-12-20T22:59:00.000Z", "a date alone means the end of that day");
+  assert.equal(
+    localToDate("2026-12-20").toISOString(),
+    "2026-12-20T22:59:00.000Z",
+    "a date alone means the end of that day"
+  );
   assert.equal(localToDate("morgen"), null);
 });
 

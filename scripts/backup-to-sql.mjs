@@ -5,19 +5,46 @@
 import { readFileSync } from "node:fs";
 
 const file = process.argv[2];
-if (!file) { console.error("Usage: node scripts/backup-to-sql.mjs <backup.json>"); process.exit(1); }
+if (!file) {
+  console.error("Usage: node scripts/backup-to-sql.mjs <backup.json>");
+  process.exit(1);
+}
 const dump = JSON.parse(readFileSync(file, "utf8"));
-const quote = value => value === null || value === undefined ? "NULL" : typeof value === "number" ? String(value) : "'" + String(value).replace(/'/g, "''") + "'";
+const quote = value =>
+  value === null || value === undefined
+    ? "NULL"
+    : typeof value === "number"
+      ? String(value)
+      : "'" + String(value).replace(/'/g, "''") + "'";
 const ident = name => '"' + name.replace(/"/g, '""') + '"';
 // Parents before children, so foreign keys hold while inserting.
-const order = ["events", "event_editions", "families", "family_users", "family_memberships", "event_registrations", "edition_finance_snapshots", "family_user_invites", "family_user_sessions", "family_password_resets"];
+const order = [
+  "events",
+  "event_editions",
+  "families",
+  "family_users",
+  "family_memberships",
+  "event_registrations",
+  "edition_finance_snapshots",
+  "family_user_invites",
+  "family_user_sessions",
+  "family_password_resets"
+];
 const names = Object.keys(dump.tables).sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
 const lines = ["-- Restore of " + dump.database + " backup from " + dump.createdAt, "PRAGMA defer_foreign_keys = ON;"];
 for (const name of [...names].reverse()) lines.push("DELETE FROM " + ident(name) + ";");
 for (const name of names) {
   for (const row of dump.tables[name]) {
     const columns = Object.keys(row);
-    lines.push("INSERT INTO " + ident(name) + " (" + columns.map(ident).join(", ") + ") VALUES (" + columns.map(column => quote(row[column])).join(", ") + ");");
+    lines.push(
+      "INSERT INTO " +
+        ident(name) +
+        " (" +
+        columns.map(ident).join(", ") +
+        ") VALUES (" +
+        columns.map(column => quote(row[column])).join(", ") +
+        ");"
+    );
   }
 }
 process.stdout.write(lines.join("\n") + "\n");

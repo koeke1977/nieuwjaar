@@ -6,7 +6,13 @@ export const NOTE_MAX = 200;
 export function cleanDiet(person) {
   const diet = person?.diet === undefined ? [] : person.diet;
   const notes = person?.notes === undefined || person.notes === null ? "" : person.notes;
-  if (!Array.isArray(diet) || diet.some(item => !DIET_OPTIONS.includes(item)) || typeof notes !== "string" || notes.trim().length > NOTE_MAX) return null;
+  if (
+    !Array.isArray(diet) ||
+    diet.some(item => !DIET_OPTIONS.includes(item)) ||
+    typeof notes !== "string" ||
+    notes.trim().length > NOTE_MAX
+  )
+    return null;
   return { diet: DIET_OPTIONS.filter(option => diet.includes(option)), notes: notes.trim() };
 }
 

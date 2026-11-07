@@ -8,7 +8,9 @@ const migrationsDir = new URL("../../migrations/", import.meta.url);
 export function createD1({ failOn } = {}) {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
-  for (const file of readdirSync(migrationsDir).filter(name => name.endsWith(".sql")).sort()) {
+  for (const file of readdirSync(migrationsDir)
+    .filter(name => name.endsWith(".sql"))
+    .sort()) {
     db.exec(readFileSync(new URL(file, migrationsDir), "utf8"));
   }
 
@@ -26,7 +28,8 @@ export function createD1({ failOn } = {}) {
   };
 
   const makeStatement = (sql, args = []) => ({
-    sql, args,
+    sql,
+    args,
     bind: (...values) => makeStatement(sql, values),
     first: async column => {
       const row = execute(sql, args, "first");

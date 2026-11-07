@@ -5,7 +5,14 @@
 
 export const RECEIPT_PREFIX = "receipts/";
 export const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;
-const TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif", "application/pdf": "pdf" };
+const TYPES = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/heic": "heic",
+  "image/heif": "heif",
+  "application/pdf": "pdf"
+};
 const KEY = /^receipts\/([A-Za-z0-9_-]{1,120})\/([A-Za-z0-9_-]{1,120})\/[0-9a-f-]{36}\.(?:jpg|png|webp|heic|heif|pdf)$/;
 
 export function parseReceiptKey(key) {
@@ -23,7 +30,7 @@ export async function storeReceipt(env, file, editionId, registrationId) {
 }
 
 export async function receiptExists(env, key) {
-  return Boolean(parseReceiptKey(key) && await env.PHOTOS.head(key));
+  return Boolean(parseReceiptKey(key) && (await env.PHOTOS.head(key)));
 }
 
 export async function deleteReceipt(env, key) {
@@ -46,14 +53,22 @@ export async function pruneOrphanReceipts(env, now = Date.now()) {
   const referenced = new Set();
   const snapshots = await env.DB.prepare("SELECT expenses_json FROM edition_finance_snapshots").all();
   for (const row of snapshots.results || []) {
-    try { for (const expense of JSON.parse(row.expenses_json || "[]")) if (expense.receipt) referenced.add(expense.receipt); } catch { /* skip */ }
+    try {
+      for (const expense of JSON.parse(row.expenses_json || "[]")) if (expense.receipt) referenced.add(expense.receipt);
+    } catch {
+      /* skip */
+    }
   }
-  let cursor, removed = 0;
+  let cursor,
+    removed = 0;
   do {
     const listed = await env.PHOTOS.list({ prefix: RECEIPT_PREFIX, cursor });
     for (const object of listed.objects || []) {
       const age = now - new Date(object.uploaded || 0).getTime();
-      if (!referenced.has(object.key) && age > 24 * 60 * 60 * 1000) { await env.PHOTOS.delete(object.key); removed++; }
+      if (!referenced.has(object.key) && age > 24 * 60 * 60 * 1000) {
+        await env.PHOTOS.delete(object.key);
+        removed++;
+      }
     }
     cursor = listed.truncated ? listed.cursor : undefined;
   } while (cursor);

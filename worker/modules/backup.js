@@ -27,14 +27,16 @@ export async function backupDatabase(env, now = new Date()) {
 
 export async function listBackups(env) {
   const listed = await env.PHOTOS.list({ prefix: PREFIX });
-  return (listed.objects || []).map(object => ({ key: object.key, size: object.size, uploaded: object.uploaded }))
+  return (listed.objects || [])
+    .map(object => ({ key: object.key, size: object.size, uploaded: object.uploaded }))
     .sort((a, b) => b.key.localeCompare(a.key));
 }
 
 export async function handleAdminBackups(request, env, url, { json, sameOrigin, adminSession }) {
-  if (!await adminSession(request, env)) return json({ error: "Niet aangemeld." }, 401);
+  if (!(await adminSession(request, env))) return json({ error: "Niet aangemeld." }, 401);
   if (!env.PHOTOS) return json({ error: "Opslag niet gekoppeld." }, 503);
-  if (url.pathname === "/api/admin/backups" && request.method === "GET") return json({ backups: await listBackups(env) });
+  if (url.pathname === "/api/admin/backups" && request.method === "GET")
+    return json({ backups: await listBackups(env) });
   if (url.pathname === "/api/admin/backups" && request.method === "POST") {
     if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
     return json({ created: true, ...(await backupDatabase(env)) }, 201);
@@ -43,7 +45,13 @@ export async function handleAdminBackups(request, env, url, { json, sameOrigin, 
   if (match && request.method === "GET") {
     const object = await env.PHOTOS.get(PREFIX + match[1]);
     if (!object) return json({ error: "Back-up niet gevonden." }, 404);
-    return new Response(object.body, { headers: { "Content-Type": "application/json", "Content-Disposition": 'attachment; filename="nieuwjaar-' + match[1] + '"', "Cache-Control": "no-store" } });
+    return new Response(object.body, {
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Disposition": 'attachment; filename="nieuwjaar-' + match[1] + '"',
+        "Cache-Control": "no-store"
+      }
+    });
   }
   return json({ error: "Niet gevonden." }, 404);
 }

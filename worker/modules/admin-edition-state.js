@@ -19,33 +19,61 @@ const PRODUCT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const CONFLICT = "edition-state-conflict";
 // A cost paid from the shared kitty (not advanced by a family): nobody gets an advance credit.
 
-function parse(json, fallback) { try { return JSON.parse(json || ""); } catch { return fallback; } }
+function parse(json, fallback) {
+  try {
+    return JSON.parse(json || "");
+  } catch {
+    return fallback;
+  }
+}
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export async function loadEditionState(env, editionId) {
   const edition = await env.DB.prepare(
     "SELECT d.id, d.event_id, d.label, d.status, d.starts_at, d.ends_at, d.config_json, d.updated_at, e.name AS event_name, e.finance_strategy, e.updated_at AS event_updated_at FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?"
-  ).bind(editionId).first();
+  )
+    .bind(editionId)
+    .first();
   if (!edition) return null;
   const [rows, snapshot] = await Promise.all([
-    env.DB.prepare("SELECT id, family_id, data_json, updated_at FROM event_registrations WHERE edition_id = ? AND status = 'active' ORDER BY created_at, id").bind(editionId).all(),
-    env.DB.prepare("SELECT expenses_json, payments_json, costs_finalized, costs_finalized_at, updated_at FROM edition_finance_snapshots WHERE edition_id = ?").bind(editionId).first()
+    env.DB.prepare(
+      "SELECT id, family_id, data_json, updated_at FROM event_registrations WHERE edition_id = ? AND status = 'active' ORDER BY created_at, id"
+    )
+      .bind(editionId)
+      .all(),
+    env.DB.prepare(
+      "SELECT expenses_json, payments_json, costs_finalized, costs_finalized_at, updated_at FROM edition_finance_snapshots WHERE edition_id = ?"
+    )
+      .bind(editionId)
+      .first()
   ]);
   const config = parse(edition.config_json, {}) || {};
   const registrations = (rows.results || []).map(row => {
     const data = parse(row.data_json, {}) || {};
     const members = Array.isArray(data.members) ? data.members : [];
     return {
-      id: row.id, familyId: row.family_id, name: String(data.name || ""),
-      adults: members.length ? members.filter(p => p?.type === "Volwassene").length : Math.max(0, Number(data.adults) || 0),
-      children: members.length ? members.filter(p => p?.type === "Kind").length : Math.max(0, Number(data.children) || 0),
-      members, revision: Number(row.updated_at) || 0
+      id: row.id,
+      familyId: row.family_id,
+      name: String(data.name || ""),
+      adults: members.length
+        ? members.filter(p => p?.type === "Volwassene").length
+        : Math.max(0, Number(data.adults) || 0),
+      children: members.length
+        ? members.filter(p => p?.type === "Kind").length
+        : Math.max(0, Number(data.children) || 0),
+      members,
+      revision: Number(row.updated_at) || 0
     };
   });
   return {
-    editionId: edition.id, eventId: edition.event_id, eventName: edition.event_name,
-    editionLabel: edition.label, editionStatus: edition.status, financeStrategy: edition.finance_strategy,
-    startsAt: edition.starts_at, endsAt: edition.ends_at,
+    editionId: edition.id,
+    eventId: edition.event_id,
+    eventName: edition.event_name,
+    editionLabel: edition.label,
+    editionStatus: edition.status,
+    financeStrategy: edition.finance_strategy,
+    startsAt: edition.starts_at,
+    endsAt: edition.ends_at,
     catalog: Array.isArray(config.catalog) ? config.catalog : [],
     orderDeadline: typeof config.orderDeadline === "string" ? config.orderDeadline : null,
     registrations,
@@ -63,7 +91,9 @@ export async function loadEditionState(env, editionId) {
 export async function editionVersion(env, editionId) {
   const row = await env.DB.prepare(
     "SELECT d.updated_at AS d, e.updated_at AS e, (SELECT COUNT(*) FROM event_registrations WHERE edition_id = d.id) AS n, (SELECT MAX(updated_at) FROM event_registrations WHERE edition_id = d.id) AS r, (SELECT updated_at FROM edition_finance_snapshots WHERE edition_id = d.id) AS f FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?"
-  ).bind(editionId).first();
+  )
+    .bind(editionId)
+    .first();
   return row ? [row.d, row.e, row.n, row.r || 0, row.f || 0].join(".") : null;
 }
 
@@ -73,13 +103,24 @@ function validName(value, max) {
 
 function cleanMembers(members) {
   if (!Array.isArray(members) || members.length > 30) return null;
-  const ids = new Set(), out = [];
+  const ids = new Set(),
+    out = [];
   for (const person of members) {
     const name = validName(person?.name, 80);
-    if (!person || typeof person.id !== "string" || !ID.test(person.id) || ids.has(person.id) || !name || !isMemberType(person.type)) return null;
+    if (
+      !person ||
+      typeof person.id !== "string" ||
+      !ID.test(person.id) ||
+      ids.has(person.id) ||
+      !name ||
+      !isMemberType(person.type)
+    )
+      return null;
     ids.add(person.id);
     const orders = {};
-    for (const [productId, qty] of Object.entries(person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {})) {
+    for (const [productId, qty] of Object.entries(
+      person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {}
+    )) {
       const quantity = Number(qty);
       if (!PRODUCT_ID.test(productId) || !Number.isInteger(quantity) || quantity < 0 || quantity > 99) return null;
       if (person.type !== EVENING) orders[productId] = quantity; // evening guests do not order meat
@@ -87,7 +128,10 @@ function cleanMembers(members) {
     // Personal bar bill in cents (entered by the organisation).
     const barCents = person.barCents == null ? 0 : Number(person.barCents);
     if (!Number.isSafeInteger(barCents) || barCents < 0 || barCents > 10_000_000) return null;
-    const clean = withDiet({ id: person.id, name, type: person.type, orders, ...(barCents ? { barCents } : {}) }, person);
+    const clean = withDiet(
+      { id: person.id, name, type: person.type, orders, ...(barCents ? { barCents } : {}) },
+      person
+    );
     if (!clean) return null;
     out.push(clean);
   }
@@ -96,7 +140,8 @@ function cleanMembers(members) {
 
 function cleanCatalog(catalog) {
   if (!Array.isArray(catalog) || catalog.length > 200) return null;
-  const ids = new Set(), out = [];
+  const ids = new Set(),
+    out = [];
   for (const raw of catalog) {
     const id = typeof raw?.id === "string" ? raw.id.trim() : "";
     const name = validName(raw?.name, 100);
@@ -110,50 +155,123 @@ function cleanCatalog(catalog) {
 }
 
 function cleanFinance(data, registrationIds) {
-  if (!Array.isArray(data.expenses) || data.expenses.length > 2000 || !Array.isArray(data.payments) || data.payments.length > 5000) return null;
-  const expenseIds = new Set(), paymentIds = new Set(), expenses = [], payments = [];
+  if (
+    !Array.isArray(data.expenses) ||
+    data.expenses.length > 2000 ||
+    !Array.isArray(data.payments) ||
+    data.payments.length > 5000
+  )
+    return null;
+  const expenseIds = new Set(),
+    paymentIds = new Set(),
+    expenses = [],
+    payments = [];
   for (const item of data.expenses) {
     const description = validName(item?.description, 120);
-    if (!item || !ID.test(String(item.id)) || expenseIds.has(item.id) || !description || !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0 ||
-        typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !METHODS.includes(item.method) || !(registrationIds.has(item.advancedBy) || item.advancedBy === SHARED_FUND)) return null;
+    if (
+      !item ||
+      !ID.test(String(item.id)) ||
+      expenseIds.has(item.id) ||
+      !description ||
+      !Number.isSafeInteger(item.amountCents) ||
+      item.amountCents <= 0 ||
+      typeof item.date !== "string" ||
+      Number.isNaN(Date.parse(item.date)) ||
+      !METHODS.includes(item.method) ||
+      !(registrationIds.has(item.advancedBy) || item.advancedBy === SHARED_FUND)
+    )
+      return null;
     expenseIds.add(item.id);
     if (item.enteredBy != null && item.enteredBy !== "family") return null;
     if (item.receipt != null && !parseReceiptKey(item.receipt)) return null;
-    expenses.push({ id: item.id, description, amountCents: item.amountCents, date: item.date, method: item.method, advancedBy: item.advancedBy, ...(item.enteredBy === "family" ? { enteredBy: "family" } : {}), ...(item.receipt ? { receipt: item.receipt } : {}) });
+    expenses.push({
+      id: item.id,
+      description,
+      amountCents: item.amountCents,
+      date: item.date,
+      method: item.method,
+      advancedBy: item.advancedBy,
+      ...(item.enteredBy === "family" ? { enteredBy: "family" } : {}),
+      ...(item.receipt ? { receipt: item.receipt } : {})
+    });
   }
   for (const item of data.payments) {
-    if (!item || !ID.test(String(item.id)) || paymentIds.has(item.id) || !registrationIds.has(item.registrationId) || !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0 ||
-        typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !["cash", "bank"].includes(item.method) ||
-        (item.kind != null && !["payment", "refund"].includes(item.kind))) return null;
+    if (
+      !item ||
+      !ID.test(String(item.id)) ||
+      paymentIds.has(item.id) ||
+      !registrationIds.has(item.registrationId) ||
+      !Number.isSafeInteger(item.amountCents) ||
+      item.amountCents <= 0 ||
+      typeof item.date !== "string" ||
+      Number.isNaN(Date.parse(item.date)) ||
+      !["cash", "bank"].includes(item.method) ||
+      (item.kind != null && !["payment", "refund"].includes(item.kind))
+    )
+      return null;
     paymentIds.add(item.id);
-    payments.push({ id: item.id, registrationId: item.registrationId, amountCents: item.amountCents, date: item.date, method: item.method, ...(item.kind === "refund" ? { kind: "refund" } : {}) });
+    payments.push({
+      id: item.id,
+      registrationId: item.registrationId,
+      amountCents: item.amountCents,
+      date: item.date,
+      method: item.method,
+      ...(item.kind === "refund" ? { kind: "refund" } : {})
+    });
   }
   return { expenses, payments };
 }
 
 // A statement that aborts the batch (and so rolls back every write) when `existsSql` finds nothing.
 function guard(env, existsSql, ...binds) {
-  return env.DB.prepare("SELECT json(CASE WHEN EXISTS (" + existsSql + ") THEN '1' ELSE '" + CONFLICT + "' END) AS ok").bind(...binds);
+  return env.DB.prepare(
+    "SELECT json(CASE WHEN EXISTS (" + existsSql + ") THEN '1' ELSE '" + CONFLICT + "' END) AS ok"
+  ).bind(...binds);
 }
 
 const registrationContent = r => ({ familyId: r.familyId, name: r.name, members: r.members });
 
 export async function saveEditionState(env, editionId, body, now) {
-  const base = body?.base, data = body?.data;
-  if (!base || !data || typeof base !== "object" || typeof data !== "object") return { status: 400, error: "Ongeldige gegevens." };
-  const current = await env.DB.prepare("SELECT id, event_id, label, config_json, updated_at FROM event_editions WHERE id = ?").bind(editionId).first();
+  const base = body?.base,
+    data = body?.data;
+  if (!base || !data || typeof base !== "object" || typeof data !== "object")
+    return { status: 400, error: "Ongeldige gegevens." };
+  const current = await env.DB.prepare(
+    "SELECT id, event_id, label, config_json, updated_at FROM event_editions WHERE id = ?"
+  )
+    .bind(editionId)
+    .first();
   if (!current) return { status: 404, error: "Editie niet gevonden." };
   if (base.editionId !== editionId) return { status: 400, error: "De gegevens horen bij een andere editie." };
 
-  const eventName = validName(data.eventName, 100), editionLabel = validName(data.editionLabel, 100);
+  const eventName = validName(data.eventName, 100),
+    editionLabel = validName(data.editionLabel, 100);
   // Date and time of the edition (local time, e.g. "2026-12-31T20:00"), used for the countdown.
-  const startsAt = data.startsAt == null || data.startsAt === "" ? null
-    : typeof data.startsAt === "string" && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(data.startsAt) && !Number.isNaN(Date.parse(data.startsAt)) ? data.startsAt : undefined;
+  const startsAt =
+    data.startsAt == null || data.startsAt === ""
+      ? null
+      : typeof data.startsAt === "string" &&
+          /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(data.startsAt) &&
+          !Number.isNaN(Date.parse(data.startsAt))
+        ? data.startsAt
+        : undefined;
   if (startsAt === undefined) return { status: 400, error: "Controleer de datum en het uur van de editie." };
-  const orderDeadline = data.orderDeadline == null || data.orderDeadline === "" ? null : isLocalDateTime(data.orderDeadline) ? data.orderDeadline : undefined;
+  const orderDeadline =
+    data.orderDeadline == null || data.orderDeadline === ""
+      ? null
+      : isLocalDateTime(data.orderDeadline)
+        ? data.orderDeadline
+        : undefined;
   if (orderDeadline === undefined) return { status: 400, error: "Controleer de datum waarop het bestellen sluit." };
   const catalog = cleanCatalog(data.catalog);
-  if (!eventName || !editionLabel || !catalog || !Array.isArray(data.registrations) || data.registrations.length > 500 || typeof data.costsFinalized !== "boolean") {
+  if (
+    !eventName ||
+    !editionLabel ||
+    !catalog ||
+    !Array.isArray(data.registrations) ||
+    data.registrations.length > 500 ||
+    typeof data.costsFinalized !== "boolean"
+  ) {
     return { status: 400, error: "Controleer de naam van het evenement, de editie en de producten." };
   }
   const registrations = [];
@@ -161,14 +279,31 @@ export async function saveEditionState(env, editionId, body, now) {
   for (const raw of data.registrations) {
     const name = validName(raw?.name, 160);
     const members = cleanMembers(raw?.members);
-    if (!raw || !ID.test(String(raw.id)) || seen.has(raw.id) || !name || !members || (raw.familyId != null && !ID.test(String(raw.familyId)))) {
+    if (
+      !raw ||
+      !ID.test(String(raw.id)) ||
+      seen.has(raw.id) ||
+      !name ||
+      !members ||
+      (raw.familyId != null && !ID.test(String(raw.familyId)))
+    ) {
       return { status: 400, error: "Controleer de namen en gezinsleden van alle inschrijvingen." };
     }
     seen.add(raw.id);
-    registrations.push({ id: raw.id, familyId: raw.familyId || null, name, members, revision: Number(raw.revision) || 0 });
+    registrations.push({
+      id: raw.id,
+      familyId: raw.familyId || null,
+      name,
+      members,
+      revision: Number(raw.revision) || 0
+    });
   }
   const finance = cleanFinance(data, seen);
-  if (!finance) return { status: 400, error: "Een kost of betaling bevat ongeldige gegevens of verwijst naar een onbekende inschrijving." };
+  if (!finance)
+    return {
+      status: 400,
+      error: "Een kost of betaling bevat ongeldige gegevens of verwijst naar een onbekende inschrijving."
+    };
 
   const statements = [];
   const nextRevision = Math.max(now, Number(current.updated_at) + 1);
@@ -176,52 +311,148 @@ export async function saveEditionState(env, editionId, body, now) {
 
   // Event and edition names, catalog
   if (!same(base.eventName, eventName)) {
-    statements.push(env.DB.prepare("UPDATE events SET name = ?, updated_at = ? WHERE id = ?").bind(eventName, now, current.event_id));
+    statements.push(
+      env.DB.prepare("UPDATE events SET name = ?, updated_at = ? WHERE id = ?").bind(eventName, now, current.event_id)
+    );
   }
-  if (!same(base.editionLabel, editionLabel) || !same(base.catalog, catalog) || !same(base.startsAt ?? null, startsAt) || !same(base.orderDeadline ?? null, orderDeadline)) {
-    statements.push(guard(env, "SELECT 1 FROM event_editions WHERE id = ? AND updated_at = ?", editionId, Number(base.configRevision) || 0));
+  if (
+    !same(base.editionLabel, editionLabel) ||
+    !same(base.catalog, catalog) ||
+    !same(base.startsAt ?? null, startsAt) ||
+    !same(base.orderDeadline ?? null, orderDeadline)
+  ) {
+    statements.push(
+      guard(
+        env,
+        "SELECT 1 FROM event_editions WHERE id = ? AND updated_at = ?",
+        editionId,
+        Number(base.configRevision) || 0
+      )
+    );
     const config = parse(current.config_json, {}) || {};
     config.catalog = catalog;
-    if (orderDeadline) config.orderDeadline = orderDeadline; else delete config.orderDeadline;
-    statements.push(env.DB.prepare("UPDATE event_editions SET label = ?, config_json = ?, starts_at = ?, updated_at = ? WHERE id = ?").bind(editionLabel, JSON.stringify(config), startsAt, nextRevision, editionId));
+    if (orderDeadline) config.orderDeadline = orderDeadline;
+    else delete config.orderDeadline;
+    statements.push(
+      env.DB.prepare(
+        "UPDATE event_editions SET label = ?, config_json = ?, starts_at = ?, updated_at = ? WHERE id = ?"
+      ).bind(editionLabel, JSON.stringify(config), startsAt, nextRevision, editionId)
+    );
   }
 
   // Registrations: insert new, update changed, cancel removed
   for (const reg of registrations) {
     const previous = baseRegs.get(reg.id);
-    const payload = JSON.stringify({ name: reg.name, adults: reg.members.filter(p => p.type === "Volwassene").length, children: reg.members.filter(p => p.type === "Kind").length, members: reg.members });
+    const payload = JSON.stringify({
+      name: reg.name,
+      adults: reg.members.filter(p => p.type === "Volwassene").length,
+      children: reg.members.filter(p => p.type === "Kind").length,
+      members: reg.members
+    });
     if (!previous) {
       const familyId = reg.familyId || "family-" + crypto.randomUUID();
-      statements.push(env.DB.prepare("INSERT INTO families (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO NOTHING").bind(familyId, reg.name, now, now));
+      statements.push(
+        env.DB.prepare(
+          "INSERT INTO families (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO NOTHING"
+        ).bind(familyId, reg.name, now, now)
+      );
       // One registration per family per edition. Re-registering after "uitschrijven" reactivates
       // the cancelled row; registering a family that is already active is a conflict.
-      statements.push(guard(env, "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM event_registrations WHERE edition_id = ? AND family_id = ? AND status = 'active')", editionId, familyId));
-      statements.push(env.DB.prepare("INSERT INTO event_registrations (id, edition_id, family_id, status, data_json, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?) ON CONFLICT(edition_id, family_id) DO UPDATE SET status = 'active', data_json = excluded.data_json, updated_at = excluded.updated_at").bind(reg.id, editionId, familyId, payload, now, now));
+      statements.push(
+        guard(
+          env,
+          "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM event_registrations WHERE edition_id = ? AND family_id = ? AND status = 'active')",
+          editionId,
+          familyId
+        )
+      );
+      statements.push(
+        env.DB.prepare(
+          "INSERT INTO event_registrations (id, edition_id, family_id, status, data_json, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?) ON CONFLICT(edition_id, family_id) DO UPDATE SET status = 'active', data_json = excluded.data_json, updated_at = excluded.updated_at"
+        ).bind(reg.id, editionId, familyId, payload, now, now)
+      );
       continue;
     }
     if (same(registrationContent(previous), registrationContent({ ...reg, familyId: previous.familyId }))) continue;
-    statements.push(guard(env, "SELECT 1 FROM event_registrations WHERE id = ? AND edition_id = ? AND status = 'active' AND updated_at = ?", reg.id, editionId, Number(previous.revision) || 0));
-    statements.push(env.DB.prepare("UPDATE event_registrations SET data_json = ?, updated_at = ? WHERE id = ?").bind(payload, Math.max(now, (Number(previous.revision) || 0) + 1), reg.id));
+    statements.push(
+      guard(
+        env,
+        "SELECT 1 FROM event_registrations WHERE id = ? AND edition_id = ? AND status = 'active' AND updated_at = ?",
+        reg.id,
+        editionId,
+        Number(previous.revision) || 0
+      )
+    );
+    statements.push(
+      env.DB.prepare("UPDATE event_registrations SET data_json = ?, updated_at = ? WHERE id = ?").bind(
+        payload,
+        Math.max(now, (Number(previous.revision) || 0) + 1),
+        reg.id
+      )
+    );
     if (previous.name !== reg.name && previous.familyId) {
-      statements.push(env.DB.prepare("UPDATE families SET display_name = ?, updated_at = ? WHERE id = ?").bind(reg.name, now, previous.familyId));
+      statements.push(
+        env.DB.prepare("UPDATE families SET display_name = ?, updated_at = ? WHERE id = ?").bind(
+          reg.name,
+          now,
+          previous.familyId
+        )
+      );
     }
   }
   for (const [id, previous] of baseRegs) {
     if (seen.has(id)) continue;
-    statements.push(guard(env, "SELECT 1 FROM event_registrations WHERE id = ? AND edition_id = ? AND status = 'active' AND updated_at = ?", id, editionId, Number(previous.revision) || 0));
-    statements.push(env.DB.prepare("UPDATE event_registrations SET status = 'cancelled', updated_at = ? WHERE id = ?").bind(Math.max(now, (Number(previous.revision) || 0) + 1), id));
+    statements.push(
+      guard(
+        env,
+        "SELECT 1 FROM event_registrations WHERE id = ? AND edition_id = ? AND status = 'active' AND updated_at = ?",
+        id,
+        editionId,
+        Number(previous.revision) || 0
+      )
+    );
+    statements.push(
+      env.DB.prepare("UPDATE event_registrations SET status = 'cancelled', updated_at = ? WHERE id = ?").bind(
+        Math.max(now, (Number(previous.revision) || 0) + 1),
+        id
+      )
+    );
   }
 
   // Finance
-  const financeChanged = !same(base.expenses, finance.expenses) || !same(base.payments, finance.payments) ||
-    !same(Boolean(base.costsFinalized), data.costsFinalized) || (data.costsFinalized && !same(base.costsFinalizedAt, data.costsFinalizedAt));
+  const financeChanged =
+    !same(base.expenses, finance.expenses) ||
+    !same(base.payments, finance.payments) ||
+    !same(Boolean(base.costsFinalized), data.costsFinalized) ||
+    (data.costsFinalized && !same(base.costsFinalizedAt, data.costsFinalizedAt));
   if (financeChanged) {
-    const finalizedAt = data.costsFinalized ? (typeof data.costsFinalizedAt === "string" && !Number.isNaN(Date.parse(data.costsFinalizedAt)) ? data.costsFinalizedAt : new Date(now * 1000).toISOString()) : null;
+    const finalizedAt = data.costsFinalized
+      ? typeof data.costsFinalizedAt === "string" && !Number.isNaN(Date.parse(data.costsFinalizedAt))
+        ? data.costsFinalizedAt
+        : new Date(now * 1000).toISOString()
+      : null;
     const financeRevision = Number(base.financeRevision) || 0;
-    statements.push(guard(env, "SELECT 1 WHERE COALESCE((SELECT updated_at FROM edition_finance_snapshots WHERE edition_id = ?), 0) = ?", editionId, financeRevision));
-    statements.push(env.DB.prepare(
-      "INSERT INTO edition_finance_snapshots (edition_id, expenses_json, payments_json, costs_finalized, costs_finalized_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(edition_id) DO UPDATE SET expenses_json = excluded.expenses_json, payments_json = excluded.payments_json, costs_finalized = excluded.costs_finalized, costs_finalized_at = excluded.costs_finalized_at, source_environment = NULL, source_revision = NULL, updated_at = excluded.updated_at"
-    ).bind(editionId, JSON.stringify(finance.expenses), JSON.stringify(finance.payments), data.costsFinalized ? 1 : 0, finalizedAt, now, Math.max(now, financeRevision + 1)));
+    statements.push(
+      guard(
+        env,
+        "SELECT 1 WHERE COALESCE((SELECT updated_at FROM edition_finance_snapshots WHERE edition_id = ?), 0) = ?",
+        editionId,
+        financeRevision
+      )
+    );
+    statements.push(
+      env.DB.prepare(
+        "INSERT INTO edition_finance_snapshots (edition_id, expenses_json, payments_json, costs_finalized, costs_finalized_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(edition_id) DO UPDATE SET expenses_json = excluded.expenses_json, payments_json = excluded.payments_json, costs_finalized = excluded.costs_finalized, costs_finalized_at = excluded.costs_finalized_at, source_environment = NULL, source_revision = NULL, updated_at = excluded.updated_at"
+      ).bind(
+        editionId,
+        JSON.stringify(finance.expenses),
+        JSON.stringify(finance.payments),
+        data.costsFinalized ? 1 : 0,
+        finalizedAt,
+        now,
+        Math.max(now, financeRevision + 1)
+      )
+    );
   }
 
   if (!statements.length) return { status: 200, state: await loadEditionState(env, editionId), unchanged: true };
@@ -229,9 +460,12 @@ export async function saveEditionState(env, editionId, body, now) {
     await env.DB.batch(statements);
   } catch (error) {
     const message = String(error?.message || "");
-    if (/malformed JSON|JSON/i.test(message) && message.includes("malformed")) return { status: 409, error: "Iemand anders heeft deze editie net aangepast.", conflict: true };
-    if (/UNIQUE/i.test(message)) return { status: 409, error: "Dit gezin is al ingeschreven voor deze editie.", conflict: true };
-    if (/FOREIGN KEY/i.test(message)) return { status: 400, error: "Een inschrijving verwijst naar een onbekend gezin." };
+    if (/malformed JSON|JSON/i.test(message) && message.includes("malformed"))
+      return { status: 409, error: "Iemand anders heeft deze editie net aangepast.", conflict: true };
+    if (/UNIQUE/i.test(message))
+      return { status: 409, error: "Dit gezin is al ingeschreven voor deze editie.", conflict: true };
+    if (/FOREIGN KEY/i.test(message))
+      return { status: 400, error: "Een inschrijving verwijst naar een onbekend gezin." };
     throw error;
   }
   return { status: 200, state: await loadEditionState(env, editionId) };
@@ -242,54 +476,93 @@ export async function saveEditionState(env, editionId, body, now) {
 export async function startNextEdition(env, editionId, body, now) {
   const label = validName(body?.label, 100);
   if (!label) return { status: 400, error: "Geef de nieuwe editie een naam." };
-  const current = await env.DB.prepare("SELECT id, event_id, status, config_json FROM event_editions WHERE id = ?").bind(editionId).first();
+  const current = await env.DB.prepare("SELECT id, event_id, status, config_json FROM event_editions WHERE id = ?")
+    .bind(editionId)
+    .first();
   if (!current) return { status: 404, error: "Editie niet gevonden." };
   if (current.status === "archived") return { status: 409, error: "Deze editie is al afgesloten." };
-  const duplicate = await env.DB.prepare("SELECT 1 FROM event_editions WHERE event_id = ? AND lower(label) = lower(?)").bind(current.event_id, label).first();
+  const duplicate = await env.DB.prepare("SELECT 1 FROM event_editions WHERE event_id = ? AND lower(label) = lower(?)")
+    .bind(current.event_id, label)
+    .first();
   if (duplicate) return { status: 409, error: "Er bestaat al een editie met deze naam." };
   const config = parse(current.config_json, {}) || {};
   const newConfig = body?.copyCatalog === false ? {} : { catalog: Array.isArray(config.catalog) ? config.catalog : [] };
   const id = "edition-" + crypto.randomUUID();
   await env.DB.batch([
     env.DB.prepare("UPDATE event_editions SET status = 'archived', updated_at = ? WHERE id = ?").bind(now, editionId),
-    env.DB.prepare("INSERT INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES (?, ?, ?, 'open', ?, ?, ?)").bind(id, current.event_id, label, JSON.stringify(newConfig), now, now),
-    env.DB.prepare("INSERT INTO edition_finance_snapshots (edition_id, expenses_json, payments_json, costs_finalized, created_at, updated_at) VALUES (?, '[]', '[]', 0, ?, ?)").bind(id, now, now)
+    env.DB.prepare(
+      "INSERT INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES (?, ?, ?, 'open', ?, ?, ?)"
+    ).bind(id, current.event_id, label, JSON.stringify(newConfig), now, now),
+    env.DB.prepare(
+      "INSERT INTO edition_finance_snapshots (edition_id, expenses_json, payments_json, costs_finalized, created_at, updated_at) VALUES (?, '[]', '[]', 0, ?, ?)"
+    ).bind(id, now, now)
   ]);
   return { status: 201, editionId: id };
 }
 
-
 // Recipients of a message: accounts (active or invited) of the families registered in this
 // edition; "no-order" limits it to families that have not ordered anything yet.
 export async function messageRecipients(env, editionId, audience) {
-  const rows = await env.DB.prepare("SELECT family_id, data_json FROM event_registrations WHERE edition_id = ? AND status = 'active'").bind(editionId).all();
-  const families = (rows.results || []).filter(row => {
-    if (audience !== "no-order") return true;
-    let data = {};
-    try { data = JSON.parse(row.data_json || "{}"); } catch { /* counts as no order */ }
-    const members = data.members || [];
-    // Only families that come for dinner can be reminded to order meat.
-    return members.some(person => person.type !== EVENING) && !members.some(person => Object.values(person.orders || {}).some(qty => Number(qty) > 0));
-  }).map(row => row.family_id);
+  const rows = await env.DB.prepare(
+    "SELECT family_id, data_json FROM event_registrations WHERE edition_id = ? AND status = 'active'"
+  )
+    .bind(editionId)
+    .all();
+  const families = (rows.results || [])
+    .filter(row => {
+      if (audience !== "no-order") return true;
+      let data = {};
+      try {
+        data = JSON.parse(row.data_json || "{}");
+      } catch {
+        /* counts as no order */
+      }
+      const members = data.members || [];
+      // Only families that come for dinner can be reminded to order meat.
+      return (
+        members.some(person => person.type !== EVENING) &&
+        !members.some(person => Object.values(person.orders || {}).some(qty => Number(qty) > 0))
+      );
+    })
+    .map(row => row.family_id);
   if (!families.length) return [];
   const users = await env.DB.prepare(
-    "SELECT DISTINCT u.email, u.display_name FROM family_memberships fm JOIN family_users u ON u.id = fm.user_id WHERE u.status IN ('active', 'invited') AND fm.family_id IN (" + families.map(() => "?").join(",") + ")"
-  ).bind(...families).all();
+    "SELECT DISTINCT u.email, u.display_name FROM family_memberships fm JOIN family_users u ON u.id = fm.user_id WHERE u.status IN ('active', 'invited') AND fm.family_id IN (" +
+      families.map(() => "?").join(",") +
+      ")"
+  )
+    .bind(...families)
+    .all();
   return users.results || [];
 }
 
 export function messageHtml({ displayName, subject, message, eventTitle }) {
-  const paragraphs = message.replace(/\r\n/g, "\n").split(/\n{2,}/).map(block => '<p>' + esc(block).replace(/\n/g, "<br>") + '</p>').join("");
-  return '<div style="font-family:Arial,sans-serif;color:#1b2a3b;line-height:1.6;max-width:560px">' +
-    '<p style="color:#b18a3d;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px">' + esc(eventTitle) + '</p>' +
-    '<h2 style="margin:0 0 16px">' + esc(subject) + '</h2><p>Dag ' + esc(displayName || "") + ',</p>' + paragraphs +
+  const paragraphs = message
+    .replace(/\r\n/g, "\n")
+    .split(/\n{2,}/)
+    .map(block => "<p>" + esc(block).replace(/\n/g, "<br>") + "</p>")
+    .join("");
+  return (
+    '<div style="font-family:Arial,sans-serif;color:#1b2a3b;line-height:1.6;max-width:560px">' +
+    '<p style="color:#b18a3d;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px">' +
+    esc(eventTitle) +
+    "</p>" +
+    '<h2 style="margin:0 0 16px">' +
+    esc(subject) +
+    "</h2><p>Dag " +
+    esc(displayName || "") +
+    ",</p>" +
+    paragraphs +
     '<p style="margin:24px 0"><a href="https://nieuwjaar.datuur.be/familie" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#14263b;color:#fff;font-weight:700;text-decoration:none">Naar het familieportaal</a></p>' +
-    '<p>Groeten,<br>De organisatie van ' + esc(eventTitle) + '</p></div>';
+    "<p>Groeten,<br>De organisatie van " +
+    esc(eventTitle) +
+    "</p></div>"
+  );
 }
 
 export async function handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession, sendGraphMail }) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
-  if (!await adminSession(request, env)) return json({ error: "Niet aangemeld." }, 401);
+  if (!(await adminSession(request, env))) return json({ error: "Niet aangemeld." }, 401);
   if (request.method !== "GET" && !sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
   const match = url.pathname.match(/^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next|message)$/);
   if (!match) return null;
@@ -306,24 +579,43 @@ export async function handleAdminEditionState(request, env, url, { json, sameOri
   if (action === "state" && request.method === "PUT") {
     const body = await request.json().catch(() => null);
     const result = await saveEditionState(env, editionId, body, now);
-    return result.status === 200 ? json({ saved: true, unchanged: Boolean(result.unchanged), state: result.state }) : json({ error: result.error, conflict: Boolean(result.conflict) }, result.status);
+    return result.status === 200
+      ? json({ saved: true, unchanged: Boolean(result.unchanged), state: result.state })
+      : json({ error: result.error, conflict: Boolean(result.conflict) }, result.status);
   }
   if (action === "message" && request.method === "POST") {
     const body = await request.json().catch(() => null);
-    const subject = validName(body?.subject, 150), message = typeof body?.message === "string" ? body.message.trim() : "";
+    const subject = validName(body?.subject, 150),
+      message = typeof body?.message === "string" ? body.message.trim() : "";
     const audience = body?.audience === "no-order" ? "no-order" : "all";
-    if (!subject || !message || message.length > 5000) return json({ error: "Vul een onderwerp en een bericht in (maximaal 5000 tekens)." }, 400);
-    const edition = await env.DB.prepare("SELECT d.label, e.name FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?").bind(editionId).first();
+    if (!subject || !message || message.length > 5000)
+      return json({ error: "Vul een onderwerp en een bericht in (maximaal 5000 tekens)." }, 400);
+    const edition = await env.DB.prepare(
+      "SELECT d.label, e.name FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?"
+    )
+      .bind(editionId)
+      .first();
     if (!edition) return json({ error: "Editie niet gevonden." }, 404);
     const recipients = await messageRecipients(env, editionId, audience);
-    if (!recipients.length) return json({ error: "Er zijn geen ontvangers: geen enkel gezin met een account voldoet aan je keuze." }, 400);
+    if (!recipients.length)
+      return json({ error: "Er zijn geen ontvangers: geen enkel gezin met een account voldoet aan je keuze." }, 400);
     if (recipients.length > 300) return json({ error: "Te veel ontvangers in één keer." }, 400);
     const eventTitle = edition.name + " " + edition.label;
     let sent = 0;
     const failed = [];
     for (const recipient of recipients) {
-      try { await sendGraphMail(env, recipient.email, subject, messageHtml({ displayName: recipient.display_name, subject, message, eventTitle })); sent++; }
-      catch (error) { console.error("Message to family failed:", recipient.email, error?.message); failed.push(recipient.email); }
+      try {
+        await sendGraphMail(
+          env,
+          recipient.email,
+          subject,
+          messageHtml({ displayName: recipient.display_name, subject, message, eventTitle })
+        );
+        sent++;
+      } catch (error) {
+        console.error("Message to family failed:", recipient.email, error?.message);
+        failed.push(recipient.email);
+      }
     }
     return json({ sent, failed }, failed.length && !sent ? 502 : 200);
   }
@@ -331,7 +623,9 @@ export async function handleAdminEditionState(request, env, url, { json, sameOri
   if (action === "next" && request.method === "POST") {
     const body = await request.json().catch(() => null);
     const result = await startNextEdition(env, editionId, body, now);
-    return result.status === 201 ? json({ created: true, editionId: result.editionId }, 201) : json({ error: result.error }, result.status);
+    return result.status === 201
+      ? json({ created: true, editionId: result.editionId }, 201)
+      : json({ error: result.error }, result.status);
   }
   return json({ error: "Niet gevonden." }, 404);
 }

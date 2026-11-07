@@ -1,48 +1,40 @@
-@media(max-width:800px){
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  .panel{padding:18px}
-  
-  
+@media (max-width: 800px) {
+  .panel {
+    padding: 18px;
+  }
 }
 
-@media print{
-  footer,.button{display:none!important}
-  
-  
-  .content{display:block}
-  .panel{box-shadow:none;border:0}
-  
+@media print {
+  footer,
+  .button {
+    display: none !important;
+  }
+
+  .content {
+    display: block;
+  }
+  .panel {
+    box-shadow: none;
+    border: 0;
+  }
 }
 
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 18mm;
+  }
+  body {
+    background: #fff;
+    color: #111;
+    font-size: 12pt;
+  }
+  footer,
+  .button {
+    display: none !important;
+  }
 
-@media print{
-  @page{size:A4 portrait;margin:18mm}
-  body{background:#fff;color:#111;font-size:12pt}
-  footer,.button{display:none!important}
-  
-  
-  .content{display:block}
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+  .content {
+    display: block;
+  }
 }

@@ -17,7 +17,17 @@ export const isDinnerGuest = person => person?.type === ADULT || person?.type ==
 export const TYPE_LABELS = { [ADULT]: "Volwassene (18+)", [CHILD]: "Kind", [EVENING]: "Avondgast (na het eten)" };
 export const typeLabel = type => TYPE_LABELS[type] || "Deelnemer";
 
-export const typeOptions = selected => MEMBER_TYPES.map(type => '<option value="' + type + '"' + (type === selected ? " selected" : "") + '>' + esc(TYPE_LABELS[type]) + '</option>').join("");
+export const typeOptions = selected =>
+  MEMBER_TYPES.map(
+    type =>
+      '<option value="' +
+      type +
+      '"' +
+      (type === selected ? " selected" : "") +
+      ">" +
+      esc(TYPE_LABELS[type]) +
+      "</option>"
+  ).join("");
 
 export function countByType(members = []) {
   return {

@@ -1,7 +1,11 @@
 // Small helpers shared by every screen (admin, family portal) and the e-mail templates.
 
 // Escape text for safe use inside HTML (element content and attribute values).
-export const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+export const esc = value =>
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]
+  );
 
 const euroFormat = new Intl.NumberFormat("nl-BE", { style: "currency", currency: "EUR" });
 // Amounts are kept in cents everywhere; this shows them as "€ 12,50".
@@ -17,5 +21,10 @@ export const plural = (count, one, many) => {
 export const formatDate = value => {
   if (!value || !/^\d{4}-\d{2}-\d{2}/.test(value)) return "";
   const [y, m, d] = value.slice(0, 10).split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("nl-BE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("nl-BE", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC"
+  });
 };
