@@ -6,6 +6,7 @@
 // last saw; a guard failure aborts the whole batch (nothing is written) and returns 409.
 
 import { withDiet } from "../../src/utils/diet.js";
+import { parseReceiptKey } from "./receipts.js";
 
 const ID = /^[A-Za-z0-9_-]{1,120}$/;
 const PRODUCT_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -108,7 +109,8 @@ function cleanFinance(data, registrationIds) {
         typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !["general", "adults", "meat"].includes(item.method) || !(registrationIds.has(item.advancedBy) || item.advancedBy === SHARED_FUND)) return null;
     expenseIds.add(item.id);
     if (item.enteredBy != null && item.enteredBy !== "family") return null;
-    expenses.push({ id: item.id, description, amountCents: item.amountCents, date: item.date, method: item.method, advancedBy: item.advancedBy, ...(item.enteredBy === "family" ? { enteredBy: "family" } : {}) });
+    if (item.receipt != null && !parseReceiptKey(item.receipt)) return null;
+    expenses.push({ id: item.id, description, amountCents: item.amountCents, date: item.date, method: item.method, advancedBy: item.advancedBy, ...(item.enteredBy === "family" ? { enteredBy: "family" } : {}), ...(item.receipt ? { receipt: item.receipt } : {}) });
   }
   for (const item of data.payments) {
     if (!item || !ID.test(String(item.id)) || paymentIds.has(item.id) || !registrationIds.has(item.registrationId) || !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0 ||

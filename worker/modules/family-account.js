@@ -1,5 +1,13 @@
 import { getFamilyFinanceBreakdown, getExpenseShares } from "../../src/utils/finance.js";
 import { withDiet } from "../../src/utils/diet.js";
+import { storeReceipt, receiptExists, deleteReceipt, streamReceipt, parseReceiptKey } from "./receipts.js";
+
+// The registration of the signed-in user, if their family owns it.
+async function ownRegistration(env, userId, registrationId, editionId) {
+  return env.DB.prepare(
+    "SELECT er.id, d.status AS edition_status, fm.role FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN family_memberships fm ON fm.family_id = er.family_id WHERE er.id = ? AND er.edition_id = ? AND er.status = 'active' AND fm.user_id = ?"
+  ).bind(registrationId, editionId, userId).first();
+}
 
 const encoder = new TextEncoder();
 const FAMILY_ACCOUNT_COOKIE = "ny_family_account";
@@ -276,6 +284,28 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     return json({ saved: true, revision: nextRevision, registration: { id: registrationId, ...updatedRegistration } });
   }
 
+  if (path === "/api/family-account/receipts" && request.method === "POST") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const session = await familyAccountSession(request, env, cookieValue, sha256);
+    if (!session) return json({ error: "Je sessie is verlopen. Meld je opnieuw aan." }, 401);
+    if (!env.PHOTOS) return json({ error: "Opslag niet beschikbaar." }, 503);
+    const form = await request.formData().catch(() => null);
+    const editionId = String(form?.get("edition") || ""), registrationId = String(form?.get("registrationId") || "");
+    const own = await ownRegistration(env, session.user_id, registrationId, editionId);
+    if (!own || own.role === "viewer" || own.edition_status === "archived") return json({ error: "Je kan voor deze inschrijving geen kasticket toevoegen." }, 403);
+    const stored = await storeReceipt(env, form.get("file"), editionId, registrationId);
+    return stored.error ? json({ error: stored.error }, 400) : json({ receipt: stored.key }, 201);
+  }
+
+  if (path === "/api/family-account/receipts" && request.method === "GET") {
+    const session = await familyAccountSession(request, env, cookieValue, sha256);
+    if (!session) return json({ error: "Je sessie is verlopen. Meld je opnieuw aan." }, 401);
+    const key = url.searchParams.get("key") || "";
+    const parsed = parseReceiptKey(key);
+    if (!parsed || !await ownRegistration(env, session.user_id, parsed.registrationId, parsed.editionId)) return json({ error: "Niet gevonden." }, 404);
+    return (await streamReceipt(env, key)) || json({ error: "Niet gevonden." }, 404);
+  }
+
   // Costs a family advanced itself. A family may add costs and change or delete only the
   // costs it entered; the organisation can change everything in the admin.
   if (path === "/api/family-account/expenses" && (request.method === "POST" || request.method === "DELETE")) {
@@ -285,9 +315,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     const body = await request.json().catch(() => null);
     const editionId = typeof body?.edition === "string" ? body.edition : "";
     const registrationId = typeof body?.registrationId === "string" ? body.registrationId : "";
-    const own = await env.DB.prepare(
-      "SELECT er.id, d.status AS edition_status, fm.role FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN family_memberships fm ON fm.family_id = er.family_id WHERE er.id = ? AND er.edition_id = ? AND er.status = 'active' AND fm.user_id = ?"
-    ).bind(registrationId, editionId, session.user_id).first();
+    const own = await ownRegistration(env, session.user_id, registrationId, editionId);
     if (!own) return json({ error: "Deze inschrijving is niet aan je account gekoppeld." }, 403);
     if (own.role === "viewer") return json({ error: "Je hebt alleen leesrechten voor deze inschrijving." }, 403);
     if (own.edition_status === "archived") return json({ error: "Deze editie is afgesloten." }, 409);
@@ -301,7 +329,14 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
           typeof raw.date !== "string" || Number.isNaN(Date.parse(raw.date)) || !["general", "adults", "meat"].includes(raw.method)) {
         return json({ error: "Controleer de omschrijving, het bedrag, de datum en de soort kost." }, 400);
       }
-      input = { id: typeof raw.id === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(raw.id) ? raw.id : null, description, amountCents, date: raw.date.slice(0, 10), method: raw.method };
+      input = { id: typeof raw.id === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(raw.id) ? raw.id : null, description, amountCents, date: raw.date.slice(0, 10), method: raw.method, receipt: null };
+      if (raw.receipt) {
+        const parsed = parseReceiptKey(raw.receipt);
+        if (!parsed || parsed.editionId !== editionId || parsed.registrationId !== registrationId || !await receiptExists(env, raw.receipt)) {
+          return json({ error: "Het kasticket kon niet worden gevonden. Voeg het opnieuw toe." }, 400);
+        }
+        input.receipt = raw.receipt;
+      }
     }
     const expenseId = request.method === "DELETE" ? (typeof body?.expenseId === "string" ? body.expenseId : "") : input.id;
 
@@ -318,10 +353,15 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       if (index >= 0 && !(expenses[index].enteredBy === "family" && expenses[index].advancedBy === registrationId)) {
         return json({ error: "Deze kost werd door de organisatie ingevoerd. Vraag hen om hem aan te passen." }, 403);
       }
+      let obsoleteReceipt = null;
       if (request.method === "DELETE") {
+        obsoleteReceipt = expenses[index].receipt || null;
         expenses.splice(index, 1);
       } else {
-        const expense = { id: input.id || "kost-" + crypto.randomUUID(), description: input.description, amountCents: input.amountCents, date: input.date, method: input.method, advancedBy: registrationId, enteredBy: "family" };
+        const receipt = input.receipt || (index >= 0 ? expenses[index].receipt : null);
+        if (!receipt) return json({ error: "Voeg een foto van het kasticket toe. Zonder kasticket kan een kost niet worden ingediend.", needsReceipt: true }, 400);
+        if (index >= 0 && expenses[index].receipt && expenses[index].receipt !== receipt) obsoleteReceipt = expenses[index].receipt;
+        const expense = { id: input.id || "kost-" + crypto.randomUUID(), description: input.description, amountCents: input.amountCents, date: input.date, method: input.method, advancedBy: registrationId, enteredBy: "family", receipt };
         // The cost must be divisible: e.g. a meat cost needs ordered portions.
         const rows = await env.DB.prepare("SELECT id, data_json FROM event_registrations WHERE edition_id = ? AND status = 'active'").bind(editionId).all();
         const registrations = (rows.results || []).map(row => { let data = {}; try { data = JSON.parse(row.data_json || "{}"); } catch { /* empty */ } return { id: row.id, members: Array.isArray(data.members) ? data.members : [], adults: data.adults, children: data.children }; });
@@ -332,7 +372,10 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       const result = await env.DB.prepare(
         "UPDATE edition_finance_snapshots SET expenses_json = ?, costs_finalized = 0, costs_finalized_at = NULL, updated_at = ? WHERE edition_id = ? AND updated_at = ?"
       ).bind(JSON.stringify(expenses), Math.max(now, Number(snapshot.updated_at) + 1), editionId, snapshot.updated_at).run();
-      if (Number(result?.meta?.changes ?? 0)) return json({ saved: true });
+      if (Number(result?.meta?.changes ?? 0)) {
+        if (obsoleteReceipt) await deleteReceipt(env, obsoleteReceipt);
+        return json({ saved: true });
+      }
     }
     return json({ error: "Het is momenteel erg druk. Probeer het over enkele seconden opnieuw." }, 409);
   }

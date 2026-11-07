@@ -3,6 +3,7 @@ import { handleAdminFamilyUsers } from "./modules/admin-family-users.js";
 import { handleAdminEvents } from "./modules/admin-events.js";
 import { handleAdminEditionState } from "./modules/admin-edition-state.js";
 import { backupDatabase, handleAdminBackups } from "./modules/backup.js";
+import { streamReceipt, pruneOrphanReceipts } from "./modules/receipts.js";
 const SESSION_COOKIE = "ny_admin";
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
 const encoder = new TextEncoder();
@@ -121,6 +122,11 @@ async function adminSession(request, env) {
 async function handleAdminApi(request, env, url) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
 
+  if (url.pathname === "/api/admin/receipts" && request.method === "GET") {
+    if (!await adminSession(request, env)) return json({ error: "Niet aangemeld." }, 401);
+    return (await streamReceipt(env, url.searchParams.get("key") || "")) || json({ error: "Niet gevonden." }, 404);
+  }
+
   if (url.pathname === "/api/admin/backups" || url.pathname.startsWith("/api/admin/backups/")) {
     return handleAdminBackups(request, env, url, { json, sameOrigin, adminSession });
   }
@@ -235,6 +241,7 @@ export default {
   // Daily backup (cron in wrangler.jsonc).
   async scheduled(event, env, ctx) {
     ctx.waitUntil(backupDatabase(env).then(result => console.log("Backup written:", result)).catch(error => console.error("Backup failed:", error)));
+    ctx.waitUntil(pruneOrphanReceipts(env).then(removed => console.log("Orphan receipts removed:", removed)).catch(error => console.error("Receipt cleanup failed:", error)));
   },
 
   async fetch(request, env) {

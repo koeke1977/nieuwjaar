@@ -55,3 +55,22 @@ test("a backup restores to identical data", async () => {
   }
   assert.equal(restored.raw.prepare("PRAGMA foreign_key_check").all().length, 0);
 });
+
+test("nightly receipt cleanup only removes unreferenced receipts older than a day", async () => {
+  const { pruneOrphanReceipts } = await import("../worker/modules/receipts.js");
+  const DB = seeded();
+  const used = "receipts/ed/r1/11111111-1111-1111-1111-111111111111.jpg";
+  DB.raw.prepare("INSERT INTO edition_finance_snapshots (edition_id, expenses_json, created_at, updated_at) VALUES ('ed', ?, 1, 1)").run(JSON.stringify([{ id: "e1", receipt: used }]));
+  const day = 24 * 60 * 60 * 1000, now = Date.UTC(2026, 11, 10);
+  const objects = new Map([
+    [used, { uploaded: new Date(now - 10 * day) }],
+    ["receipts/ed/r1/22222222-2222-2222-2222-222222222222.jpg", { uploaded: new Date(now - 2 * day) }],
+    ["receipts/ed/r1/33333333-3333-3333-3333-333333333333.jpg", { uploaded: new Date(now - 60 * 1000) }],
+    ["products/live/steak-1.jpg", { uploaded: new Date(now - 10 * day) }]
+  ]);
+  const PHOTOS = { list: async ({ prefix }) => ({ objects: [...objects].filter(([key]) => key.startsWith(prefix)).map(([key, value]) => ({ key, ...value })) }), delete: async key => { objects.delete(key); } };
+  assert.equal(await pruneOrphanReceipts({ DB, PHOTOS }, now), 1);
+  assert.ok(objects.has(used), "a receipt in use is kept");
+  assert.ok(objects.has("receipts/ed/r1/33333333-3333-3333-3333-333333333333.jpg"), "a fresh upload is kept");
+  assert.ok(objects.has("products/live/steak-1.jpg"), "product photos are never touched");
+});

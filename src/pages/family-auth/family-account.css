@@ -234,3 +234,8 @@
 .fa-add-cost[open] summary { margin-bottom: 12px; }
 .fa-expense-form { display: grid; gap: 10px; }
 .fa-expense-form .fa-label { display: grid; gap: 5px; font-size: 13px; }
+
+/* Receipt upload */
+.fa-receipt-field input[type="file"] { padding: 10px; background: var(--fa-soft); border-style: dashed; }
+.fa-receipt-field small { color: var(--fa-muted); font-size: 12px; font-weight: 400; }
+.fa-own-costs .fa-inline-link { font-size: 13px; }

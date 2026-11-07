@@ -36,10 +36,31 @@ async function setup() {
   return DB;
 }
 
+const buckets = new WeakMap();
+function bucketFor(DB) {
+  if (!buckets.has(DB)) {
+    const objects = new Map();
+    buckets.set(DB, { objects,
+      put: async (key, body, options) => { objects.set(key, { body, type: options?.httpMetadata?.contentType }); },
+      head: async key => objects.has(key) ? { key } : null,
+      get: async key => objects.has(key) ? { body: objects.get(key).body, writeHttpMetadata: headers => headers.set("Content-Type", objects.get(key).type) } : null,
+      delete: async key => { objects.delete(key); } });
+  }
+  return buckets.get(DB);
+}
 async function call(DB, user, method, path, body) {
   const url = new URL("https://nieuwjaar.datuur.be" + path);
   const request = new Request(url, { method, headers: { Cookie: "ny_family_account=tok-" + user, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-  const response = await handleFamilyAccountApi(request, { DB }, url, deps);
+  const response = await handleFamilyAccountApi(request, { DB, PHOTOS: bucketFor(DB) }, url, deps);
+  return { status: response.status, body: await response.json() };
+}
+async function uploadReceipt(DB, user, registrationId, type = "image/jpeg") {
+  const url = new URL("https://nieuwjaar.datuur.be/api/family-account/receipts");
+  const form = new FormData();
+  form.append("file", new File([new Uint8Array([1, 2, 3])], "ticket", { type }));
+  form.append("edition", "ed");
+  form.append("registrationId", registrationId);
+  const response = await handleFamilyAccountApi(new Request(url, { method: "POST", headers: { Cookie: "ny_family_account=tok-" + user }, body: form }), { DB, PHOTOS: bucketFor(DB) }, url, deps);
   return { status: response.status, body: await response.json() };
 }
 const save = (DB, user, registrationId, members, revision = 100) => call(DB, user, "PUT", "/api/family-account/registration", { edition: "ed", registrationId, revision, members });
@@ -133,7 +154,8 @@ test("allergies and notes are saved per person, and an allergy-only change is no
 
 test("a family can add, change and delete its own costs; not the organisation's", async () => {
   const DB = await setup();
-  const expense = { description: "Drank", amountCents: 3000, date: "2026-12-20", method: "general" };
+  const ticket = (await uploadReceipt(DB, "ua", "ra")).body.receipt;
+  const expense = { description: "Drank", amountCents: 3000, date: "2026-12-20", method: "general", receipt: ticket };
   const added = await call(DB, "ua", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense });
   assert.equal(added.status, 200, JSON.stringify(added.body));
   const snapshot = () => DB.raw.prepare("SELECT expenses_json, costs_finalized FROM edition_finance_snapshots").get();
@@ -145,8 +167,8 @@ test("a family can add, change and delete its own costs; not the organisation's"
   const id = expenses[0].id;
   assert.equal((await call(DB, "ua", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense: { ...expense, id, amountCents: 3500 } })).status, 200);
   assert.equal(JSON.parse(snapshot().expenses_json)[0].amountCents, 3500);
-  assert.equal((await call(DB, "ub", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "rb", expense: { ...expense, id } })).status, 403, "another family cannot change it");
-  assert.equal((await call(DB, "uv", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense })).status, 403, "viewers cannot add costs");
+  assert.equal((await call(DB, "ub", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "rb", expense: { ...expense, id, receipt: undefined } })).status, 403, "another family cannot change it");
+  assert.equal((await call(DB, "uv", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense: { ...expense, id: undefined } })).status, 403, "viewers cannot add costs");
   // A cost entered by the organisation (no enteredBy) cannot be removed by the family.
   expenses = JSON.parse(snapshot().expenses_json);
   expenses.push({ id: "org", description: "Zaal", amountCents: 9000, date: "2026-12-01", method: "general", advancedBy: "ra" });
@@ -159,6 +181,28 @@ test("a family can add, change and delete its own costs; not the organisation's"
 test("a meat cost cannot be entered while nobody ordered meat", async () => {
   const DB = await setup();
   DB.raw.prepare("UPDATE event_registrations SET data_json = ?").run(JSON.stringify({ name: "X", members: [{ id: "x1", name: "X", type: "Volwassene", orders: {} }] }));
-  const result = await call(DB, "ua", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense: { description: "Vlees", amountCents: 1000, date: "2026-12-01", method: "meat" } });
+  const ticket = (await uploadReceipt(DB, "ua", "ra")).body.receipt;
+  const result = await call(DB, "ua", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense: { description: "Vlees", amountCents: 1000, date: "2026-12-01", method: "meat", receipt: ticket } });
   assert.equal(result.status, 400);
+});
+
+test("a cost from a family needs a receipt that belongs to that family", async () => {
+  const DB = await setup();
+  const base = { description: "Brood", amountCents: 1200, date: "2026-12-20", method: "general" };
+  const missing = await call(DB, "ua", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense: base });
+  assert.equal(missing.status, 400);
+  assert.equal(missing.body.needsReceipt, true);
+  assert.equal((await uploadReceipt(DB, "ua", "ra", "text/html")).status, 400, "only photos and PDFs");
+  assert.equal((await uploadReceipt(DB, "ua", "rb")).status, 403, "cannot upload for another family");
+  const otherTicket = (await uploadReceipt(DB, "ub", "rb")).body.receipt;
+  assert.equal((await call(DB, "ua", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense: { ...base, receipt: otherTicket } })).status, 400, "cannot use another family's receipt");
+  const ticket = (await uploadReceipt(DB, "ua", "ra", "application/pdf")).body.receipt;
+  assert.ok(ticket.startsWith("receipts/ed/ra/") && ticket.endsWith(".pdf"), ticket);
+  assert.equal((await call(DB, "ua", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense: { ...base, receipt: ticket } })).status, 200);
+  const view = async user => (await handleFamilyAccountApi(new Request("https://x/api/family-account/receipts?key=" + encodeURIComponent(ticket), { headers: { Cookie: "ny_family_account=tok-" + user } }), { DB, PHOTOS: bucketFor(DB) }, new URL("https://x/api/family-account/receipts?key=" + encodeURIComponent(ticket)), deps)).status;
+  assert.equal(await view("ua"), 200, "the family can view its receipt");
+  assert.equal(await view("ub"), 404, "other families cannot");
+  const id = JSON.parse(DB.raw.prepare("SELECT expenses_json FROM edition_finance_snapshots").get().expenses_json)[0].id;
+  await call(DB, "ua", "DELETE", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expenseId: id });
+  assert.equal(bucketFor(DB).objects.has(ticket), false, "deleting the cost deletes its receipt");
 });

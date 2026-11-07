@@ -178,6 +178,8 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
       date: expense.date || null, method: expense.method, amountCents, familyCents,
       familyUnits, totalUnits, advancedByUs: expense.advancedBy === registration.id,
       enteredByFamily: expense.enteredBy === "family",
+      // Only the family's own receipts are passed on (privacy).
+      receipt: expense.advancedBy === registration.id && expense.receipt ? expense.receipt : null,
       members: memberShares
     });
     const category = categories.get(expense.method) || { method: expense.method, ...COST_METHODS[expense.method], amountCents: 0, familyCents: 0, familyUnits, totalUnits };

@@ -171,15 +171,18 @@ function renderOwnCosts(item, view) {
     '<div class="fa-add-grid"><label class="fa-label">Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" value="' + (expense ? (expense.amountCents / 100).toFixed(2) : "") + '" required></label>' +
     '<label class="fa-label">Datum<input name="date" type="date" value="' + esc(expense?.date || new Date().toISOString().slice(0, 10)) + '" required></label></div>' +
     '<label class="fa-label">Wie betaalt mee?<select name="method">' + METHOD_CHOICES.map(([value, label]) => '<option value="' + value + '"' + ((expense?.method || "general") === value ? " selected" : "") + '>' + esc(label) + '</option>').join("") + '</select></label>' +
+    '<label class="fa-label fa-receipt-field">' + (expense?.receipt ? "Nieuw kasticket (optioneel)" : "Foto van het kasticket (verplicht)") + '<input name="receipt" type="file" accept="image/*,application/pdf"' + (expense?.receipt ? "" : " required") + '><small>Neem een foto of kies een PDF. Zonder kasticket kan een kost niet worden ingediend.</small></label>' +
+    (expense?.receipt ? '<a class="fa-inline-link" href="' + receiptUrl(expense.receipt) + '" target="_blank" rel="noopener">📎 Huidig kasticket bekijken</a>' : "") +
     '<div class="fa-row-actions"><button type="submit" class="fa-btn fa-btn-primary">' + (expense ? "Bewaren" : "Kost toevoegen") + '</button>' + (expense ? '<button type="button" class="fa-btn" data-action="cancel-edit-expense">Annuleren</button>' : "") + '</div></form>';
   const rows = own.map(expense => view.editingExpenseId === expense.id ? '<li>' + form(expense) + '</li>'
-    : '<li><span><strong>' + esc(expense.description) + '</strong><small>' + esc(formatDate(expense.date)) + ' · ' + esc((COST_LABELS[expense.method] || "")) + (expense.enteredByFamily ? "" : " · ingevoerd door de organisatie") + '</small></span><span class="fa-own-end"><b>' + euro(expense.amountCents) + '</b>' +
+    : '<li><span><strong>' + esc(expense.description) + '</strong><small>' + esc(formatDate(expense.date)) + ' · ' + esc((COST_LABELS[expense.method] || "")) + (expense.enteredByFamily ? "" : " · ingevoerd door de organisatie") + '</small>' + (expense.receipt ? '<a class="fa-inline-link" href="' + receiptUrl(expense.receipt) + '" target="_blank" rel="noopener">📎 Kasticket</a>' : "") + '</span><span class="fa-own-end"><b>' + euro(expense.amountCents) + '</b>' +
       (expense.enteredByFamily ? '<button type="button" class="fa-btn fa-btn-small" data-action="edit-expense" data-id="' + esc(expense.id) + '">Wijzigen</button><button type="button" class="fa-btn fa-btn-small fa-btn-quiet" data-action="delete-expense" data-id="' + esc(expense.id) + '">Verwijderen</button>' : "") + '</span></li>').join("");
   return '<div class="fa-section-head"><h3>Kosten die jullie betaalden</h3><p>Schoten jullie iets voor (cash)? Voeg het hier toe. Het wordt verdeeld over alle deelnemers en verrekend in jullie afrekening. De organisatie kan het nog aanpassen.</p></div>' +
     (rows ? '<ul class="fa-own-costs">' + rows + '</ul>' : "") +
     (view.editingExpenseId ? "" : '<details class="fa-add-cost"' + (view.addCostOpen ? " open" : "") + '><summary>+ Kost toevoegen</summary>' + form() + '</details>');
 }
 
+const receiptUrl = key => "/api/family-account/receipts?key=" + encodeURIComponent(key);
 const COST_LABELS = { general: "Algemeen", adults: "18+", meat: "Vlees" };
 
 function renderCosts(item, view = {}) {
