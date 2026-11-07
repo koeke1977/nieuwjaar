@@ -114,3 +114,17 @@ De eerste migratie mag bestaande gegevens nog in `data_json` bewaren. Normalisat
 - Het familieportaal gebruikt nu een neutrale evenementfallback in plaats van standaard Nieuwjaar en de introductietekst verwijst naar evenementen in het algemeen.
 - Nieuwe en opnieuw verstuurde accountuitnodigingen gebruiken de evenementnaam uit de gekoppelde editiegegevens in onderwerp en mailinhoud.
 - De huidige `test/live`-labels en legacy API-koppelingen zijn bewust nog niet verwijderd. Eerst moet de nieuwe relationele familie-/editiekoppeling volledig worden gevuld en gecontroleerd; voortijdig verwijderen zou bestaande toegang kunnen breken.
+
+
+## Functionele stap: evenementen- en editiebeheer
+
+De eerste echte platformfunctie is toegevoegd, achter de bestaande adminsectie **Evenementen**:
+
+- Lijst bestaande evenementen met hun edities.
+- Nieuw evenement aanmaken met naam, beschrijving en financiële strategie.
+- Per evenement een editie aanmaken met label en optionele start-/einddatum.
+- API-routes zijn uitsluitend toegankelijk met een geldige admin-sessie en controleren same-origin bij schrijfacties.
+- Invoer wordt gevalideerd; dubbele evenementcodes geven een duidelijke conflictmelding.
+- De UI meldt expliciet wanneer de nieuwe databasetabellen nog ontbreken.
+
+Deze functionaliteit gebruikt tabellen uit migratie 0007. Zonder die migratie kan de pagina geladen worden, maar kunnen evenementen niet worden opgehaald of aangemaakt. De bestaande Nieuwjaar-registraties worden door deze stap niet aangepast. Er is geen lokale build uitgevoerd: de uitvoeromgeving kan GitHub niet clonen door ontbrekende netwerktoegang. De code is wel nagelezen op de relevante API-/UI-koppelingen.
