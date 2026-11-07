@@ -210,32 +210,50 @@ export async function handleAdminEvents(request, env, url, dependencies) {
       return json({ error: "Expliciete bevestiging ontbreekt. Er is niets gewijzigd." }, 400);
     }
     try {
+      // Repeat critical preflight checks here: the UI preview is not a security boundary.
+      const requiredTables = ["events", "event_editions", "families", "family_memberships", "event_registrations", "edition_finance_snapshots", "family_users", "family_user_registrations", "app_state"];
+      const tableRows = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all();
+      const availableTables = new Set((tableRows.results || []).map(row => row.name));
+      const missingTables = requiredTables.filter(name => !availableTables.has(name));
+      if (missingTables.length) return json({ error: "Ontbrekende databasetabellen: " + missingTables.join(", ") + ". Er is niets gewijzigd." }, 409);
       const states = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state ORDER BY environment").all();
       const links = await env.DB.prepare("SELECT user_id, edition_id, registration_id, created_at FROM family_user_registrations ORDER BY id").all();
       const linkRows = links.results || [];
       const users = await env.DB.prepare("SELECT id FROM family_users").all();
       const knownUsers = new Set((users.results || []).map(row => row.id));
+      const stateByEnvironment = new Map((states.results || []).map(row => [row.environment, row]));
+      const unsupportedStates = [...stateByEnvironment.keys()].filter(environment => !["test", "live"].includes(environment));
+      if (unsupportedStates.length) return json({ error: "Niet-ondersteunde omgevingen: " + unsupportedStates.join(", ") + ". Er is niets gewijzigd." }, 409);
+      if (!["test", "live"].every(environment => stateByEnvironment.has(environment))) return json({ error: "Zowel test als live moet aanwezig zijn. Er is niets gewijzigd." }, 409);
+      if (linkRows.some(row => !knownUsers.has(row.user_id))) return json({ error: "Accountkoppelingen naar ontbrekende accounts gevonden. Er is niets gewijzigd." }, 409);
+      const parsedStates = new Map();
+      for (const [environment, row] of stateByEnvironment) {
+        let data;
+        try { data = JSON.parse(row.data_json); } catch { return json({ error: "Ongeldige JSON in " + environment + ". Er is niets gewijzigd." }, 409); }
+        if (!data || typeof data !== "object" || Array.isArray(data) || !Array.isArray(data.registrations) || !Array.isArray(data.expenses || []) || !Array.isArray(data.payments || [])) return json({ error: "Ongeldige gegevensstructuur in " + environment + ". Er is niets gewijzigd." }, 409);
+        const ids = new Set();
+        for (const item of data.registrations) {
+          if (!item || typeof item.id !== "string" || !item.id.trim() || ids.has(item.id)) return json({ error: "Ongeldige of dubbele inschrijvings-ID in " + environment + ". Er is niets gewijzigd." }, 409);
+          ids.add(item.id);
+        }
+        parsedStates.set(environment, data);
+      }
+      for (const link of linkRows) {
+        const data = parsedStates.get(link.edition_id);
+        if (!data || !data.registrations.some(item => item.id === link.registration_id)) return json({ error: "Accountkoppeling naar ontbrekende inschrijving in " + link.edition_id + ". Er is niets gewijzigd." }, 409);
+      }
+      const existingTargets = await env.DB.prepare("SELECT (SELECT COUNT(*) FROM events WHERE id IN ('legacy-event-test','legacy-event-live')) + (SELECT COUNT(*) FROM event_editions WHERE id IN ('legacy-edition-test','legacy-edition-live')) + (SELECT COUNT(*) FROM edition_finance_snapshots WHERE edition_id IN ('legacy-edition-test','legacy-edition-live')) + (SELECT COUNT(*) FROM families WHERE id LIKE 'legacy-family-test-%' OR id LIKE 'legacy-family-live-%') + (SELECT COUNT(*) FROM event_registrations WHERE id LIKE 'legacy-registration-test-%' OR id LIKE 'legacy-registration-live-%') + (SELECT COUNT(*) FROM family_memberships WHERE id LIKE 'legacy-membership-test-%' OR id LIKE 'legacy-membership-live-%') AS count").first();
+      if (Number(existingTargets?.count || 0) > 0) return json({ error: "Doelrecords van een eerdere of gedeeltelijke overname bestaan al. Eerst expliciet reconciliëren; er is niets gewijzigd." }, 409);
+      const knownUsers = new Set((users.results || []).map(row => row.id));
       if (linkRows.some(row => !knownUsers.has(row.user_id))) {
         return json({ error: "Er bestaan accountkoppelingen naar ontbrekende accounts. Herstel die eerst; er is niets gewijzigd." }, 409);
-      }
-      const stateByEnvironment = new Map((states.results || []).map(row => [row.environment, row]));
-      for (const link of linkRows) {
-        const source = stateByEnvironment.get(link.edition_id);
-        let parsed;
-        try { parsed = source ? JSON.parse(source.data_json) : null; } catch { parsed = null; }
-        if (!parsed || !(parsed.registrations || []).some(item => item.id === link.registration_id)) {
-          return json({ error: "Er bestaat een accountkoppeling naar een ontbrekende inschrijving (" + link.edition_id + "). Herstel die eerst; er is niets gewijzigd." }, 409);
-        }
       }
       const statements = [];
       const now = Math.floor(Date.now() / 1000);
       const migrated = [];
       for (const row of states.results || []) {
         if (!["test", "live"].includes(row.environment)) continue;
-        let data;
-        try { data = JSON.parse(row.data_json); } catch {
-          return json({ error: "De opgeslagen gegevens van " + row.environment + " zijn geen geldige JSON. Er is niets gewijzigd." }, 500);
-        }
+        const data = parsedStates.get(row.environment);
         const envId = row.environment;
         const eventId = "legacy-event-" + envId;
         const editionId = "legacy-edition-" + envId;
