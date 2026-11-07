@@ -42,6 +42,17 @@ async function loadNormalizedEditions() {
   if (!options.length) select.innerHTML = '<option value="">Maak eerst een evenement en editie aan</option>';
 }
 
+function registrationEditor(item) {
+  const members = Array.isArray(item.members) ? item.members : [];
+  const catalog = Array.isArray(item.catalog) ? item.catalog : [];
+  const rows = members.map((person, index) =>
+    '<div class="family-registration-edit-member" data-edit-member="'+index+'"><div class="family-registration-edit-person"><label>Naam<input name="memberName" data-member-name value="'+escapeHtml(person.name)+'" maxlength="80" required></label><label>Type<select data-member-type><option value="Volwassene" '+(person.type==="Volwassene"?"selected":"")+'>Volwassene</option><option value="Kind" '+(person.type==="Kind"?"selected":"")+'>Kind</option></select></label></div><div class="family-registration-edit-orders">'+catalog.map(product =>
+      '<label>'+escapeHtml(product.name)+'<input type="number" min="0" max="99" step="1" data-product-id="'+escapeHtml(product.id)+'" value="'+Number(person.orders?.[product.id]||0)+'"></label>'
+    ).join("")+'</div></div>'
+  ).join("");
+  return '<form class="family-registration-editor" data-registration-editor="'+escapeHtml(item.id)+'" data-revision="'+Number(item.updatedAt)+'"><label>Naam inschrijving<input name="registrationName" maxlength="160" value="'+escapeHtml(item.name)+'" required></label><p class="catalog-note">Pas namen, categorieën en productaantallen aan. Historische inschrijvingen blijven alleen-lezen.</p>'+rows+'<div class="family-registration-edit-actions"><button class="button button-small button-dark" type="submit">Wijzigingen opslaan</button><button class="button button-small button-outline" type="button" data-cancel-registration-edit>Annuleren</button></div></form>';
+}
+
 function renderNormalizedFamilyOptions(families) {
   const select = root?.querySelector("[data-normalized-family-options]");
   if (!select) return;
@@ -75,7 +86,7 @@ async function loadNormalizedFamilies() {
           }).filter(Boolean).join("");
           return '<div class="family-registration-member"><span><strong>'+escapeHtml(person.name)+'</strong><small>'+escapeHtml(person.type)+'</small></span><div class="family-registration-orders">'+(orders || '<small>Geen bestelling</small>')+'</div></div>';
         }).join("");
-        return '<div class="family-normalized-registration"><strong>'+escapeHtml(item.event || "Evenement")+'</strong><span>'+escapeHtml(item.edition || "Editie")+' · '+escapeHtml(item.name || "Inschrijving")+'</span><small>'+escapeHtml(item.status || "")+' · '+escapeHtml(item.financeStrategy || "geen financiële strategie")+(item.invalidData ? " · gegevens nakijken" : "")+'</small><div class="family-registration-details"><b>Gezin: '+members.length+' leden</b>'+(memberRows || '<small>Nog geen gezinsleden geregistreerd.</small>')+'</div></div>';
+        return '<div class="family-normalized-registration" data-registration-card="'+escapeHtml(item.id)+'"><strong>'+escapeHtml(item.event || "Evenement")+'</strong><span>'+escapeHtml(item.edition || "Editie")+' · '+escapeHtml(item.name || "Inschrijving")+'</span><small>'+escapeHtml(item.status || "")+' · '+escapeHtml(item.financeStrategy || "geen financiële strategie")+(item.invalidData ? " · gegevens nakijken" : "")+'</small><div class="family-registration-details"><b>Gezin: '+members.length+' leden</b>'+(memberRows || '<small>Nog geen gezinsleden geregistreerd.</small>')+'</div>'+(item.legacyReadOnly ? '<small>Historische inschrijving · alleen-lezen</small>' : '<button type="button" class="button button-small button-outline" data-edit-registration="'+escapeHtml(item.id)+'">Inschrijving wijzigen</button>')+'<div data-registration-editor-slot></div></div>';
       }).join("");
       return '<article class="family-user-row"><div class="family-user-main"><strong>'+escapeHtml(family.name || "Familie")+'</strong><small>'+escapeHtml(family.contactEmail || "Geen contactadres")+'</small><div class="family-user-links">'+(accounts || '<span>Geen accounts gekoppeld</span>')+'</div><div class="family-normalized-registrations">'+(registrations || '<span>Geen evenementinschrijvingen</span>')+'</div></div></article>';
     }).join("");
