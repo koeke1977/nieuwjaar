@@ -190,3 +190,17 @@ Het bestaande accountbeheer toont nu aanvullend een read-only overzicht uit het 
 - De nieuwe lijst is bewust read-only: families, memberships of inschrijvingen worden niet aangemaakt, verwijderd of gewijzigd vanuit dit overzicht.
 
 Volgende stap is de volledige beheerworkflow: familie aanmaken, bestaande account uitnodigen of koppelen, event-native inschrijving aanmaken, en membership beheren. Daarbij moeten owner/editor/viewer-rechten en accountuitnodigingen transactioneel worden afgehandeld. Verwijderen blijft buiten scope tot de datamigratie en rollback volledig zijn gevalideerd.
+
+
+## Relationeel familiebeheer — acties en toegangsrollen
+
+Het familiebeheer bevat nu ook schrijfacties voor het nieuwe model:
+
+- Een beheerder kan een familie met een nieuwe event-native inschrijving aanmaken binnen een bestaande, niet-gearchiveerde editie.
+- Een bestaand actief account kan aan een extra familie worden gekoppeld; een nieuw of nog uitgenodigd account krijgt een activatielink.
+- De uitnodiging gebruikt dezelfde `/familie/<token>`-route als de bestaande accountuitnodigingen. Bij het versturen van een nieuwe uitnodiging worden eerdere ongebruikte uitnodigingstokens voor dat account ingetrokken.
+- Rollen owner/editor/viewer kunnen per familie worden aangepast. Een account kan dus in verschillende families een andere rol hebben.
+- Een membership kan worden losgekoppeld zonder het account, de familie of de evenementinschrijving te verwijderen.
+- De laatste owner kan niet worden gedegradeerd of losgekoppeld; eerst moet een tweede owner worden toegevoegd.
+
+De nieuwe beheeracties zijn alleen beschikbaar via een geldige admin-sessie en same-origin schrijfacties. Dit is nog geen volledige beheer- of financiële afwerking: eventcatalogus/configuratie, registratiebeheer na aanmaak en financiële instellingen per editie moeten nog worden uitgewerkt en getest. De code is niet op de echte D1-database uitgevoerd en er zijn geen migraties gestart.
