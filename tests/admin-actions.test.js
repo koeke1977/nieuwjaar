@@ -159,15 +159,35 @@ test("Gebruikers: families can be sorted by column and filtered", async () => {
   const order = () => [...rendered.matchAll(/data-action="open-user-family" data-id="([^"]+)"/g)].map(m => m[1]);
   core.renderApp();
   assert.deepEqual(order(), ["fz", "fa", "fm"], "by name: Anna, Jan, Mark");
-  nav.clicks["users-sort"]({ dataset: { table: "families", key: "access" } });
+  nav.clicks["table-sort"]({ dataset: { table: "families", key: "access", first: "desc" } });
   assert.deepEqual(order(), ["fa", "fm", "fz"], "account: active, invited, none");
-  nav.clicks["users-sort"]({ dataset: { table: "families", key: "access" } });
+  nav.clicks["table-sort"]({ dataset: { table: "families", key: "access", first: "desc" } });
   assert.deepEqual(order(), ["fz", "fm", "fa"], "same column again reverses");
-  nav.clicks["users-filter"]({ dataset: { table: "families", filter: "no-account" } });
+  nav.clicks["table-filter"]({ dataset: { table: "families", filter: "no-account" } });
   assert.deepEqual(order(), ["fz"]);
-  nav.clicks["users-filter"]({ dataset: { table: "families", filter: "registered" } });
+  nav.clicks["table-filter"]({ dataset: { table: "families", filter: "registered" } });
   assert.deepEqual(order(), ["fa"], "only Jan is registered in the open edition");
   nav.clicks["users-tab"]({ dataset: { tab: "accounts" } });
-  nav.clicks["users-sort"]({ dataset: { table: "accounts", key: "login" } });
+  nav.clicks["table-sort"]({ dataset: { table: "accounts", key: "login", first: "desc" } });
   assert.ok(rendered.indexOf("jan@x.be") < rendered.indexOf("mark@x.be"), "most recent login first");
+});
+
+test("Inschrijvingen: registrations table sorts by portions and filters families without an order", () => {
+  state.registrations.push({
+    id: "rz",
+    familyId: "fz",
+    name: "Anna",
+    revision: 0,
+    members: [{ id: "anna", name: "Anna", type: "Volwassene", orders: {} }]
+  });
+  Object.assign(state, { activeSection: "events", beheerEventView: "edition", beheerEditionTab: "registrations" });
+  Object.assign(state, { beheerFamilyId: null, beheerTableFilter: {}, beheerTableSort: {} });
+  const order = () => [...rendered.matchAll(/data-action="open-family" data-id="([^"]+)"/g)].map(m => m[1]);
+  core.renderApp();
+  assert.deepEqual(order(), ["rz", "ra"], "by name: Anna, Jan");
+  nav.clicks["table-sort"]({ dataset: { table: "registrations", key: "portions", first: "desc" } });
+  assert.deepEqual(order(), ["ra", "rz"], "most portions first");
+  nav.clicks["table-filter"]({ dataset: { table: "registrations", filter: "no-order" } });
+  assert.deepEqual(order(), ["rz"]);
+  assert.match(rendered, /Nog niets/);
 });

@@ -46,16 +46,15 @@ export const clicks = {
     go({ beheerUsersTab: action.dataset.tab, beheerUserFamilyId: null });
     return;
   },
-  // Column headers in Gebruikers: same column again reverses; numbers and dates start with the highest.
-  "users-sort": action => {
-    const { table, key } = action.dataset;
-    const current = state.beheerUsersSort?.[table];
-    const highFirst = ["people", "registered", "portions", "access", "login"].includes(key);
-    const dir = current?.key === key ? (current.dir === "asc" ? "desc" : "asc") : highFirst ? "desc" : "asc";
-    go({ beheerUsersSort: { ...state.beheerUsersSort, [table]: { key, dir } } });
+  // Sortable tables (screens/table.js): same column again reverses; data-first="desc" columns start high.
+  "table-sort": action => {
+    const { table, key, first } = action.dataset;
+    const current = state.beheerTableSort?.[table];
+    const dir = current?.key === key ? (current.dir === "asc" ? "desc" : "asc") : first === "desc" ? "desc" : "asc";
+    go({ beheerTableSort: { ...state.beheerTableSort, [table]: { key, dir } } });
   },
-  "users-filter": action => {
-    go({ beheerUsersFilter: { ...state.beheerUsersFilter, [action.dataset.table]: action.dataset.filter } });
+  "table-filter": action => {
+    go({ beheerTableFilter: { ...state.beheerTableFilter, [action.dataset.table]: action.dataset.filter } });
   },
   "open-user-family": action => {
     go({

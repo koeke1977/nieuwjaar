@@ -20,6 +20,7 @@ import {
   statusChip,
   eventTitle
 } from "./shared.js";
+import { dash, activeFilter, sortRows, sortHeader, filterBar } from "./table.js";
 
 // ---------------- Gezinnen ----------------
 function registerExistingFamily() {
@@ -46,32 +47,61 @@ function registerExistingFamily() {
       </section>`;
 }
 
+const HIGH = { highFirst: true };
+const REG_FILTERS = [
+  { id: "all", label: "Alle", test: () => true },
+  { id: "no-order", label: "Nog niets besteld", test: row => row.dinner && !row.portions },
+  { id: "due", label: "Nog te betalen", test: row => row.remaining > 0 },
+  { id: "credit", label: "Terug te geven", test: row => row.credit > 0 },
+  { id: "no-account", label: "Zonder account", test: row => row.access === 0 }
+];
+const REG_SORT = {
+  name: row => row.name,
+  people: row => row.people,
+  portions: row => row.portions,
+  share: row => row.share,
+  balance: row => row.remaining - row.credit,
+  access: row => row.access
+};
+
 function renderFamilyList() {
   const t = eventTotals();
   const regs = state.registrations || [];
-  const rows = joinHtml(
-    regs.map(reg => {
-      const row = t.summary.find(item => item.id === reg.id);
-      return html`<li>
-            <button type="button" class="bh-family-row" data-action="open-family" data-id="${reg.id}">
-              <span class="bh-avatar">${(reg.name || "?").charAt(0).toUpperCase()}</span>
-              <span class="bh-family-name">
-                <strong>${reg.name}</strong>
-                <small>${
-                  (reg.members || []).length
-                    ? countsText(reg.members) + " · " + plural(familyPortions(reg), "portie", "porties")
-                    : "Gezin nog niet ingevuld"
-                }</small>
-              </span>
-              <span class="bh-family-money">
-                <b>${euro(row?.shareCents || 0)}</b>
-                <small>aandeel</small>
-              </span>
-              <span class="bh-family-chips">${familyBalanceChip(row)}${accessChip(reg.familyId)}</span>
-              <i class="bh-chev" aria-hidden="true">›</i>
+  const all = regs.map(reg => {
+    const summary = t.summary.find(item => item.id === reg.id);
+    const members = reg.members || [];
+    const users = accountsForFamily(reg.familyId);
+    return {
+      reg,
+      summary,
+      name: reg.name,
+      members,
+      people: members.length,
+      dinner: members.some(person => person.type !== EVENING),
+      portions: familyPortions(reg),
+      share: summary?.shareCents || 0,
+      remaining: summary?.remainingCents || 0,
+      credit: summary?.creditCents || 0,
+      access: users.some(user => user.status === "active") ? 2 : users.some(user => user.status === "invited") ? 1 : 0
+    };
+  });
+  const rows = sortRows(all.filter(activeFilter("registrations", REG_FILTERS).test), "registrations", REG_SORT);
+  const body = joinHtml(
+    rows.map(
+      row => html`<tr>
+          <th scope="row">
+            <button type="button" class="bh-link bh-row-link" data-action="open-family" data-id="${row.reg.id}">
+              <strong>${row.name}</strong>
+              <small>${row.members.length ? countsText(row.members) : "Gezin nog niet ingevuld"}</small>
             </button>
-          </li>`;
-    }),
+          </th>
+          <td>${row.people || dash}</td>
+          <td>${row.portions || (row.dinner ? html`<span class="bh-chip bh-chip-warn">Nog niets</span>` : dash)}</td>
+          <td>${row.share ? euro(row.share) : dash}</td>
+          <td>${familyBalanceChip(row.summary)}</td>
+          <td>${accessChip(row.reg.familyId)}</td>
+        </tr>`
+    ),
     ""
   );
   return html`${pageHead(
@@ -95,8 +125,33 @@ function renderFamilyList() {
           </div>
         </form>
       </section>${
-        rows
-          ? html`<ul class="bh-family-list">${rows}</ul>`
+        all.length
+          ? html`<section class="bh-card">
+          <header class="bh-card-head">
+            <h2>Ingeschreven gezinnen</h2>
+            <span class="bh-count">${all.length}</span>
+          </header>${filterBar("registrations", REG_FILTERS, all)}${
+            rows.length
+              ? html`<div class="bh-table-wrap">
+            <table class="bh-table bh-table-list">
+              <thead>
+                <tr>${sortHeader("registrations", "name", "Gezin")}${sortHeader("registrations", "people", "Personen", HIGH)}${sortHeader(
+                  "registrations",
+                  "portions",
+                  "Porties",
+                  HIGH
+                )}${sortHeader("registrations", "share", "Aandeel", HIGH)}${sortHeader(
+                  "registrations",
+                  "balance",
+                  "Saldo",
+                  HIGH
+                )}${sortHeader("registrations", "access", "Account", HIGH)}</tr>
+              </thead>
+              <tbody>${body}</tbody>
+            </table>
+          </div>`
+              : html`<p class="bh-empty">Geen gezinnen voor deze filter.</p>`
+          }</section>`
           : html`<p class="bh-empty">Nog geen inschrijvingen voor deze editie.</p>`
       }`;
 }

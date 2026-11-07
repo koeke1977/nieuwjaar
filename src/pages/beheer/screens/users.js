@@ -16,6 +16,7 @@ import {
   pageHead
 } from "./shared.js";
 import { renderAccess } from "./families.js";
+import { dash, shortDate, activeFilter, sortRows, sortHeader, filterBar } from "./table.js";
 
 // ---------------- Gebruikers ----------------
 function participationRow(family) {
@@ -158,49 +159,7 @@ function renderUserFamily(family) {
       </div>`;
 }
 
-// ---- Sortable, filterable tables (Gezinnen and Accounts) ----
-// state.beheerUsersSort = { families: { key, dir }, accounts: { key, dir } }; state.beheerUsersFilter likewise.
-const compareText = (a, b) => String(a || "").localeCompare(String(b || ""), "nl", { sensitivity: "base" });
-const sortOf = table => state.beheerUsersSort?.[table] || { key: "name", dir: "asc" };
-const filterOf = table => state.beheerUsersFilter?.[table] || "all";
-const loginDate = seconds =>
-  seconds
-    ? new Date(seconds * 1000).toLocaleDateString("nl-BE", { day: "numeric", month: "short", year: "numeric" })
-    : "";
-const dash = html`<span class="bh-dim">–</span>`;
-
-function sortRows(rows, table, getters) {
-  const { key, dir } = sortOf(table);
-  const get = getters[key] || getters.name;
-  const sign = dir === "desc" ? -1 : 1;
-  return [...rows].sort((a, b) => {
-    const x = get(a),
-      y = get(b);
-    const order = typeof x === "string" || typeof y === "string" ? compareText(x, y) : (x || 0) - (y || 0);
-    return order * sign || compareText(getters.name(a), getters.name(b));
-  });
-}
-
-function sortHeader(table, key, label) {
-  const { key: active, dir } = sortOf(table);
-  const current = active === key;
-  return html`<th aria-sort="${current ? (dir === "asc" ? "ascending" : "descending") : "none"}">
-      <button type="button" class="bh-sort${current ? " is-active" : ""}" data-action="users-sort" data-table="${table}"
-          data-key="${key}">${label}<span aria-hidden="true">${current ? (dir === "asc" ? "▲" : "▼") : "↕"}</span></button>
-    </th>`;
-}
-
-function filterBar(table, options, rows) {
-  const active = filterOf(table);
-  return html`<div class="bh-filters" role="group" aria-label="Filter">${joinHtml(
-    options.map(
-      option => html`<button type="button" class="bh-filter" data-action="users-filter" data-table="${table}"
-          data-filter="${option.id}" aria-pressed="${option.id === active}">${option.label}
-          <b>${rows.filter(option.test).length}</b></button>`
-    ),
-    ""
-  )}</div>`;
-}
+const HIGH = { highFirst: true };
 
 const ACCESS_LABEL = ["Geen account", "Uitgenodigd", "Account actief"];
 const ACCESS_CHIP = ["bh-chip-muted", "bh-chip-warn", "bh-chip-ok"];
@@ -245,7 +204,7 @@ const FAMILY_SORT = {
 
 function renderUserFamilies() {
   const all = familyRows();
-  const filter = FAMILY_FILTERS.find(option => option.id === filterOf("families")) || FAMILY_FILTERS[0];
+  const filter = activeFilter("families", FAMILY_FILTERS);
   const rows = sortRows(all.filter(filter.test), "families", FAMILY_SORT);
   const body = joinHtml(
     rows.map(
@@ -262,7 +221,7 @@ function renderUserFamilies() {
           <td>
             <span class="bh-chip ${ACCESS_CHIP[row.access]}">${ACCESS_LABEL[row.access]}</span>
           </td>
-          <td>${loginDate(row.login) || dash}</td>
+          <td>${shortDate(row.login) || dash}</td>
         </tr>`
     ),
     ""
@@ -292,15 +251,7 @@ function renderUserFamilies() {
               ? html`<div class="bh-table-wrap">
           <table class="bh-table bh-table-list">
             <thead>
-              <tr>${sortHeader("families", "name", "Gezin")}${sortHeader("families", "people", "Personen")}${sortHeader(
-                "families",
-                "registered",
-                "Ingeschreven"
-              )}${sortHeader("families", "portions", "Porties")}${sortHeader("families", "access", "Account")}${sortHeader(
-                "families",
-                "login",
-                "Laatst aangemeld"
-              )}</tr>
+              <tr>${sortHeader("families", "name", "Gezin")}${sortHeader("families", "people", "Personen", HIGH)}${sortHeader("families", "registered", "Ingeschreven", HIGH)}${sortHeader("families", "portions", "Porties", HIGH)}${sortHeader("families", "access", "Account", HIGH)}${sortHeader("families", "login", "Laatst aangemeld", HIGH)}</tr>
             </thead>
             <tbody>${body}</tbody>
           </table>
@@ -349,7 +300,7 @@ function accountActions(user) {
 }
 
 function renderAccounts() {
-  const filter = ACCOUNT_FILTERS.find(option => option.id === filterOf("accounts")) || ACCOUNT_FILTERS[0];
+  const filter = activeFilter("accounts", ACCOUNT_FILTERS);
   const rows = sortRows(accounts.filter(filter.test), "accounts", ACCOUNT_SORT);
   const body = joinHtml(
     rows.map(
@@ -370,7 +321,7 @@ function renderAccounts() {
               ""
             ) || html`<span class="bh-chip bh-chip-muted">Geen gezin</span>`
           }</td>
-          <td>${loginDate(user.lastLoginAt) || dash}</td>
+          <td>${shortDate(user.lastLoginAt) || dash}</td>
           <td>
             <div class="bh-cell-actions">${accountActions(user)}</div>
           </td>
@@ -392,7 +343,7 @@ function renderAccounts() {
                 "accounts",
                 "status",
                 "Status"
-              )}${sortHeader("accounts", "family", "Gezin")}${sortHeader("accounts", "login", "Laatst aangemeld")}<th>
+              )}${sortHeader("accounts", "family", "Gezin")}${sortHeader("accounts", "login", "Laatst aangemeld", HIGH)}<th>
                   Acties</th>
               </tr>
             </thead>
