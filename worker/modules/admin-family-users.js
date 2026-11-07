@@ -116,7 +116,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
   if (path === "/api/admin/families" && request.method === "GET") {
     try {
       const rows = await env.DB.prepare(
-        "SELECT f.id AS family_id, f.display_name AS family_name, f.contact_email, f.created_at AS family_created_at, er.id AS registration_id, er.status AS registration_status, er.data_json, er.updated_at AS registration_updated_at, d.id AS edition_id, d.label AS edition_label, d.status AS edition_status, d.config_json AS edition_config_json, e.id AS event_id, e.name AS event_name, e.finance_strategy, fm.user_id, fm.role, u.email, u.display_name AS user_name, u.status AS user_status FROM families f LEFT JOIN event_registrations er ON er.family_id = f.id LEFT JOIN event_editions d ON d.id = er.edition_id LEFT JOIN events e ON e.id = d.event_id LEFT JOIN family_memberships fm ON fm.family_id = f.id LEFT JOIN family_users u ON u.id = fm.user_id ORDER BY f.display_name COLLATE NOCASE, e.name, d.label, u.email COLLATE NOCASE"
+        "SELECT f.id AS family_id, f.display_name AS family_name, f.contact_email, f.created_at AS family_created_at, er.id AS registration_id, er.status AS registration_status, er.data_json, er.updated_at AS registration_updated_at, er.legacy_environment, er.legacy_registration_id, d.id AS edition_id, d.label AS edition_label, d.status AS edition_status, d.config_json AS edition_config_json, e.id AS event_id, e.name AS event_name, e.finance_strategy, fm.user_id, fm.role, u.email, u.display_name AS user_name, u.status AS user_status FROM families f LEFT JOIN event_registrations er ON er.family_id = f.id LEFT JOIN event_editions d ON d.id = er.edition_id LEFT JOIN events e ON e.id = d.event_id LEFT JOIN family_memberships fm ON fm.family_id = f.id LEFT JOIN family_users u ON u.id = fm.user_id ORDER BY f.display_name COLLATE NOCASE, e.name, d.label, u.email COLLATE NOCASE"
       ).all();
       const families = new Map();
       for (const row of rows.results || []) {
@@ -136,6 +136,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
             editionId: row.edition_id, edition: row.edition_label, editionStatus: row.edition_status,
             eventId: row.event_id, event: row.event_name, financeStrategy: row.finance_strategy,
             members: members.slice(0, 30).map(person => ({
+              id: typeof person?.id === "string" ? person.id : "",
               name: typeof person?.name === "string" ? person.name.slice(0, 80) : "Onbekend",
               type: person?.type === "Kind" ? "Kind" : person?.type === "Volwassene" ? "Volwassene" : "Onbekend",
               orders: person?.orders && typeof person.orders === "object" && !Array.isArray(person.orders)
@@ -147,7 +148,9 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
             catalog: catalog.filter(product => product && typeof product.id === "string").map(product => ({
               id: product.id, name: typeof product.name === "string" ? product.name.slice(0, 100) : product.id
             })),
-            updatedAt: row.registration_updated_at, invalidData: !row.data_json || !Object.keys(data).length
+            updatedAt: row.registration_updated_at,
+            legacyReadOnly: Boolean(row.legacy_environment || row.legacy_registration_id),
+            invalidData: !row.data_json || !Object.keys(data).length
           });
         }
         if (row.user_id && !family.accounts.some(item => item.id === row.user_id)) {
