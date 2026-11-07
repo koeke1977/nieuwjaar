@@ -34,6 +34,10 @@ function renderEvents(events) {
   }).join("");
 }
 
+function catalogProductRow(product = {}, index = 0) {
+  return '<div class="admin-catalog-item" data-catalog-item><div class="admin-catalog-item-fields"><label>Productnaam<input name="name" maxlength="100" required value="'+escapeHtml(product.name || "")+'" placeholder="Bijv. Steak"></label><label>Productcode<input name="id" maxlength="64" pattern="[A-Za-z0-9_-]{1,64}" required value="'+escapeHtml(product.id || "")+'" placeholder="bijv. steak"></label><label class="admin-catalog-image-field">Afbeelding (optioneel)<input name="image" maxlength="1000" value="'+escapeHtml(product.image || "")+'" placeholder="/media/products/… of https://…"></label></div><div class="admin-catalog-item-footer"><label class="admin-catalog-active"><input name="active" type="checkbox" '+(product.active === false ? "" : "checked")+'> Actief in familieportal</label><button type="button" class="button button-small button-outline" data-remove-catalog-item>Verwijderen</button></div></div>';
+}
+
 async function loadEvents() {
   try {
     const result = await api("/api/admin/events");
@@ -122,61 +126,40 @@ export function initAdminEventsSection() {
     const editionButton = event.target.closest("[data-edit-edition]");
     const catalogButton = event.target.closest("[data-edit-catalog]");
     if (catalogButton) {
+      const card = catalogButton.closest(".admin-event-card");
+      card.querySelector(".admin-inline-editor")?.remove();
       try {
-        const events = await api("/api/admin/events");
-        const item = (events.events || []).find(row => row.id === catalogButton.dataset.parentEvent);
+        const result = await api("/api/admin/events");
+        const item = (result.events || []).find(row => row.id === catalogButton.dataset.parentEvent);
         const edition = item?.editions.find(row => row.id === catalogButton.dataset.editCatalog);
-        if (!edition) return;
-        const catalog = [...(edition.catalog || [])].map(product => ({...product}));
-        let editing = true;
-        while (editing) {
-          const overview = catalog.length
-            ? catalog.map((product, index) => (index + 1)+". "+product.name+" ["+product.id+"] · "+(product.active === false ? "uitgeschakeld" : "actief")).join("\\n")
-            : "De catalogus is nog leeg.";
-          const action = window.prompt("CATALOGUS · "+edition.label+"\\n\\n"+overview+"\\n\\nTyp: + = product toevoegen, nummer = wijzigen, -nummer = verwijderen, klaar = opslaan", " +");
-          if (action === null || action.trim().toLowerCase() === "klaar") { editing = false; continue; }
-          const command = action.trim().toLowerCase();
-          if (command === "+") {
-            const name = window.prompt("Naam van het product:");
-            if (name === null) continue;
-            const cleanName = name.trim();
-            if (!cleanName) { window.alert("Geef het product een naam."); continue; }
-            const suggestedId = cleanName.normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 64);
-            const id = window.prompt("Unieke productcode:", suggestedId);
-            if (id === null) continue;
-            if (catalog.some(product => product.id === id.trim())) { window.alert("Die productcode bestaat al."); continue; }
-            const image = window.prompt("Afbeelding (optioneel: HTTPS-url of pad zoals /images/steak.jpg):", "");
-            if (image === null) continue;
-            catalog.push({id:id.trim(),name:cleanName,image:image.trim(),active:true});
-            continue;
-          }
-          if (/^-\\d+$/.test(command)) {
-            const index = Number(command.slice(1))-1;
-            if (!catalog[index]) { window.alert("Dat productnummer bestaat niet."); continue; }
-            if (window.confirm("Product '"+catalog[index].name+"' definitief uit deze catalogus verwijderen?")) catalog.splice(index,1);
-            continue;
-          }
-          if (/^\\d+$/.test(command)) {
-            const index = Number(command)-1, product = catalog[index];
-            if (!product) { window.alert("Dat productnummer bestaat niet."); continue; }
-            const name = window.prompt("Productnaam:",product.name);
-            if (name === null) continue;
-            const image = window.prompt("Afbeelding (leeg = geen afbeelding):",product.image || "");
-            if (image === null) continue;
-            const active = window.confirm("Product actief tonen in de familieportal? Kies Annuleren om het uit te schakelen.");
-            catalog[index] = {...product,name:name.trim(),image:image.trim(),active};
-            continue;
-          }
-          window.alert("Gebruik +, een productnummer, - gevolgd door een nummer of klaar.");
-        }
-        if (catalog.length > 200) throw new Error("Een catalogus mag maximaal 200 producten bevatten.");
-        await api("/api/admin/events/"+encodeURIComponent(item.id)+"/editions/"+encodeURIComponent(edition.id)+"/catalog", {method:"PUT",body:JSON.stringify({catalog})});
-        feedback("Catalogus van "+edition.label+" opgeslagen.");
-        await loadEvents();
+        if (!edition) { feedback("Editie niet gevonden. Vernieuw de pagina en probeer opnieuw.", true); return; }
+        const editor = document.createElement("form");
+        editor.className = "admin-inline-editor admin-catalog-editor";
+        editor.dataset.updateCatalog = edition.id;
+        editor.dataset.parentEvent = item.id;
+        const products = edition.catalog || [];
+        const rows = products.map((product,index) => catalogProductRow(product,index)).join("");
+        editor.innerHTML = '<div class="admin-catalog-editor-heading"><div><strong>Productcatalogus · '+escapeHtml(edition.label)+'</strong><p>Beheer de producten, afbeeldingen en zichtbaarheid voor deze editie.</p></div><button type="button" class="button button-small button-outline" data-add-catalog-item>+ Product toevoegen</button></div><div class="admin-catalog-items" data-catalog-items>'+rows+'</div><div class="admin-inline-actions"><button class="button button-small button-dark" type="submit">Catalogus opslaan</button><button class="button button-small button-outline" type="button" data-cancel-inline-edit>Annuleren</button></div>';
+        card.append(editor);
+        editor.scrollIntoView({behavior:"smooth",block:"nearest"});
       } catch (error) { feedback(error.message, true); }
+      return;
     }
     if (event.target.closest("[data-cancel-inline-edit]")) {
       event.target.closest(".admin-inline-editor")?.remove();
+      return;
+    }
+    if (event.target.closest("[data-add-catalog-item]")) {
+      const editor = event.target.closest(".admin-catalog-editor");
+      const list = editor?.querySelector("[data-catalog-items]");
+      if (list) {
+        list.insertAdjacentHTML("beforeend", catalogProductRow({active:true}, list.children.length));
+        list.lastElementChild?.querySelector('[name="name"]')?.focus();
+      }
+      return;
+    }
+    if (event.target.closest("[data-remove-catalog-item]")) {
+      event.target.closest("[data-catalog-item]")?.remove();
       return;
     }
     if (eventButton) {
@@ -216,6 +199,32 @@ export function initAdminEventsSection() {
     }
   });
   root.querySelector("[data-admin-events-list]").addEventListener("submit", async event => {
+    const catalogEditor = event.target.closest("[data-update-catalog]");
+    if (catalogEditor) {
+      event.preventDefault();
+      const form = event.target;
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const catalog = [...form.querySelectorAll("[data-catalog-item]")].map(row => ({
+          id: row.querySelector('[name="id"]').value.trim(),
+          name: row.querySelector('[name="name"]').value.trim(),
+          image: row.querySelector('[name="image"]').value.trim(),
+          active: row.querySelector('[name="active"]').checked
+        }));
+        if (catalog.length > 200) throw new Error("Een catalogus mag maximaal 200 producten bevatten.");
+        const ids = catalog.map(product => product.id);
+        if (new Set(ids).size !== ids.length) throw new Error("Elke productcode moet uniek zijn binnen deze catalogus.");
+        if (catalog.some(product => !product.id || !product.name)) throw new Error("Vul voor elk product een naam en productcode in.");
+        await api("/api/admin/events/"+encodeURIComponent(form.dataset.parentEvent)+"/editions/"+encodeURIComponent(form.dataset.updateCatalog)+"/catalog", {method:"PUT",body:JSON.stringify({catalog})});
+        feedback("Catalogus opgeslagen.");
+        await loadEvents();
+      } catch (error) {
+        feedback(error.message, true);
+        button.disabled = false;
+      }
+      return;
+    }
     const eventEditor = event.target.closest("[data-update-event]");
     const editionEditor = event.target.closest("[data-update-edition]");
     if (eventEditor || editionEditor) {
