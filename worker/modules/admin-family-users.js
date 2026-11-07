@@ -71,6 +71,16 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     } catch {
       return json({ error: "Deze inschrijving is al aan dit account gekoppeld." }, 409);
     }
+    // Keep the normalized family membership in sync once the registration has been backfilled.
+    try {
+      const relational = await env.DB.prepare("SELECT family_id FROM event_registrations WHERE legacy_environment = ? AND legacy_registration_id = ?").bind(environment, registrationId).first();
+      if (relational?.family_id) {
+        await env.DB.prepare("INSERT OR IGNORE INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, 'editor', ?)")
+          .bind("legacy-membership-" + environment + "-" + registrationId + "-" + user.id, relational.family_id, user.id, now).run();
+      }
+    } catch (error) {
+      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+    }
     if (user.status === "active") return json({ created: true, invited: false, userId: user.id });
     const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
     await env.DB.prepare("UPDATE family_user_invites SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL").bind(now, user.id).run();
