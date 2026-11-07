@@ -164,7 +164,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     // Access is per family (membership); a family has one registration per edition.
     // Archived editions are history and are not shown in the portal.
     const result = await env.DB.prepare(
-      "SELECT er.id AS registration_id, er.edition_id, er.data_json, er.updated_at, d.label AS edition_label, d.status AS edition_status, d.config_json, e.name AS event_name, e.finance_strategy, fm.role AS membership_role FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id AND er.status = 'active' JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE fm.user_id = ? AND d.status != 'archived' ORDER BY d.created_at DESC, e.name"
+      "SELECT er.id AS registration_id, er.edition_id, er.data_json, er.updated_at, d.label AS edition_label, d.status AS edition_status, d.starts_at, d.config_json, e.name AS event_name, e.finance_strategy, fm.role AS membership_role FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id AND er.status = 'active' JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE fm.user_id = ? AND d.status != 'archived' ORDER BY d.created_at DESC, e.name"
     ).bind(session.user_id).all();
     const registrations = [];
     for (const row of result.results || []) {
@@ -181,6 +181,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
         edition: row.edition_id,
         editionLabel: row.edition_label || "Editie",
         editionStatus: row.edition_status,
+        startsAt: row.starts_at || null,
         event: row.event_name || "Evenement",
         accessRole: row.membership_role || "viewer",
         registration: own,

@@ -137,6 +137,10 @@ export async function saveEditionState(env, editionId, body, now) {
   if (base.editionId !== editionId) return { status: 400, error: "De gegevens horen bij een andere editie." };
 
   const eventName = validName(data.eventName, 100), editionLabel = validName(data.editionLabel, 100);
+  // Date and time of the edition (local time, e.g. "2026-12-31T20:00"), used for the countdown.
+  const startsAt = data.startsAt == null || data.startsAt === "" ? null
+    : typeof data.startsAt === "string" && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(data.startsAt) && !Number.isNaN(Date.parse(data.startsAt)) ? data.startsAt : undefined;
+  if (startsAt === undefined) return { status: 400, error: "Controleer de datum en het uur van de editie." };
   const catalog = cleanCatalog(data.catalog);
   if (!eventName || !editionLabel || !catalog || !Array.isArray(data.registrations) || data.registrations.length > 500 || typeof data.costsFinalized !== "boolean") {
     return { status: 400, error: "Controleer de naam van het evenement, de editie en de producten." };
@@ -163,11 +167,11 @@ export async function saveEditionState(env, editionId, body, now) {
   if (!same(base.eventName, eventName)) {
     statements.push(env.DB.prepare("UPDATE events SET name = ?, updated_at = ? WHERE id = ?").bind(eventName, now, current.event_id));
   }
-  if (!same(base.editionLabel, editionLabel) || !same(base.catalog, catalog)) {
+  if (!same(base.editionLabel, editionLabel) || !same(base.catalog, catalog) || !same(base.startsAt ?? null, startsAt)) {
     statements.push(guard(env, "SELECT 1 FROM event_editions WHERE id = ? AND updated_at = ?", editionId, Number(base.configRevision) || 0));
     const config = parse(current.config_json, {}) || {};
     config.catalog = catalog;
-    statements.push(env.DB.prepare("UPDATE event_editions SET label = ?, config_json = ?, updated_at = ? WHERE id = ?").bind(editionLabel, JSON.stringify(config), nextRevision, editionId));
+    statements.push(env.DB.prepare("UPDATE event_editions SET label = ?, config_json = ?, starts_at = ?, updated_at = ? WHERE id = ?").bind(editionLabel, JSON.stringify(config), startsAt, nextRevision, editionId));
   }
 
   // Registrations: insert new, update changed, cancel removed

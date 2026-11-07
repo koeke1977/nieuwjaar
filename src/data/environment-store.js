@@ -25,6 +25,7 @@ export function payloadFrom(source) {
     editionId: source.editionId,
     eventName: source.eventName,
     editionLabel: source.editionLabel,
+    startsAt: source.startsAt || null,
     catalog: (source.catalog || []).map(productPayload),
     registrations: (source.registrations || []).map(registrationPayload),
     expenses: clone(source.expenses || []),
@@ -42,6 +43,7 @@ export function currentPayload() {
     editionId: state.activeEditionId,
     eventName: state.eventName,
     editionLabel: state.activeEvent?.name,
+    startsAt: state.startsAt,
     catalog: state.catalog,
     registrations: state.registrations,
     expenses: state.expenses,
@@ -69,6 +71,7 @@ export function applyEdition(edition, { keepUi = true } = {}) {
   state.activeEvent = { id: edition.editionId, name: edition.editionLabel, status: edition.editionStatus || state.activeEvent?.status || "open" };
   if (edition.editionStatus) state.editionStatus = edition.editionStatus;
   if (edition.financeStrategy) state.financeStrategy = edition.financeStrategy;
+  state.startsAt = edition.startsAt || null;
   state.catalog = clone(edition.catalog || []);
   state.registrations = clone(edition.registrations || []).map(reg => ({
     ...reg,

@@ -317,6 +317,7 @@ async function handleSubmit(event) {
     if (!eventName || !editionName) { window.alert("Vul de naam van het evenement en van de editie in."); return; }
     state.eventName = eventName;
     state.activeEvent = { ...state.activeEvent, name: editionName };
+    state.startsAt = (form.elements.startsAt?.value || "").slice(0, 16) || null;
     renderApp();
     flushAdminState().then(loadEvents).then(renderApp).catch(error => window.alert(error.message));
     return;

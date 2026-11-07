@@ -13,6 +13,23 @@ const formatDate = value => {
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("nl-BE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 };
 import { DIET_OPTIONS, NOTE_MAX, hasDiet } from "../../utils/diet.js";
+import { countdownState, calendarUrl, formatEventDate } from "./countdown.js";
+
+// Countdown card on the overview; numbers are refreshed every second by family-auth.js.
+function countdownCard(item) {
+  const state = countdownState(item.startsAt, item.event || "het feest");
+  if (!state || state.phase === "over") return "";
+  const p = state.parts;
+  const clock = p ? '<div class="fa-count-clock" aria-hidden="true">' + [[p.days, "dagen"], [p.hours, "uur"], [p.minutes, "min"], [p.seconds, "sec"]].map(([n, label], i) => '<span><b data-count-part="' + i + '">' + String(n).padStart(i ? 2 : 1, "0") + '</b><small>' + label + '</small></span>').join("") + '</div>' : "";
+  const calendar = calendarUrl(item.startsAt, (item.event || "Feest") + " " + (item.editionLabel || ""));
+  return '<section class="fa-countdown fa-countdown-' + state.phase + '" data-countdown="' + esc(item.startsAt) + '" data-countdown-event="' + esc(item.event || "het feest") + '">' +
+    '<p class="fa-eyebrow">' + esc(formatEventDate(item.startsAt)) + '</p><h3 data-count-text>' + esc(state.text) + '</h3>' + clock +
+    (state.phase === "now" ? "" : '<a class="fa-btn fa-btn-small" href="' + calendar + '" download="' + esc((item.event || "feest").toLowerCase().replace(/[^a-z0-9]+/g, "-")) + '.ics">📅 In mijn agenda zetten</a>') + '</section>';
+}
+function countdownChip(item) {
+  const state = countdownState(item.startsAt, item.event || "het feest");
+  return state && state.phase !== "over" ? '<span class="fa-chip fa-chip-count" data-countdown-chip="' + esc(item.startsAt) + '">' + esc(state.short) + '</span>' : "";
+}
 const dietChips = person => hasDiet(person)
   ? '<div class="fa-diet">' + (person.diet || []).map(item => '<span>' + esc(item) + '</span>').join("") + (person.notes ? '<em>' + esc(person.notes) + '</em>' : "") + '</div>' : "";
 const METHOD_CHOICES = [["general", "Algemeen — iedereen, ook kinderen (zaal, decoratie, frisdrank)"], ["adults", "18+ — alleen volwassenen (alcohol, cava)"], ["meat", "Vlees — volgens bestelde porties"]];
@@ -56,7 +73,7 @@ function renderOverview(item) {
   const finance = item.finance;
   const portions = members.reduce((sum, person) => sum + portionsOf(person), 0);
   const adults = members.filter(person => person.type === "Volwassene").length;
-  return settlementHero(finance) +
+  return settlementHero(finance) + countdownCard(item) +
     '<div class="fa-stats">' +
       '<button type="button" class="fa-stat" data-tab-target="family"><strong>' + members.length + '</strong><small>' + (members.length === 1 ? "deelnemer" : "deelnemers") + '</small><em>' + adults + ' volw. · ' + (members.length - adults) + ' kind.</em></button>' +
       '<button type="button" class="fa-stat" data-tab-target="order"><strong>' + portions + '</strong><small>vleesporties</small><em>Bestelling aanpassen</em></button>' +
@@ -233,7 +250,7 @@ export function renderEvent(item, view) {
   const tab = TABS.some(entry => entry.id === view.tab) ? view.tab : "overview";
   const body = tab === "family" ? renderFamily(item, view) : tab === "order" ? renderOrder(item, view) : tab === "costs" ? renderCosts(item, view) : renderOverview(item);
   return '<section class="fa-event" data-registration="' + esc(item.registration.id) + '">' +
-    '<header class="fa-event-head"><div><p class="fa-eyebrow">' + esc(item.event || "Evenement") + (item.editionLabel ? " · " + esc(item.editionLabel) : "") + '</p><h2>' + esc(item.registration.name || "Jullie inschrijving") + '</h2></div>' + statusChip(item.finance) + '</header>' +
+    '<header class="fa-event-head"><div><p class="fa-eyebrow">' + esc(item.event || "Evenement") + (item.editionLabel ? " · " + esc(item.editionLabel) : "") + '</p><h2>' + esc(item.registration.name || "Jullie inschrijving") + '</h2></div><div class="fa-head-chips">' + countdownChip(item) + statusChip(item.finance) + '</div></header>' +
     '<nav class="fa-tabs" role="tablist" aria-label="Onderdelen">' + TABS.map(entry => '<button type="button" role="tab" data-tab="' + entry.id + '" aria-selected="' + (entry.id === tab) + '">' + entry.label + '</button>').join("") + '</nav>' +
     '<div class="fa-tab-body" role="tabpanel">' + body + '</div></section>';
 }

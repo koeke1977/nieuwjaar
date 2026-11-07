@@ -21,7 +21,7 @@ function setup() {
 }
 const clone = value => JSON.parse(JSON.stringify(value));
 const payload = state => ({
-  editionId: state.editionId, eventName: state.eventName, editionLabel: state.editionLabel, catalog: state.catalog,
+  editionId: state.editionId, eventName: state.eventName, editionLabel: state.editionLabel, startsAt: state.startsAt, catalog: state.catalog,
   registrations: state.registrations, expenses: state.expenses, payments: state.payments,
   costsFinalized: state.costsFinalized, costsFinalizedAt: state.costsFinalizedAt,
   financeRevision: state.financeRevision, configRevision: state.configRevision
@@ -154,4 +154,13 @@ test("a family can be registered again after being unregistered from the same ed
   assert.ok(again, "family B is registered again");
   assert.equal(again.members[0].orders.steak, 2);
   assert.equal(DB.raw.prepare("SELECT COUNT(*) n FROM event_registrations WHERE family_id = 'fb'").get().n, 1, "the old row is reused");
+});
+
+test("the edition date and time are saved for the countdown", async () => {
+  const DB = setup();
+  const base = payload(await loadEditionState({ DB }, "ed1"));
+  const result = await saveEditionState({ DB }, "ed1", { base, data: { ...clone(base), startsAt: "2026-12-31T20:00" } }, NOW);
+  assert.equal(result.status, 200, result.error);
+  assert.equal(result.state.startsAt, "2026-12-31T20:00");
+  assert.equal((await saveEditionState({ DB }, "ed1", { base: payload(result.state), data: { ...payload(result.state), startsAt: "morgen" } }, NOW)).status, 400);
 });

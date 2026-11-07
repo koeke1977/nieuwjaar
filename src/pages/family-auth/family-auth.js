@@ -2,6 +2,7 @@ import template from "./family-auth.html?raw";
 import "./family-auth.css";
 import "./family-account.css";
 import { renderAccount } from "./family-account-view.js";
+import { countdownState } from "./countdown.js";
 
 const root = () => document.querySelector("#app");
 const request = async (path, body, method = "POST") => {
@@ -141,6 +142,19 @@ export async function startFamilyAuth() {
   };
   const liveRefresh = () => { if (!busy()) refreshAccount().catch(() => {}); };
   setInterval(liveRefresh, LIVE_REFRESH_MS);
+  // Countdown ticks every second without re-rendering the page.
+  setInterval(() => {
+    view.querySelectorAll("[data-countdown]").forEach(card => {
+      const state = countdownState(card.dataset.countdown, card.dataset.countdownEvent);
+      if (!state) return;
+      const text = card.querySelector("[data-count-text]");
+      if (text && text.textContent !== state.text) text.textContent = state.text;
+      if (state.parts) [state.parts.days, state.parts.hours, state.parts.minutes, state.parts.seconds].forEach((n, i) => {
+        const node = card.querySelector('[data-count-part="' + i + '"]');
+        if (node) node.textContent = String(n).padStart(i ? 2 : 1, "0");
+      });
+    });
+  }, 1000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) liveRefresh(); });
 
   view.addEventListener("click", async event => {
