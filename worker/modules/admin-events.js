@@ -84,5 +84,55 @@ export async function handleAdminEvents(request, env, url, dependencies) {
     }
   }
 
+  if (url.pathname === "/api/admin/events/backfill-preview" && request.method === "GET") {
+    try {
+      const states = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state ORDER BY environment").all();
+      const links = await env.DB.prepare("SELECT edition_id, registration_id, COUNT(*) AS account_count FROM family_user_registrations GROUP BY edition_id, registration_id").all();
+      const linkCounts = new Map((links.results || []).map(row => [row.edition_id + ":" + row.registration_id, Number(row.account_count) || 0]));
+      const environments = [];
+      let totalRegistrations = 0, linkedRegistrations = 0, orphanedLinks = 0, totalAccounts = 0;
+      for (const row of states.results || []) {
+        let data;
+        try { data = JSON.parse(row.data_json); } catch { return json({ error: "De opgeslagen gegevens van " + row.environment + " zijn geen geldige JSON. Er is niets gewijzigd." }, 500); }
+        const registrations = Array.isArray(data.registrations) ? data.registrations : [];
+        const ids = new Set(registrations.map(item => item.id));
+        const linked = registrations.filter(item => linkCounts.has(row.environment + ":" + item.id));
+        const accountCount = linked.reduce((sum, item) => sum + linkCounts.get(row.environment + ":" + item.id), 0);
+        const knownLinks = [...linkCounts.keys()].filter(key => key.startsWith(row.environment + ":"));
+        const orphaned = knownLinks.filter(key => !ids.has(key.slice(row.environment.length + 1))).length;
+        totalRegistrations += registrations.length;
+        linkedRegistrations += linked.length;
+        totalAccounts += accountCount;
+        orphanedLinks += orphaned;
+        environments.push({
+          environment: row.environment,
+          eventName: String(data.activeEvent?.name || data.activeEvent?.title || "Onbenoemd evenement"),
+          revision: row.updated_at,
+          registrations: registrations.length,
+          registrationsWithAccounts: linked.length,
+          accountLinks: accountCount,
+          registrationsWithoutAccounts: registrations.length - linked.length,
+          orphanedRegistrationLinks: orphaned
+        });
+      }
+      const users = await env.DB.prepare("SELECT COUNT(*) AS count FROM family_users").first();
+      return json({
+        readOnly: true,
+        environments,
+        totals: {
+          familyAccounts: Number(users?.count) || 0,
+          registrations: totalRegistrations,
+          registrationsWithAccounts: linkedRegistrations,
+          registrationsWithoutAccounts: totalRegistrations - linkedRegistrations,
+          accountLinks: totalAccounts,
+          orphanedRegistrationLinks: orphanedLinks
+        }
+      });
+    } catch (error) {
+      console.error("Backfill preview failed:", error);
+      return json({ error: "De migratiecontrole kon niet worden uitgevoerd. Controleer of migraties 0005 en 0007 aanwezig zijn." }, 503);
+    }
+  }
+
   return json({ error: "Niet gevonden." }, 404);
 }
