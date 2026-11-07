@@ -44,3 +44,12 @@
 .family-users-normalized .family-user-link button:disabled,.family-users-normalized .family-user-link select:disabled{opacity:.5;cursor:wait}
 .family-users-normalized-create{display:grid;gap:18px}
 .family-users-normalized-create .family-user-form+.family-user-form{padding-top:16px;border-top:1px solid var(--line,#e8e4dd)}
+
+.family-registration-details{display:grid;gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line,#e8e4dd)}
+.family-registration-member{display:grid;grid-template-columns:minmax(100px, .7fr) minmax(0,1.3fr);gap:8px;align-items:start;padding:7px 9px;border-radius:8px;background:#fff}
+.family-registration-member>span{display:flex;flex-direction:column;gap:2px}
+.family-registration-member>span small,.family-registration-orders small{font-size:11px;color:var(--muted,#777)}
+.family-registration-orders{display:flex;flex-wrap:wrap;gap:5px}
+.family-registration-order{padding:3px 7px;border-radius:6px;background:var(--surface-soft,#f7f6f2);font-size:11px;color:var(--ink,#292720)}
+@media(max-width:520px){.family-registration-member{grid-template-columns:1fr;gap:5px}}
+
