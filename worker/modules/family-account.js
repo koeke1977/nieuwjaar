@@ -289,7 +289,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       }));
       registrations.push({
         edition: link.edition_id,
-        editionLabel: link.edition_label || (link.edition_id === "test" ? "Testeditie" : "Live-editie"),
+        editionLabel: link.edition_label || data.activeEvent?.name || "Editie",
         event: link.event_name || data.activeEvent?.name || data.activeEvent?.title || "Evenement",
         accessRole: link.membership_role || "editor",
         registration: {
@@ -323,7 +323,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     const body = await request.json().catch(() => null);
     const edition = body?.edition;
     const registrationId = typeof body?.registrationId === "string" ? body.registrationId : "";
-    if (typeof edition === "string" && !["test", "live"].includes(edition)) {
+    if (typeof edition === "string" && edition !== "live") {
       if (!registrationId || !Number.isSafeInteger(body?.revision) || !Array.isArray(body?.members) || body.members.length < 1 || body.members.length > 30) {
         return json({ error: "Ongeldige inschrijvingsgegevens." }, 400);
       }
@@ -379,7 +379,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       if (!Number(results?.[0]?.meta?.changes ?? 0)) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
       return json({ saved: true, revision: nextRevision, registration });
     }
-    if (!["test", "live"].includes(edition) || !registrationId || !Number.isSafeInteger(body?.revision) ||
+    if (edition !== "live" || !registrationId || !Number.isSafeInteger(body?.revision) ||
         !Array.isArray(body?.members) || body.members.length < 1 || body.members.length > 30) {
       return json({ error: "Ongeldige inschrijvingsgegevens." }, 400);
     }

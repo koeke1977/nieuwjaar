@@ -75,7 +75,7 @@ export async function startFamilyAuth() {
       item.revision = result.revision;
       item.base = sent;
       // All legacy registrations of one edition share the app_state revision.
-      if (["test", "live"].includes(item.edition)) {
+      if (item.edition === "live") {
         account.items.forEach(entry => { if (entry.edition === item.edition) entry.revision = result.revision; });
       }
     } catch (error) {

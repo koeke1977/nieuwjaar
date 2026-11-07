@@ -25,7 +25,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
 
   if (path === base && request.method === "GET") {
     const environment = url.searchParams.get("environment");
-    if (!["test", "live"].includes(environment)) return json({ error: "Ongeldige omgeving." }, 400);
+    if (environment !== "live") return json({ error: "Ongeldige omgeving." }, 400);
     let result;
     try {
       result = await env.DB.prepare(
@@ -383,7 +383,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     const displayName = typeof body?.displayName === "string" ? body.displayName.trim().slice(0, 100) : "";
     const environment = body?.environment;
     const registrationId = typeof body?.registrationId === "string" ? body.registrationId.trim() : "";
-    if (!validEmail(email) || !displayName || !["test", "live"].includes(environment) || !registrationId || registrationId.length > 120) {
+    if (!validEmail(email) || !displayName || environment !== "live" || !registrationId || registrationId.length > 120) {
       return json({ error: "Vul een geldige naam, e-mail, omgeving en inschrijving in." }, 400);
     }
     const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(environment).first();
@@ -493,36 +493,13 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
 
   if (!action && request.method === "DELETE") {
     const body = await request.json().catch(() => null);
-    if (body?.confirmEmail !== user.email || body?.removeTestRegistration !== true) {
-      return json({ error: "Bevestig het exacte e-mailadres en de opruiming van de testinschrijving." }, 400);
+    if (body?.confirmEmail !== user.email) {
+      return json({ error: "Bevestig het exacte e-mailadres om dit account te verwijderen." }, 400);
     }
-
-    const testLinks = await env.DB.prepare(
-      "SELECT registration_id FROM family_user_registrations WHERE user_id = ? AND edition_id = 'test'"
-    ).bind(userId).all();
-    const testRegistrationIds = (testLinks.results || []).map(row => row.registration_id);
-
-    if (testRegistrationIds.length) {
-      const stateRow = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = 'test'").first();
-      if (stateRow) {
-        let data;
-        try { data = JSON.parse(stateRow.data_json); }
-        catch { return json({ error: "De testeditie kon niet veilig worden gelezen. Er is niets verwijderd." }, 500); }
-        const removed = new Set(testRegistrationIds);
-        data.registrations = (data.registrations || []).filter(item => !removed.has(item.id));
-        data.payments = (data.payments || []).filter(item => !removed.has(item.registrationId));
-        data.expenses = (data.expenses || []).filter(item => !removed.has(item.advancedBy));
-        data.costsFinalized = false;
-        data.costsFinalizedAt = null;
-        const updated = await env.DB.prepare(
-          "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = 'test' AND updated_at = ? RETURNING updated_at"
-        ).bind(JSON.stringify(data), now, stateRow.updated_at).first();
-        if (!updated) return json({ error: "De testeditie is intussen gewijzigd. Herlaad het beheer en probeer opnieuw; er is geen account verwijderd." }, 409);
-      }
-    }
-
+    // Only the account and its access are removed (sessions, links and memberships cascade).
+    // The family registration, its members, orders and payments are kept.
     await env.DB.prepare("DELETE FROM family_users WHERE id = ?").bind(userId).run();
-    return json({ deleted: true, removedTestRegistrations: testRegistrationIds.length });
+    return json({ deleted: true });
   }
 
   if (!action && request.method === "PATCH") {
@@ -538,7 +515,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     const body = await request.json().catch(() => null);
     const environment = body?.environment;
     const registrationId = typeof body?.registrationId === "string" ? body.registrationId.trim() : "";
-    if (!["test", "live"].includes(environment) || !registrationId) return json({ error: "Ongeldige omgeving of inschrijving." }, 400);
+    if (environment !== "live" || !registrationId) return json({ error: "Ongeldige omgeving of inschrijving." }, 400);
     const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(environment).first();
     if (!stateRow) return json({ error: "De gekozen editie bestaat niet." }, 404);
     let data;

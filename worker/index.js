@@ -331,7 +331,7 @@ async function handleAdminApi(request, env, url) {
     const session = await adminSession(request, env);
     if (!session) return json({ error: "Niet aangemeld." }, 401);
     const environment = url.searchParams.get("environment");
-    if (!["test", "live"].includes(environment)) return json({ error: "Ongeldige omgeving." }, 400);
+    if (environment !== "live") return json({ error: "Ongeldige omgeving." }, 400);
     let rows;
     let hasTokenColumn = true;
     try {
@@ -355,7 +355,7 @@ async function handleAdminApi(request, env, url) {
     const body = await request.json().catch(() => null);
     const edition = body?.edition;
     const registrationId = typeof body?.registrationId === "string" ? body.registrationId : "";
-    if (!["test", "live"].includes(edition) || !registrationId || registrationId.length > 160) {
+    if (edition !== "live" || !registrationId || registrationId.length > 160) {
       return json({ error: "Ongeldige editie of inschrijving." }, 400);
     }
     const stateRow = await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(edition).first();
@@ -384,7 +384,7 @@ async function handleAdminApi(request, env, url) {
     if (!session) return json({ error: "Niet aangemeld." }, 401);
     const inviteId = url.pathname.slice("/api/admin/family-invites/".length);
     const environment = url.searchParams.get("environment");
-    if (!inviteId || inviteId.length > 80 || !["test", "live"].includes(environment)) return json({ error: "Ongeldige uitnodiging of omgeving." }, 400);
+    if (!inviteId || inviteId.length > 80 || environment !== "live") return json({ error: "Ongeldige uitnodiging of omgeving." }, 400);
     const now = Math.floor(Date.now() / 1000);
     const result = await env.DB.prepare("UPDATE family_invites SET revoked_at = ? WHERE id = ? AND edition_id = ? AND revoked_at IS NULL")
       .bind(now, inviteId, environment).run();
@@ -405,7 +405,7 @@ async function handleAdminApi(request, env, url) {
     if (!(file instanceof File) || !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
         file.size < 1 || file.size > 5 * 1024 * 1024 ||
         typeof productId !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(productId) ||
-        !["test", "live"].includes(environment)) {
+        environment !== "live") {
       return json({ error: "Ongeldig afbeeldingsbestand. Gebruik JPG, PNG of WebP tot 5 MB." }, 400);
     }
     const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
@@ -433,10 +433,10 @@ async function handleAdminApi(request, env, url) {
     const session = await adminSession(request, env);
     if (!session) return json({ error: "Niet aangemeld." }, 401);
     const rows = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state").all();
-    const environments = { test: null, live: null };
-    const revisions = { test: null, live: null };
+    const environments = { live: null };
+    const revisions = { live: null };
     for (const row of rows.results || []) {
-      if (row.environment === "test" || row.environment === "live") {
+      if (row.environment === "live") {
         revisions[row.environment] = row.updated_at;
         try { environments[row.environment] = JSON.parse(row.data_json); }
         catch (error) { console.error("Invalid stored app state:", row.environment, error); }
@@ -453,7 +453,7 @@ async function handleAdminApi(request, env, url) {
     const environment = body?.environment;
     const data = body?.data;
     const revision = body?.revision;
-    if (!["test", "live"].includes(environment) || !data || typeof data !== "object" || Array.isArray(data) ||
+    if (environment !== "live" || !data || typeof data !== "object" || Array.isArray(data) ||
         !data.activeEvent || typeof data.activeEvent !== "object" ||
         !Array.isArray(data.registrations) || !Array.isArray(data.expenses) ||
         !Array.isArray(data.payments) || !Array.isArray(data.catalog) ||

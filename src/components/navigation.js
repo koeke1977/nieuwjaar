@@ -12,7 +12,3 @@ function renderNavigation(links, activeSection) {
 export const renderUserNavigation = activeSection => renderNavigation([
   ["overview","⌂","Overzicht"],["family","♧","Gezin"],["meat","♨","Vlees"],["balance","€","Afrekening"]
 ], activeSection);
-export const renderAdminNavigation = activeSection => renderNavigation([
-  ["overview","▦","Dashboard"],["users","♙","Gebruikers"],["events","▦","Evenementen"],["registrations","♧","Deelnemers"],["catalog","▧","Vleescatalogus"],["meat","♨","BBQ-overzicht"],
-  ["payments","€","Betalingen"],["expenses","＋","Kosten & voorschotten"],["settlement","◎","Eindafrekening"],["editions","◷","Edities"]
-], activeSection);

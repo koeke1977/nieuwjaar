@@ -2,8 +2,8 @@ import { state } from "../data/demo-data.js";
 import { getPersistableEnvironmentData, restorePersistedEnvironmentData, applyLatestEnvironmentData } from "../data/environment-store.js";
 import { mergeEditionState } from "../utils/state-merge.js";
 
-let revisions = { test: null, live: null };
-let lastSaved = { test: null, live: null };
+let revisions = { live: null };
+let lastSaved = { live: null };
 const MAX_MERGE_ATTEMPTS = 3;
 
 async function fetchState() {
@@ -16,13 +16,9 @@ async function fetchState() {
 export async function loadAdminState() {
   const result = await fetchState();
   restorePersistedEnvironmentData(result.environments);
-  revisions = { test: result.revisions?.test ?? null, live: result.revisions?.live ?? null };
+  revisions = { live: result.revisions?.live ?? null };
   // Compare against what the client would persist, so loading alone never triggers a save.
-  const snapshot = getPersistableEnvironmentData();
-  lastSaved = {
-    test: result.environments?.test ? JSON.stringify(snapshot.test) : null,
-    live: result.environments?.live ? JSON.stringify(snapshot.live) : null
-  };
+  lastSaved = { live: result.environments?.live ? JSON.stringify(getPersistableEnvironmentData().live) : null };
   return result;
 }
 
@@ -60,7 +56,7 @@ async function putState(environment, data, revision) {
 
 export async function saveAdminState() {
   const environment = state.activeEnvironment;
-  if (!["test", "live"].includes(environment)) throw new Error("Ongeldige opslagomgeving.");
+  if (environment !== "live") throw new Error("Ongeldige opslagomgeving.");
   let mine = getPersistableEnvironmentData()[environment];
   let serialized = JSON.stringify(mine);
   if (serialized === lastSaved[environment]) return { saved: true, unchanged: true, revision: revisions[environment] };
