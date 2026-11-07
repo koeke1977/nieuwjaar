@@ -134,5 +134,69 @@ export async function handleAdminEvents(request, env, url, dependencies) {
     }
   }
 
+  if (url.pathname === "/api/admin/events/backfill" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    if (body?.confirm !== "MIGRATE LEGACY DATA") {
+      return json({ error: "Expliciete bevestiging ontbreekt. Er is niets gewijzigd." }, 400);
+    }
+    try {
+      const states = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state ORDER BY environment").all();
+      const links = await env.DB.prepare("SELECT user_id, edition_id, registration_id, created_at FROM family_user_registrations ORDER BY id").all();
+      const linkRows = links.results || [];
+      const linkUsers = new Set(linkRows.map(row => row.user_id));
+      const users = await env.DB.prepare("SELECT id FROM family_users").all();
+      const knownUsers = new Set((users.results || []).map(row => row.id));
+      if (linkRows.some(row => !knownUsers.has(row.user_id))) {
+        return json({ error: "Er bestaan accountkoppelingen naar ontbrekende accounts. Herstel die eerst; er is niets gewijzigd." }, 409);
+      }
+      const statements = [];
+      const now = Math.floor(Date.now() / 1000);
+      const migrated = [];
+      for (const row of states.results || []) {
+        if (!["test", "live"].includes(row.environment)) continue;
+        let data;
+        try { data = JSON.parse(row.data_json); } catch {
+          return json({ error: "De opgeslagen gegevens van " + row.environment + " zijn geen geldige JSON. Er is niets gewijzigd." }, 500);
+        }
+        const envId = row.environment;
+        const eventId = "legacy-event-" + envId;
+        const editionId = "legacy-edition-" + envId;
+        const eventName = String(data.activeEvent?.name || data.activeEvent?.title || (envId === "live" ? "Nieuwjaar" : "Nieuwjaar (test)")).slice(0,100);
+        const financeStrategy = "nieuwjaar";
+        statements.push(env.DB.prepare("INSERT OR IGNORE INTO events (id, slug, name, description, finance_strategy, settings_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, '{}', 'active', ?, ?)")
+          .bind(eventId, "nieuwjaar-" + envId, eventName, "Overgenomen uit de bestaande " + envId + "-omgeving.", financeStrategy, now, now));
+        statements.push(env.DB.prepare("INSERT OR IGNORE INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES (?, ?, ?, 'open', '{}', ?, ?)")
+          .bind(editionId, eventId, eventName, now, now));
+        statements.push(env.DB.prepare("INSERT OR IGNORE INTO edition_finance_snapshots (edition_id, expenses_json, payments_json, costs_finalized, costs_finalized_at, source_environment, source_revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .bind(editionId, JSON.stringify(data.expenses || []), JSON.stringify(data.payments || []), data.costsFinalized ? 1 : 0, data.costsFinalizedAt || null, envId, row.updated_at, now, now));
+        const registrations = Array.isArray(data.registrations) ? data.registrations : [];
+        for (const registration of registrations) {
+          if (!registration || typeof registration.id !== "string" || !registration.id) {
+            return json({ error: "Een inschrijving in " + envId + " heeft geen geldige ID. Er is niets gewijzigd." }, 400);
+          }
+          const familyId = "legacy-family-" + envId + "-" + registration.id;
+          const registrationId = "legacy-registration-" + envId + "-" + registration.id;
+          const displayName = String(registration.name || "Inschrijving").slice(0,160);
+          statements.push(env.DB.prepare("INSERT OR IGNORE INTO families (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)")
+            .bind(familyId, displayName, now, now));
+          statements.push(env.DB.prepare("INSERT OR IGNORE INTO event_registrations (id, edition_id, family_id, status, data_json, legacy_environment, legacy_registration_id, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)")
+            .bind(registrationId, editionId, familyId, JSON.stringify(registration), envId, registration.id, now, now));
+          for (const link of linkRows.filter(item => item.edition_id === envId && item.registration_id === registration.id)) {
+            statements.push(env.DB.prepare("INSERT OR IGNORE INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, 'editor', ?)")
+              .bind("legacy-membership-" + envId + "-" + registration.id + "-" + link.user_id, familyId, link.user_id, link.created_at || now));
+          }
+        }
+        migrated.push({ environment: envId, registrations: registrations.length, accountLinks: linkRows.filter(item => item.edition_id === envId).length, sourceRevision: row.updated_at });
+      }
+      if (!migrated.length) return json({ error: "Geen bestaande omgevingen gevonden om over te nemen." }, 404);
+      // D1 batch is transactional: all inserts succeed together or none are committed.
+      await env.DB.batch(statements);
+      return json({ migrated, statements: statements.length, sourceDataPreserved: true });
+    } catch (error) {
+      console.error("Legacy data backfill failed:", error);
+      return json({ error: "De gegevensovername is mislukt. Controleer de database en herhaal de controle; de bestaande app_state is niet aangepast." }, 503);
+    }
+  }
+
   return json({ error: "Niet gevonden." }, 404);
 }
