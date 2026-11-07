@@ -1,10 +1,10 @@
 import { startFamilyAuth } from "./pages/family-auth/family-auth.js";
-import { state } from "./data/demo-data.js";
+import { state } from "./data/admin-store.js";
 import { renderBeheer, normalizeSection, setBeheerAccounts, setBeheerFamilies, MESSAGE_TEMPLATES, barBalance } from "./pages/beheer/beheer-view.js";
 import "./pages/beheer/beheer.css";
 import { money } from "./utils/format.js";
 import { isMemberType, EVENING } from "./utils/member-types.js";
-import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
+import { getExpenseShares, getFinancialSummary, SHARED_FUND } from "./utils/finance.js";
 import { loadAdminState, loadEdition, loadEvents, saveAdminState, refreshAdminStateIfChanged, startNextEdition, createEvent } from "./services/admin-state.js";
 
 const markCostsProvisional = () => { state.costsFinalized = false; state.costsFinalizedAt = null; };
@@ -482,7 +482,7 @@ async function handleSubmit(event) {
     const description = form.elements.description.value.trim();
     const amount = Number(form.elements.amount.value), amountCents = Math.round(amount * 100);
     const date = form.elements.date.value, method = form.elements.method.value, advancedBy = form.elements.advancedBy.value;
-    if (!description || !Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amountCents) || !date || !advancedBy || !["general", "adults", "meat", "bar"].includes(method) || !(advancedBy === "kas" || state.registrations.some(item => item.id === advancedBy))) {
+    if (!description || !Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amountCents) || !date || !advancedBy || !["general", "adults", "meat", "bar"].includes(method) || !(advancedBy === SHARED_FUND || state.registrations.some(item => item.id === advancedBy))) {
       window.alert("Controleer de omschrijving, het bedrag, de datum, de verdeelsleutel en wie voorschoot."); return;
     }
     const existing = id === "edit-expense-form" ? state.expenses.find(item => item.id === state.editingExpenseId) : null;

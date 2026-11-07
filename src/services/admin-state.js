@@ -1,5 +1,5 @@
-import { state } from "../data/demo-data.js";
-import { applyEdition, currentPayload, payloadFrom } from "../data/environment-store.js";
+import { state } from "../data/admin-store.js";
+import { applyEdition, currentPayload, payloadFrom } from "../data/edition-payload.js";
 import { mergeEditionState } from "../utils/state-merge.js";
 
 // Persistence for the admin: events overview plus one loaded edition.

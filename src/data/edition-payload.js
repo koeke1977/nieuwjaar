@@ -1,4 +1,4 @@
-import { state } from "./demo-data.js";
+import { state } from "./admin-store.js";
 
 // The admin works on one event edition at a time (state.activeEditionId), loaded from
 // /api/admin/editions/:id/state. This module maps between that API shape and the admin

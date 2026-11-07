@@ -9,21 +9,18 @@
 //   PATCH  /api/admin/family-users/:id                  block / unblock
 //   DELETE /api/admin/family-users/:id                  delete account (family data is kept)
 
+import { esc } from "../../src/utils/html.js";
+
 const INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, char => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  })[char]);
-}
 
 function validEmail(value) {
   return typeof value === "string" && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function inviteMail(displayName, familyName, inviteUrl) {
-  return '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Welkom in het familieportaal</h2><p>Dag ' + escapeHtml(displayName) + ',</p>' +
-    (familyName ? '<p>Je bent uitgenodigd voor het gezin <strong>' + escapeHtml(familyName) + '</strong>. Daar kan je jullie gezinsleden en bestellingen beheren en de afrekening volgen.</p>' : "") +
+  return '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Welkom in het familieportaal</h2><p>Dag ' + esc(displayName) + ',</p>' +
+    (familyName ? '<p>Je bent uitgenodigd voor het gezin <strong>' + esc(familyName) + '</strong>. Daar kan je jullie gezinsleden en bestellingen beheren en de afrekening volgen.</p>' : "") +
     '<p><a href="' + inviteUrl + '">Activeer je account</a> en kies zelf een wachtwoord.</p><p>Deze link is 7 dagen geldig.</p></div>';
 }
 

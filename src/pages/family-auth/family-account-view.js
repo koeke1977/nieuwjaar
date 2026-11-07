@@ -1,17 +1,10 @@
+import { esc, euro, plural, formatDate } from "../../utils/html.js";
+import { COST_SHORT, COST_ICON } from "../../utils/finance.js";
 // Rendering of the signed-in family portal. Pure functions: data in, HTML string out.
 // All figures come from the server-side finance breakdown (amounts in cents).
 
-const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-const euroFormat = new Intl.NumberFormat("nl-BE", { style: "currency", currency: "EUR" });
 const percentFormat = new Intl.NumberFormat("nl-BE", { style: "percent", maximumFractionDigits: 1 });
-export const euro = cents => euroFormat.format((Number(cents) || 0) / 100);
-const plural = (count, [one, many]) => count + " " + (count === 1 ? one : many);
 const portionsOf = person => Object.values(person?.orders || {}).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
-const formatDate = value => {
-  if (!value || !/^\d{4}-\d{2}-\d{2}/.test(value)) return "";
-  const [y, m, d] = value.slice(0, 10).split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("nl-BE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-};
 import { DIET_OPTIONS, NOTE_MAX, hasDiet } from "../../utils/diet.js";
 import { countdownState, formatEventDate } from "./countdown.js";
 import { ordersClosed, localToDate } from "../../utils/time.js";
@@ -51,7 +44,6 @@ export const TABS = [
 ];
 
 const UNITS = { general: ["persoon", "personen"], adults: ["volwassene", "volwassenen"], meat: ["portie", "porties"], bar: ["persoon", "personen"] };
-const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖", bar: "🍺" };
 
 function statusChip(finance) {
   if (!finance) return "";
@@ -90,7 +82,6 @@ function renderOverview(item) {
     (members.length ? "" : '<p class="fa-empty">Voeg eerst jullie gezinsleden toe via <button type="button" class="fa-inline-link" data-tab-target="family">Gezin</button>.</p>');
 }
 
-const SHORT_LABEL = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" };
 
 // Per-person cost from the server breakdown; null while a new person is not yet saved.
 function memberCost(item, personId) {
@@ -105,7 +96,7 @@ function memberCostDetail(item, person) {
   const parts = item.finance.categories.map(category => {
     if (category.method === "adults" && person.type !== "Volwassene") return "";
     if (person.type === EVENING && category.method !== "bar") return "";
-    return '<span>' + SHORT_LABEL[category.method] + ' <b>' + euro(cost.byMethod[category.method]) + '</b></span>';
+    return '<span>' + COST_SHORT[category.method] + ' <b>' + euro(cost.byMethod[category.method]) + '</b></span>';
   }).filter(Boolean).join("");
   return parts ? '<div class="fa-cost-parts">' + parts + '</div>' : "";
 }
@@ -210,7 +201,7 @@ function renderOwnCosts(item, view) {
     (expense?.receipt ? '<a class="fa-inline-link" href="' + receiptUrl(expense.receipt) + '" target="_blank" rel="noopener">📎 Huidig kasticket bekijken</a>' : "") +
     '<div class="fa-row-actions"><button type="submit" class="fa-btn fa-btn-primary">' + (expense ? "Bewaren" : "Kost toevoegen") + '</button>' + (expense ? '<button type="button" class="fa-btn" data-action="cancel-edit-expense">Annuleren</button>' : "") + '</div></form>';
   const rows = own.map(expense => view.editingExpenseId === expense.id ? '<li>' + form(expense) + '</li>'
-    : '<li><span><strong>' + esc(expense.description) + '</strong><small>' + esc(formatDate(expense.date)) + ' · ' + esc((COST_LABELS[expense.method] || "")) + (expense.enteredByFamily ? "" : " · ingevoerd door de organisatie") + '</small>' + (expense.receipt ? '<a class="fa-inline-link" href="' + receiptUrl(expense.receipt) + '" target="_blank" rel="noopener">📎 Kasticket</a>' : "") + '</span><span class="fa-own-end"><b>' + euro(expense.amountCents) + '</b>' +
+    : '<li><span><strong>' + esc(expense.description) + '</strong><small>' + esc(formatDate(expense.date)) + ' · ' + esc((COST_SHORT[expense.method] || "")) + (expense.enteredByFamily ? "" : " · ingevoerd door de organisatie") + '</small>' + (expense.receipt ? '<a class="fa-inline-link" href="' + receiptUrl(expense.receipt) + '" target="_blank" rel="noopener">📎 Kasticket</a>' : "") + '</span><span class="fa-own-end"><b>' + euro(expense.amountCents) + '</b>' +
       (expense.enteredByFamily ? '<button type="button" class="fa-btn fa-btn-small" data-action="edit-expense" data-id="' + esc(expense.id) + '">Wijzigen</button><button type="button" class="fa-btn fa-btn-small fa-btn-quiet" data-action="delete-expense" data-id="' + esc(expense.id) + '">Verwijderen</button>' : "") + '</span></li>').join("");
   return '<div class="fa-section-head"><h3>Kosten die jullie betaalden</h3><p>Schoten jullie iets voor (cash)? Voeg het hier toe. Het wordt verdeeld over alle deelnemers en verrekend in jullie afrekening. De organisatie kan het nog aanpassen.</p></div>' +
     (rows ? '<ul class="fa-own-costs">' + rows + '</ul>' : "") +
@@ -218,7 +209,6 @@ function renderOwnCosts(item, view) {
 }
 
 const receiptUrl = key => "/api/family-account/receipts?key=" + encodeURIComponent(key);
-const COST_LABELS = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" };
 
 function renderCosts(item, view = {}) {
   const finance = item.finance;
@@ -232,7 +222,7 @@ function renderCosts(item, view = {}) {
       '<li><span>' + esc(expense.description) + (expense.date ? ' <small>' + esc(formatDate(expense.date)) + '</small>' : "") + (expense.advancedByUs ? ' <em class="fa-tag">voorgeschoten door jullie</em>' : "") + '</span><span class="fa-amounts"><small>' + euro(expense.amountCents) + '</small><b>' + euro(expense.familyCents) + '</b></span></li>'
     ).join("");
     const head = category.personal ? '<li class="fa-cost-lines-head"><span>Persoon</span><span class="fa-amounts"><small></small><b>Barrekening</b></span></li>' : '<li class="fa-cost-lines-head"><span>Kost</span><span class="fa-amounts"><small>Totaal</small><b>Jullie deel</b></span></li>';
-    return '<article class="fa-cost-card"><header><span class="fa-cost-icon" aria-hidden="true">' + (METHOD_ICON[category.method] || "€") + '</span><div><h4>' + esc(category.label) + '</h4><small>' + esc(category.appliesTo) + '</small></div><strong>' + euro(category.familyCents) + '</strong></header>' +
+    return '<article class="fa-cost-card"><header><span class="fa-cost-icon" aria-hidden="true">' + (COST_ICON[category.method] || "€") + '</span><div><h4>' + esc(category.label) + '</h4><small>' + esc(category.appliesTo) + '</small></div><strong>' + euro(category.familyCents) + '</strong></header>' +
       '<p class="fa-explain">' + esc(categoryExplanation(category)) + '</p>' +
       '<ul class="fa-cost-lines">' + head + lines + '</ul></article>';
   }).join("");
@@ -240,7 +230,7 @@ function renderCosts(item, view = {}) {
   const methods = finance.categories.map(category => category.method);
   const members = finance.members.map(member => {
     const parts = methods.map(method => {
-      const label = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" }[method];
+      const label = COST_SHORT[method];
       const notApplicable = (member.type === EVENING && method !== "bar") || (method === "adults" && member.type !== "Volwassene");
       const extra = method === "meat" ? " · " + plural(member.portions, UNITS.meat) : "";
       return '<li><span>' + label + extra + '</span><b>' + (notApplicable ? '<span class="fa-muted">n.v.t. (' + (member.type === EVENING ? "avondgast" : "kind") + ')</span>' : euro(member.byMethod[method])) + '</b></li>';

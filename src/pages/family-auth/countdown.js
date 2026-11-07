@@ -1,3 +1,4 @@
+import { plural } from "../../utils/html.js";
 // Countdown to the event (edition date/time, local time, e.g. "2026-12-31T20:00").
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -7,7 +8,6 @@ export function eventDate(startsAt) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-const plural = (n, one, many) => n + " " + (n === 1 ? one : many);
 
 // { phase: "future" | "soon" | "now" | "over", text, short }
 export function countdownState(startsAt, eventName, now = new Date()) {

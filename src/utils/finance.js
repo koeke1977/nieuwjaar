@@ -148,6 +148,11 @@ export function getMemberCostSummary(registration, registrations = [], expenses 
   return members.map(member => ({ id: member.id, name: member.name, cents: (totals.get(member.id) || 0) + memberBarCents(member) }));
 }
 
+// The shared kitty / organisation as payer of a cost: nobody gets an advance credit for it.
+export const SHARED_FUND = "kas";
+export const COST_SHORT = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" };
+export const COST_ICON = { general: "👥", adults: "🥂", meat: "🍖", bar: "🍺" };
+
 export const COST_METHODS = {
   general: { label: "Algemene kosten", appliesTo: "Iedereen, ook kinderen", unit: ["persoon", "personen"] },
   adults: { label: "Kosten voor volwassenen (18+)", appliesTo: "Alleen volwassenen", unit: ["volwassene", "volwassenen"] },

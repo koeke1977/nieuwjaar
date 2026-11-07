@@ -1,3 +1,5 @@
+import { esc } from "./html.js";
+
 // Categories of participants, shared by the server, the admin and the family portal.
 //   Volwassene  — 18+, shares in all costs including 18+ costs
 //   Kind        — shares in general costs and meat, never in 18+ costs
@@ -15,8 +17,7 @@ export const isDinnerGuest = person => person?.type === ADULT || person?.type ==
 export const TYPE_LABELS = { [ADULT]: "Volwassene (18+)", [CHILD]: "Kind", [EVENING]: "Avondgast (na het eten)" };
 export const typeLabel = type => TYPE_LABELS[type] || "Deelnemer";
 
-const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-export const typeOptions = selected => MEMBER_TYPES.map(type => '<option value="' + type + '"' + (type === selected ? " selected" : "") + '>' + escapeHtml(TYPE_LABELS[type]) + '</option>').join("");
+export const typeOptions = selected => MEMBER_TYPES.map(type => '<option value="' + type + '"' + (type === selected ? " selected" : "") + '>' + esc(TYPE_LABELS[type]) + '</option>').join("");
 
 export function countByType(members = []) {
   return {

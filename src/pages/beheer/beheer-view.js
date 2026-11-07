@@ -1,27 +1,19 @@
 // Beheer (admin) — rendering of the redesigned admin console.
 // Pure render functions over the shared admin `state`; event handling lives in app.js.
-import { state } from "../../data/demo-data.js";
+import { state } from "../../data/admin-store.js";
 import { DIET_OPTIONS, NOTE_MAX, hasDiet } from "../../utils/diet.js";
 import { typeLabel, typeOptions, countByType, countsText, EVENING } from "../../utils/member-types.js";
 import { ordersClosed, localToDate } from "../../utils/time.js";
+import { esc, euro, plural, formatDate } from "../../utils/html.js";
+import { SHARED_FUND, COST_ICON } from "../../utils/finance.js";
 import { getExpenseShares, getFinancialSummary, getFamilyFinanceBreakdown, getRegistrationCounts, COST_METHODS } from "../../utils/finance.js";
 
-const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-const euroFormat = new Intl.NumberFormat("nl-BE", { style: "currency", currency: "EUR" });
-const euro = cents => euroFormat.format((Number(cents) || 0) / 100);
-const plural = (count, one, many) => count + " " + (count === 1 ? one : many);
 const portionsOf = person => Object.values(person?.orders || {}).reduce((sum, qty) => sum + Math.max(0, Number(qty) || 0), 0);
 const familyPortions = registration => (registration.members || []).reduce((sum, person) => sum + portionsOf(person), 0);
 const today = () => new Date().toISOString().slice(0, 10);
-const formatDate = value => {
-  if (!value || !/^\d{4}-\d{2}-\d{2}/.test(value)) return value || "";
-  const [y, m, d] = value.slice(0, 10).split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("nl-BE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-};
 export const eventName = () => state.eventName || "Nieuwjaar";
 export const editionName = () => state.activeEvent?.name || "";
 const eventTitle = () => eventName() + (editionName() ? " " + editionName() : "");
-const SHARED_FUND = "kas";
 export function barBalance(registrations = state.registrations || [], expenses = state.expenses || []) {
   const charged = registrations.reduce((sum, reg) => sum + (reg.members || []).reduce((s, p) => s + Math.max(0, Number(p.barCents) || 0), 0), 0);
   const purchases = expenses.filter(expense => expense.method === "bar").reduce((sum, expense) => sum + (Number(expense.amountCents) || 0), 0);
@@ -43,7 +35,6 @@ function paymentLine(payment, withFamily) {
 function refundForm(registrationId, creditCents, compact = true) {
   return '<form id="add-refund-form" class="bh-form-grid' + (compact ? " bh-form-compact" : "") + '"><input type="hidden" name="registrationId" value="' + esc(registrationId) + '"><label>Terugbetaald (€)<input name="amount" type="number" min="0.01" step="0.01" max="' + (creditCents / 100).toFixed(2) + '" value="' + (creditCents / 100).toFixed(2) + '" required></label><label>Datum<input name="date" type="date" value="' + today() + '" required></label><label>Wijze<select name="method"><option value="cash">Cash</option><option value="bank">Overschrijving</option></select></label><button type="submit" class="bh-btn bh-btn-primary">Terugbetaling registreren</button></form>';
 }
-const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖", bar: "🍺" };
 const METHOD_HINT = { general: "Iedereen, ook kinderen (bv. zaal, decoratie, frisdrank)", adults: "Alleen volwassenen (bv. alcohol, cava)", meat: "Volgens bestelde porties" , bar: "Aankoop drank voor de open bar (niet verdeeld: gedekt door de persoonlijke barrekeningen)" };
 
 // ---- External data provided by app.js (accounts and personal links) ----
@@ -170,7 +161,7 @@ function renderOverview() {
       '<section class="bh-card"><header class="bh-card-head"><h2>Vlees</h2><button type="button" class="bh-link" data-action="edition-tab" data-tab="order">Volledig overzicht ›</button></header>' +
         (meat.length ? '<ul class="bh-bars">' + meat.map(item => '<li><span>' + esc(item.name) + '</span><div class="bh-bar"><i style="width:' + Math.round(item.count / maxMeat * 100) + '%"></i></div><b>' + item.count + '</b></li>').join("") + '</ul>' : '<p class="bh-empty">Nog geen bestellingen.</p>') +
         '<header class="bh-card-head bh-card-head-sub"><h2>Kosten per soort</h2><button type="button" class="bh-link" data-action="edition-tab" data-tab="finance">Financiën ›</button></header>' +
-        (byMethod.length ? '<ul class="bh-lines">' + byMethod.map(row => '<li><span>' + METHOD_ICON[row.method] + ' ' + esc(COST_METHODS[row.method].label) + '</span><b>' + euro(row.cents) + '</b></li>').join("") + '</ul>' : '<p class="bh-empty">Nog geen kosten ingevoerd.</p>') +
+        (byMethod.length ? '<ul class="bh-lines">' + byMethod.map(row => '<li><span>' + COST_ICON[row.method] + ' ' + esc(COST_METHODS[row.method].label) + '</span><b>' + euro(row.cents) + '</b></li>').join("") + '</ul>' : '<p class="bh-empty">Nog geen kosten ingevoerd.</p>') +
       '</section>' +
     '</div>';
 }
@@ -234,7 +225,7 @@ function renderFamilyDetail(registration) {
   const payments = (state.payments || []).filter(payment => payment.registrationId === registration.id);
 
   const settlement = finance.expenses.length
-    ? '<ul class="bh-lines">' + finance.categories.map(category => '<li><span>' + METHOD_ICON[category.method] + ' ' + esc(category.label) + ' <small>' + (category.personal ? "persoonlijke barrekening" : category.familyUnits + "/" + category.totalUnits) + " " + (category.method === "meat" ? "porties" : category.method === "adults" ? "volwassenen" : "personen") + '</small></span><b>' + euro(category.familyCents) + '</b></li>').join("") +
+    ? '<ul class="bh-lines">' + finance.categories.map(category => '<li><span>' + COST_ICON[category.method] + ' ' + esc(category.label) + ' <small>' + (category.personal ? "persoonlijke barrekening" : category.familyUnits + "/" + category.totalUnits) + " " + (category.method === "meat" ? "porties" : category.method === "adults" ? "volwassenen" : "personen") + '</small></span><b>' + euro(category.familyCents) + '</b></li>').join("") +
       '<li class="bh-line-strong"><span>Aandeel van het gezin</span><b>' + euro(t.shareCents) + '</b></li>' +
       (t.advancedCents ? '<li><span>Min: voorgeschoten</span><b>− ' + euro(t.advancedCents) + '</b></li>' : "") +
       (t.paidCents ? '<li><span>Min: betaald</span><b>− ' + euro(t.paidCents) + '</b></li>' : "") +
@@ -354,7 +345,7 @@ function renderExpenseForm(expense = null) {
     '<label class="bh-span-2">Omschrijving<input name="description" maxlength="120" value="' + esc(expense?.description || "") + '" placeholder="Bv. Beenhouwer, Drank, Decoratie" required></label>' +
     '<label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" value="' + (expense ? (expense.amountCents / 100).toFixed(2) : "") + '" placeholder="0,00" required></label>' +
     '<label>Datum<input name="date" type="date" value="' + esc(expense?.date || today()) + '" required></label>' +
-    '<label class="bh-span-2">Wie betaalt mee?<select name="method">' + Object.keys(COST_METHODS).map(key => '<option value="' + key + '"' + (key === method ? " selected" : "") + '>' + METHOD_ICON[key] + " " + esc(COST_METHODS[key].label) + " — " + esc(METHOD_HINT[key]) + '</option>').join("") + '</select></label>' +
+    '<label class="bh-span-2">Wie betaalt mee?<select name="method">' + Object.keys(COST_METHODS).map(key => '<option value="' + key + '"' + (key === method ? " selected" : "") + '>' + COST_ICON[key] + " " + esc(COST_METHODS[key].label) + " — " + esc(METHOD_HINT[key]) + '</option>').join("") + '</select></label>' +
     '<label class="bh-span-2">Voorgeschoten door<select name="advancedBy" required><option value="">Wie betaalde deze kost?</option><option value="' + SHARED_FUND + '"' + (expense?.advancedBy === SHARED_FUND ? " selected" : "") + '>Gemeenschappelijke kas / organisatie</option>' + (state.registrations || []).map(reg => '<option value="' + esc(reg.id) + '"' + (expense?.advancedBy === reg.id ? " selected" : "") + '>' + esc(reg.name) + '</option>').join("") + '</select></label>' +
     '<div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">' + (isEdit ? "Wijzigingen bewaren" : "+ Kost toevoegen") + '</button>' + (isEdit ? '<button type="button" class="bh-btn" data-action="cancel-edit-expense">Annuleren</button>' : "") + '</div></form>';
 }
@@ -372,7 +363,7 @@ function renderFinance() {
       const shares = getExpenseShares(expense, regs);
       return '<li><div class="bh-expense"><span><strong>' + esc(expense.description) + '</strong><small>' + esc(formatDate(expense.date)) + ' · voorgeschoten door ' + esc(nameOf(expense.advancedBy)) + (expense.enteredBy === "family" ? ' · <span class="bh-chip bh-chip-info">ingevoerd door gezin</span>' : "") + (expense.receipt ? ' · <a class="bh-link" href="/api/admin/receipts?key=' + encodeURIComponent(expense.receipt) + '" target="_blank" rel="noopener">📎 Kasticket</a>' : "") + ' · verdeeld over ' + plural(shares.length, "gezin", "gezinnen") + '</small></span><b>' + euro(expense.amountCents) + '</b></div><div class="bh-actions"><button type="button" class="bh-btn bh-btn-sm" data-action="edit-expense" data-id="' + esc(expense.id) + '">Wijzigen</button><button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-expense" data-id="' + esc(expense.id) + '">Verwijderen</button></div></li>';
     }).join("");
-    return '<section class="bh-expense-group"><header><span>' + METHOD_ICON[method] + ' ' + esc(COST_METHODS[method].label) + ' <small>' + esc(METHOD_HINT[method]) + '</small></span><b>' + euro(sum) + '</b></header><ul>' + rows + '</ul></section>';
+    return '<section class="bh-expense-group"><header><span>' + COST_ICON[method] + ' ' + esc(COST_METHODS[method].label) + ' <small>' + esc(METHOD_HINT[method]) + '</small></span><b>' + euro(sum) + '</b></header><ul>' + rows + '</ul></section>';
   }).join("");
 
   const shareTotal = t.summary.reduce((sum, row) => sum + row.shareCents, 0);

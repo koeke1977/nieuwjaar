@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { payloadFrom } from "../src/data/environment-store.js";
+import { payloadFrom } from "../src/data/edition-payload.js";
 
 test("the admin save payload keeps every stored member field (allergies, notes)", () => {
   const person = { id: "p1", name: "Emma", type: "Kind", orders: { steak: 1 }, diet: ["Glutenvrij"], notes: "geen pikant", barCents: 2100 };

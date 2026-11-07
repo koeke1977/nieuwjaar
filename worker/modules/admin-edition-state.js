@@ -6,6 +6,8 @@
 // last saw; a guard failure aborts the whole batch (nothing is written) and returns 409.
 
 import { withDiet } from "../../src/utils/diet.js";
+import { esc } from "../../src/utils/html.js";
+import { SHARED_FUND } from "../../src/utils/finance.js";
 import { isMemberType, EVENING } from "../../src/utils/member-types.js";
 import { parseReceiptKey } from "./receipts.js";
 import { isLocalDateTime } from "../../src/utils/time.js";
@@ -16,7 +18,6 @@ const ID = /^[A-Za-z0-9_-]{1,120}$/;
 const PRODUCT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const CONFLICT = "edition-state-conflict";
 // A cost paid from the shared kitty (not advanced by a family): nobody gets an advance credit.
-export const SHARED_FUND = "kas";
 
 function parse(json, fallback) { try { return JSON.parse(json || ""); } catch { return fallback; } }
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -257,7 +258,6 @@ export async function startNextEdition(env, editionId, body, now) {
   return { status: 201, editionId: id };
 }
 
-const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
 // Recipients of a message: accounts (active or invited) of the families registered in this
 // edition; "no-order" limits it to families that have not ordered anything yet.
@@ -279,12 +279,12 @@ export async function messageRecipients(env, editionId, audience) {
 }
 
 export function messageHtml({ displayName, subject, message, eventTitle }) {
-  const paragraphs = message.replace(/\r\n/g, "\n").split(/\n{2,}/).map(block => '<p>' + escapeHtml(block).replace(/\n/g, "<br>") + '</p>').join("");
+  const paragraphs = message.replace(/\r\n/g, "\n").split(/\n{2,}/).map(block => '<p>' + esc(block).replace(/\n/g, "<br>") + '</p>').join("");
   return '<div style="font-family:Arial,sans-serif;color:#1b2a3b;line-height:1.6;max-width:560px">' +
-    '<p style="color:#b18a3d;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px">' + escapeHtml(eventTitle) + '</p>' +
-    '<h2 style="margin:0 0 16px">' + escapeHtml(subject) + '</h2><p>Dag ' + escapeHtml(displayName || "") + ',</p>' + paragraphs +
+    '<p style="color:#b18a3d;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px">' + esc(eventTitle) + '</p>' +
+    '<h2 style="margin:0 0 16px">' + esc(subject) + '</h2><p>Dag ' + esc(displayName || "") + ',</p>' + paragraphs +
     '<p style="margin:24px 0"><a href="https://nieuwjaar.datuur.be/familie" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#14263b;color:#fff;font-weight:700;text-decoration:none">Naar het familieportaal</a></p>' +
-    '<p>Groeten,<br>De organisatie van ' + escapeHtml(eventTitle) + '</p></div>';
+    '<p>Groeten,<br>De organisatie van ' + esc(eventTitle) + '</p></div>';
 }
 
 export async function handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession, sendGraphMail }) {
