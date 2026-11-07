@@ -6,6 +6,7 @@ import { money } from "../../utils/format.js";
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const eventStatusLabel = status => status === "archived" ? "Afgesloten" : status === "active" ? "Actief" : "Concept";
 let root;
+let financeEditor = null;
 
 async function api(path, options = {}) {
   const response = await fetch(path, { credentials: "same-origin", ...options,
@@ -37,13 +38,46 @@ function renderEvents(events) {
   }).join("");
 }
 
+function financeDate() { return new Date().toISOString().slice(0, 10); }
+function financeAmount(value) {
+  const normalized = String(value || "").trim().replace(",", ".");
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Geef een geldig bedrag groter dan nul in.");
+  const cents = Math.round(amount * 100);
+  if (!Number.isSafeInteger(cents) || cents <= 0) throw new Error("Het bedrag is te groot of ongeldig.");
+  return cents;
+}
+function financeRegistrationOptions(selected = "") {
+  return (financeEditor?.registrations || []).map(row =>
+    '<option value="'+escapeHtml(row.id)+'" '+(row.id===selected?'selected':'')+'>'+escapeHtml(row.name)+'</option>'
+  ).join("");
+}
+function renderFinancePanel() {
+  if (!financeEditor || !root) return;
+  const response=financeEditor;
+  const expenses=response.finance.expenses||[], payments=response.finance.payments||[];
+  const rows=response.edition.financeStrategy==="nieuwjaar"?getFinancialSummary(response.registrations||[],expenses,payments):[];
+  const historical=response.finance.legacySnapshot;
+  const supported=response.edition.financeStrategy==="nieuwjaar";
+  const slot=root.querySelector('[data-admin-finance-slot]');
+  if (!slot) return;
+  const expenseRows=expenses.map((x,i)=>'<div class="admin-finance-line"><span>'+escapeHtml(x.description)+' · '+escapeHtml(x.date)+' · '+escapeHtml(({general:"Iedereen",adults:"Volwassenen",meat:"Vleesjes"}[x.method]||x.method))+' · voorgeschoten door '+escapeHtml(response.registrations.find(r=>r.id===x.advancedBy)?.name||"Onbekend")+'</span><b>'+money(x.amountCents/100)+'</b>'+(historical?'':'<button type="button" class="button button-small button-outline" data-remove-expense="'+i+'">Verwijderen</button>')+'</div>').join("");
+  const paymentRows=payments.map((x,i)=>'<div class="admin-finance-line"><span>'+escapeHtml(response.registrations.find(r=>r.id===x.registrationId)?.name||"Onbekend")+' · '+escapeHtml(x.date)+' · '+(x.method==="cash"?"Cash":"Overschrijving")+'</span><b>'+money(x.amountCents/100)+'</b>'+(historical?'':'<button type="button" class="button button-small button-outline" data-remove-payment="'+i+'">Verwijderen</button>')+'</div>').join("");
+  const strategyNote=supported?"De bestaande Nieuwjaar-verdeelsleutels worden gebruikt.":"Deze editie gebruikt verdeelmethode "+response.edition.financeStrategy+". De bijbehorende rekenregels worden later aangesloten; er wordt daarom nog geen saldo berekend.";
+  slot.innerHTML='<section class="panel admin-finance-editor"><div class="admin-finance-heading"><div><h2>'+escapeHtml(response.edition.eventName)+' · '+escapeHtml(response.edition.label)+' · Financiën</h2><p>'+strategyNote+'</p></div><button type="button" class="button button-small button-outline" data-close-finance>Sluiten</button></div>'+
+  '<p>Inschrijvingen: '+(response.registrations||[]).length+' · Kosten: '+expenses.length+' · Betalingen: '+payments.length+'</p>'+
+  (historical?'<p class="catalog-note">Historische Nieuwjaar-snapshot: deze gegevens zijn bewust alleen-lezen.</p>':'')+
+  (supported&&!historical?'<div class="admin-finance-forms"><form data-finance-expense><h3>Kost toevoegen</h3><label>Omschrijving<input name="description" maxlength="120" required placeholder="Bijv. Drank en voeding"></label><label>Bedrag (€)<input name="amount" inputmode="decimal" required placeholder="0,00"></label><label>Datum<input name="date" type="date" value="'+financeDate()+'" required></label><label>Verdeling<select name="method"><option value="general">Iedereen</option><option value="adults">Volwassenen</option><option value="meat">Vleesjes</option></select></label><label>Voorgeschoten door<select name="advancedBy" required>'+financeRegistrationOptions()+'</select></label><button class="button button-small button-dark" type="submit">Kost toevoegen</button></form>'+
+  '<form data-finance-payment><h3>Betaling registreren</h3><label>Gezin<select name="registrationId" required>'+financeRegistrationOptions()+'</select></label><label>Bedrag (€)<input name="amount" inputmode="decimal" required placeholder="0,00"></label><label>Datum<input name="date" type="date" value="'+financeDate()+'" required></label><label>Betaalwijze<select name="method"><option value="bank">Overschrijving</option><option value="cash">Cash</option></select></label><button class="button button-small button-dark" type="submit">Betaling toevoegen</button></form></div>':'')+
+  '<h3>Kosten ('+money(expenses.reduce((sum,x)=>sum+x.amountCents,0)/100)+')</h3>'+(expenseRows||'<p class="catalog-note">Nog geen kosten geregistreerd.</p>')+
+  '<h3>Betalingen ('+money(payments.reduce((sum,x)=>sum+x.amountCents,0)/100)+')</h3>'+(paymentRows||'<p class="catalog-note">Nog geen betalingen geregistreerd.</p>')+
+  (supported?'<h3>Saldo per gezin</h3>'+rows.map(x=>'<div class="admin-finance-line"><span>'+escapeHtml(x.name)+' · '+escapeHtml(x.paymentStatus)+'</span><b>'+money(x.remainingCents/100)+' open</b></div>').join(''):'')+
+  (!historical?'<label class="admin-finance-finalized"><input type="checkbox" data-finance-finalized '+(response.finance.costsFinalized?'checked':'')+'> Kosten definitief afsluiten</label><div class="admin-inline-actions"><button type="button" class="button button-dark" data-save-finance>Financiën opslaan</button></div>':'')+
+  '</section>';
+}
 async function openFinance(editionId) {
- const response=await api('/api/admin/editions/'+encodeURIComponent(editionId)+'/finance');
- financeEditor=response;
- const rows=response.edition.financeStrategy==="nieuwjaar"?getFinancialSummary(response.registrations||[],response.finance.expenses||[],response.finance.payments||[]):[];
- const strategyNote=response.edition.financeStrategy==="nieuwjaar"?"De bestaande Nieuwjaar-verdeelsleutels worden gebruikt.": "Deze editie gebruikt verdeelmethode "+response.edition.financeStrategy+". De bijbehorende rekenregels worden in een volgende stap aangesloten; er wordt daarom nog geen saldo berekend.";
- const slot=root.querySelector('[data-admin-finance-slot]');
- slot.innerHTML='<section class="panel admin-finance-editor"><h2>'+escapeHtml(response.edition.eventName)+' · '+escapeHtml(response.edition.label)+' · Financiën</h2><p>'+strategyNote+'</p><p>Inschrijvingen: '+(response.registrations||[]).length+' · Kosten: '+(response.finance.expenses||[]).length+' · Betalingen: '+(response.finance.payments||[]).length+'</p><h3>Kosten</h3>'+(response.finance.expenses||[]).map(x=>'<div class="admin-finance-line"><span>'+escapeHtml(x.description)+' · '+escapeHtml(x.date)+'</span><b>'+money(x.amountCents/100)+'</b></div>').join('')+'<h3>Betalingen</h3>'+(response.finance.payments||[]).map(x=>'<div class="admin-finance-line"><span>'+escapeHtml(x.date)+' · '+escapeHtml(x.method)+'</span><b>'+money(x.amountCents/100)+'</b></div>').join('')+(response.edition.financeStrategy==="nieuwjaar"?'<h3>Saldo per gezin</h3>'+rows.map(x=>'<div class="admin-finance-line"><span>'+escapeHtml(x.name)+'</span><b>'+money(x.remainingCents/100)+' open</b></div>').join(''):'')+'</section>';
+  financeEditor=await api('/api/admin/editions/'+encodeURIComponent(editionId)+'/finance');
+  renderFinancePanel();
 }
 function catalogProductRow(product = {}, index = 0) {
   return '<div class="admin-catalog-item" data-catalog-item><div class="admin-catalog-item-fields"><label>Productnaam<input name="name" maxlength="100" required value="'+escapeHtml(product.name || "")+'" placeholder="Bijv. Steak"></label><label>Productcode<input name="id" maxlength="64" pattern="[A-Za-z0-9_-]{1,64}" required value="'+escapeHtml(product.id || "")+'" placeholder="bijv. steak"></label><label class="admin-catalog-image-field">Afbeelding (optioneel)<input name="image" maxlength="1000" value="'+escapeHtml(product.image || "")+'" placeholder="/media/products/… of https://…"></label></div><div class="admin-catalog-item-footer"><label class="admin-catalog-active"><input name="active" type="checkbox" '+(product.active === false ? "" : "checked")+'> Actief in familieportal</label><button type="button" class="button button-small button-outline" data-remove-catalog-item>Verwijderen</button></div></div>';
@@ -131,6 +165,46 @@ export function initAdminEventsSection() {
       await loadEvents();
     } catch (error) { feedback(error.message, true); }
     finally { button.disabled = false; }
+  });
+  const financeSlot=root.querySelector('[data-admin-finance-slot]');
+  financeSlot?.addEventListener("click", async event => {
+    if(event.target.closest("[data-close-finance]")){financeEditor=null;financeSlot.innerHTML="";return;}
+    const expense=event.target.closest("[data-remove-expense]");
+    const payment=event.target.closest("[data-remove-payment]");
+    if(expense){financeEditor.finance.expenses.splice(Number(expense.dataset.removeExpense),1);renderFinancePanel();return;}
+    if(payment){financeEditor.finance.payments.splice(Number(payment.dataset.removePayment),1);renderFinancePanel();return;}
+    if(event.target.closest("[data-save-finance]")){
+      const button=event.target.closest("[data-save-finance]");
+      button.disabled=true;
+      try{
+        const payload={revision:financeEditor.finance.revision,expenses:financeEditor.finance.expenses,payments:financeEditor.finance.payments,costsFinalized:Boolean(financeSlot.querySelector("[data-finance-finalized]")?.checked)};
+        const saved=await api('/api/admin/editions/'+encodeURIComponent(financeEditor.edition.id)+'/finance',{method:"PUT",body:JSON.stringify(payload)});
+        Object.assign(financeEditor.finance,{...saved,revision:saved.revision});
+        feedback("Financiën veilig opgeslagen.");
+        renderFinancePanel();
+      }catch(error){feedback(error.message,true);button.disabled=false;}
+    }
+  });
+  financeSlot?.addEventListener("submit",event=>{
+    const form=event.target;
+    if(!form.matches("[data-finance-expense],[data-finance-payment]"))return;
+    event.preventDefault();
+    try{
+      const values=Object.fromEntries(new FormData(form).entries());
+      const amountCents=financeAmount(values.amount);
+      if(form.matches("[data-finance-expense]")){
+        if(!values.advancedBy)throw new Error("Voeg eerst minstens één inschrijving toe.");
+        financeEditor.finance.expenses.push({id:crypto.randomUUID(),description:values.description.trim(),amountCents,date:values.date,method:values.method,advancedBy:values.advancedBy});
+      }else{
+        if(!values.registrationId)throw new Error("Voeg eerst minstens één inschrijving toe.");
+        const summary=getFinancialSummary(financeEditor.registrations,financeEditor.finance.expenses,financeEditor.finance.payments);
+        const balance=summary.find(row=>row.id===values.registrationId);
+        if(balance && amountCents>balance.remainingCents)throw new Error("Deze betaling is hoger dan het nog openstaande saldo van dit gezin.");
+        financeEditor.finance.payments.push({id:crypto.randomUUID(),registrationId:values.registrationId,amountCents,date:values.date,method:values.method});
+      }
+      renderFinancePanel();
+      feedback("Toegevoegd aan het financieel overzicht. Klik op Financiën opslaan om te bewaren.");
+    }catch(error){feedback(error.message,true);}
   });
   root.querySelector("[data-admin-events-list]").addEventListener("click", async event => {
     const financeButton=event.target.closest("[data-open-finance]");
