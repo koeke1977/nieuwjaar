@@ -252,8 +252,8 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
           "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ?"
         ).bind(serialized, now, edition, body.revision),
         env.DB.prepare(
-          "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND EXISTS (SELECT 1 FROM app_state WHERE environment = ? AND data_json = ?)"
-        ).bind(JSON.stringify(registration), now, normalized.id, edition, serialized)
+          "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND EXISTS (SELECT 1 FROM app_state WHERE environment = ? AND data_json = ? AND updated_at = ?)"
+        ).bind(JSON.stringify(registration), now, normalized.id, edition, serialized, Math.max(body.revision + 1, now))
       ]);
       const changed = Number(results?.[0]?.meta?.changes ?? results?.[0]?.changes ?? 0);
       if (!changed) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
