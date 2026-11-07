@@ -231,10 +231,37 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     registration.children = members.filter(person => person.type === "Kind").length;
     data.costsFinalized = false;
     data.costsFinalizedAt = null;
-    const updated = await env.DB.prepare(
-      "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ? RETURNING updated_at"
-    ).bind(JSON.stringify(data), now, edition, body.revision).first();
-    if (!updated) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
+    const serialized = JSON.stringify(data);
+    // During the transition, keep the normalized registration copy in sync with
+    // the legacy snapshot. The legacy revision remains the optimistic lock.
+    let normalized = null;
+    try {
+      normalized = await env.DB.prepare(
+        "SELECT er.id, er.data_json FROM event_registrations er WHERE er.legacy_environment = ? AND er.legacy_registration_id = ?"
+      ).bind(edition, registrationId).first();
+    } catch (error) {
+      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+    }
+    let updated;
+    if (normalized) {
+      const results = await env.DB.batch([
+        env.DB.prepare(
+          "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ?"
+        ).bind(serialized, now, edition, body.revision),
+        env.DB.prepare(
+          "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ?"
+        ).bind(JSON.stringify(registration), now, normalized.id)
+      ]);
+      const changed = Number(results?.[0]?.meta?.changes ?? results?.[0]?.changes ?? 0);
+      if (!changed) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
+      const revision = await env.DB.prepare("SELECT updated_at FROM app_state WHERE environment = ?").bind(edition).first();
+      updated = revision;
+    } else {
+      updated = await env.DB.prepare(
+        "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ? RETURNING updated_at"
+      ).bind(serialized, now, edition, body.revision).first();
+      if (!updated) return json({ error: "De gegevens zijn intussen gewijzigd. Herlaad de pagina en probeer opnieuw." }, 409);
+    }
     return json({ saved: true, revision: updated.updated_at, registration });
   }
 
