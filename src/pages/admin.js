@@ -1,4 +1,5 @@
 import { renderAdminPlatformSection } from "./admin-platform/admin-platform.js";
+import { renderAdminEventsSection } from "./admin-platform/events.js";
 import { renderAdminUsersSection } from "./admin-platform/users.js";
 import { state, getGlobalMeatTotals } from "../data/demo-data.js";
 import { money, total, received, outstanding } from "../utils/format.js";
@@ -177,7 +178,7 @@ function renderAdminOverview() {
 }
 export function renderAdminContent(activeSection) {
   if (activeSection==="users") return renderAdminUsersSection(state.registrations, state.activeEnvironment);
-  if (activeSection==="events") return renderAdminPlatformSection(activeSection);
+  if (activeSection==="events") return renderAdminEventsSection();
   if (activeSection==="registrations") return renderRegistrations();
   if (activeSection==="editions") return renderEditionManagement();
   if (activeSection==="catalog") return renderCatalogManager();
