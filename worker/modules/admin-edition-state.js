@@ -5,6 +5,8 @@
 // A save is a single D1 batch. Every row the client changed is guarded on the revision it
 // last saw; a guard failure aborts the whole batch (nothing is written) and returns 409.
 
+import { withDiet } from "../../src/utils/diet.js";
+
 const ID = /^[A-Za-z0-9_-]{1,120}$/;
 const PRODUCT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const CONFLICT = "edition-state-conflict";
@@ -75,7 +77,9 @@ function cleanMembers(members) {
       if (!PRODUCT_ID.test(productId) || !Number.isInteger(quantity) || quantity < 0 || quantity > 99) return null;
       orders[productId] = quantity;
     }
-    out.push({ id: person.id, name, type: person.type, orders });
+    const clean = withDiet({ id: person.id, name, type: person.type, orders }, person);
+    if (!clean) return null;
+    out.push(clean);
   }
   return out;
 }
@@ -103,7 +107,8 @@ function cleanFinance(data, registrationIds) {
     if (!item || !ID.test(String(item.id)) || expenseIds.has(item.id) || !description || !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0 ||
         typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !["general", "adults", "meat"].includes(item.method) || !(registrationIds.has(item.advancedBy) || item.advancedBy === SHARED_FUND)) return null;
     expenseIds.add(item.id);
-    expenses.push({ id: item.id, description, amountCents: item.amountCents, date: item.date, method: item.method, advancedBy: item.advancedBy });
+    if (item.enteredBy != null && item.enteredBy !== "family") return null;
+    expenses.push({ id: item.id, description, amountCents: item.amountCents, date: item.date, method: item.method, advancedBy: item.advancedBy, ...(item.enteredBy === "family" ? { enteredBy: "family" } : {}) });
   }
   for (const item of data.payments) {
     if (!item || !ID.test(String(item.id)) || paymentIds.has(item.id) || !registrationIds.has(item.registrationId) || !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0 ||

@@ -210,3 +210,27 @@
 .fa-stepper-row-active > span { color: var(--fa-green); font-weight: 700; }
 .fa-stepper-row-active .fa-stepper b { color: var(--fa-green); }
 @media (prefers-reduced-motion: reduce) { .fa-product, .fa-stepper-row { transition: none; } }
+
+/* Allergies and notes */
+.fa-diet { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; }
+.fa-diet span { padding: 2px 8px; border-radius: 999px; background: #fdf1ea; border: 1px solid #f1c9b4; color: #a4421f; font-size: 12px; font-weight: 700; }
+.fa-diet em { color: #6b7688; font-size: 12px; }
+.fa-diet-edit { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 10px 12px; border: 1px solid var(--fa-line); border-radius: 11px; background: #fff; }
+.fa-diet-edit legend { padding: 0 4px; color: var(--fa-muted); font-size: 12px; font-weight: 700; }
+.fa-diet-edit label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-size: 14px; }
+.fa-app .fa-diet-edit input { width: auto; min-height: 0; }
+.fa-member-edit > input[name="notes"] { grid-column: 1 / -1; }
+
+/* Costs a family advanced itself */
+.fa-own-costs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.fa-own-costs > li { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px; border: 1px solid var(--fa-line); border-radius: 14px; background: var(--fa-soft); }
+.fa-own-costs > li > span:first-child { display: grid; gap: 2px; min-width: 0; }
+.fa-own-costs small { color: var(--fa-muted); font-size: 12px; }
+.fa-own-end { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.fa-own-end b { font-variant-numeric: tabular-nums; margin-right: 4px; }
+.fa-own-costs > li:has(form) { display: block; background: #fff; }
+.fa-add-cost { border: 1px dashed #cfd5de; border-radius: 14px; padding: 12px 14px; }
+.fa-add-cost summary { color: var(--fa-navy); font-weight: 800; cursor: pointer; }
+.fa-add-cost[open] summary { margin-bottom: 12px; }
+.fa-expense-form { display: grid; gap: 10px; }
+.fa-expense-form .fa-label { display: grid; gap: 5px; font-size: 13px; }

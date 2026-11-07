@@ -305,3 +305,12 @@ button.bh-kpi:hover { border-color: #cdd3dc; }
 /* Refunds (money paid back to a family) */
 .bh-refund b { color: var(--bh-info); }
 .bh-refund small, .bh-refund > span:first-child { color: var(--bh-info); }
+
+/* Allergies and notes */
+.bh-diet { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 4px; }
+.bh-diet b { padding: 2px 8px; border-radius: 999px; background: var(--bh-due-bg); border: 1px solid #f1c9b4; color: var(--bh-due); font-size: 12px; font-weight: 700; }
+.bh-diet em { color: var(--bh-muted); font-size: 12px; }
+.bh-diet-edit { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 10px 12px; border: 1px solid var(--bh-line); border-radius: 10px; }
+.bh-diet-edit legend { padding: 0 4px; color: var(--bh-muted); font-size: 12px; font-weight: 700; }
+.bh-diet-edit label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.bh-member-edit .bh-span-2 { grid-column: 1 / -1; }

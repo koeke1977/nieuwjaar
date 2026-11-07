@@ -1,4 +1,5 @@
-import { getFamilyFinanceBreakdown } from "../../src/utils/finance.js";
+import { getFamilyFinanceBreakdown, getExpenseShares } from "../../src/utils/finance.js";
+import { withDiet } from "../../src/utils/diet.js";
 
 const encoder = new TextEncoder();
 const FAMILY_ACCOUNT_COOKIE = "ny_family_account";
@@ -113,6 +114,7 @@ async function normalizedFamilyFinance(env, editionId, registration) {
 function canonicalMembers(members) {
   return JSON.stringify((Array.isArray(members) ? members : []).map(person => ({
     id: String(person?.id ?? ""), name: String(person?.name ?? "").trim(), type: person?.type,
+    diet: Array.isArray(person?.diet) ? [...person.diet].sort() : [], notes: String(person?.notes ?? "").trim(),
     orders: Object.entries(person?.orders && typeof person.orders === "object" ? person.orders : {})
       .filter(([, qty]) => Number(qty) > 0).map(([id, qty]) => [id, Number(qty)]).sort(([a], [b]) => a.localeCompare(b))
   })));
@@ -162,7 +164,8 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       try { registration = JSON.parse(row.data_json || "{}"); config = JSON.parse(row.config_json || "{}"); } catch { continue; }
       const members = (Array.isArray(registration.members) ? registration.members : []).map(person => ({
         id: person.id, name: person.name, type: person.type,
-        orders: person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {}
+        orders: person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {},
+        diet: Array.isArray(person.diet) ? person.diet : [], notes: typeof person.notes === "string" ? person.notes : ""
       }));
       const own = { id: row.registration_id, name: registration.name || "", members,
         adults: members.filter(person => person.type === "Volwassene").length, children: members.filter(person => person.type === "Kind").length };
@@ -201,7 +204,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     // Start from the members of the family's most recent registration; orders start empty.
     const previous = await env.DB.prepare("SELECT data_json FROM event_registrations WHERE family_id = ? AND edition_id != ? ORDER BY updated_at DESC LIMIT 1").bind(familyId, editionId).first();
     let members = [];
-    try { members = (JSON.parse(previous?.data_json || "{}").members || []).map(person => ({ id: person.id, name: person.name, type: person.type, orders: {} })); } catch { members = []; }
+    try { members = (JSON.parse(previous?.data_json || "{}").members || []).map(person => withDiet({ id: person.id, name: person.name, type: person.type, orders: {} }, person) || { id: person.id, name: person.name, type: person.type, orders: {} }); } catch { members = []; }
     const data = JSON.stringify({ name: target.display_name, adults: members.filter(p => p.type === "Volwassene").length, children: members.filter(p => p.type === "Kind").length, members });
     const registrationId = "inschrijving-" + crypto.randomUUID();
     const result = await env.DB.prepare(
@@ -251,7 +254,9 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
         if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) return json({ error: "Ongeldig aantal in de bestelling." }, 400);
         orders[productId] = quantity;
       }
-      members.push({ id: person.id, name: person.name.trim(), type: person.type, orders });
+      const member = withDiet({ id: person.id, name: person.name.trim(), type: person.type, orders }, person);
+      if (!member) return json({ error: "Controleer de allergieën en opmerkingen (maximaal 200 tekens)." }, 400);
+      members.push(member);
     }
     const updatedRegistration = { ...registration, members,
       adults: members.filter(person => person.type === "Volwassene").length,
@@ -269,6 +274,67 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     ]);
     if (!Number(results?.[0]?.meta?.changes ?? 0)) return json({ error: "Iemand anders heeft jullie inschrijving net aangepast. We tonen nu de nieuwste gegevens; controleer ze en pas opnieuw aan.", conflict: "registration" }, 409);
     return json({ saved: true, revision: nextRevision, registration: { id: registrationId, ...updatedRegistration } });
+  }
+
+  // Costs a family advanced itself. A family may add costs and change or delete only the
+  // costs it entered; the organisation can change everything in the admin.
+  if (path === "/api/family-account/expenses" && (request.method === "POST" || request.method === "DELETE")) {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const session = await familyAccountSession(request, env, cookieValue, sha256);
+    if (!session) return json({ error: "Je sessie is verlopen. Meld je opnieuw aan." }, 401);
+    const body = await request.json().catch(() => null);
+    const editionId = typeof body?.edition === "string" ? body.edition : "";
+    const registrationId = typeof body?.registrationId === "string" ? body.registrationId : "";
+    const own = await env.DB.prepare(
+      "SELECT er.id, d.status AS edition_status, fm.role FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN family_memberships fm ON fm.family_id = er.family_id WHERE er.id = ? AND er.edition_id = ? AND er.status = 'active' AND fm.user_id = ?"
+    ).bind(registrationId, editionId, session.user_id).first();
+    if (!own) return json({ error: "Deze inschrijving is niet aan je account gekoppeld." }, 403);
+    if (own.role === "viewer") return json({ error: "Je hebt alleen leesrechten voor deze inschrijving." }, 403);
+    if (own.edition_status === "archived") return json({ error: "Deze editie is afgesloten." }, 409);
+
+    let input = null;
+    if (request.method === "POST") {
+      const raw = body?.expense || {};
+      const description = typeof raw.description === "string" ? raw.description.trim() : "";
+      const amountCents = Number(raw.amountCents);
+      if (!description || description.length > 120 || !Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > 10_000_000 ||
+          typeof raw.date !== "string" || Number.isNaN(Date.parse(raw.date)) || !["general", "adults", "meat"].includes(raw.method)) {
+        return json({ error: "Controleer de omschrijving, het bedrag, de datum en de soort kost." }, 400);
+      }
+      input = { id: typeof raw.id === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(raw.id) ? raw.id : null, description, amountCents, date: raw.date.slice(0, 10), method: raw.method };
+    }
+    const expenseId = request.method === "DELETE" ? (typeof body?.expenseId === "string" ? body.expenseId : "") : input.id;
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      let snapshot = await env.DB.prepare("SELECT expenses_json, updated_at FROM edition_finance_snapshots WHERE edition_id = ?").bind(editionId).first();
+      if (!snapshot) {
+        await env.DB.prepare("INSERT INTO edition_finance_snapshots (edition_id, created_at, updated_at) VALUES (?, ?, ?) ON CONFLICT(edition_id) DO NOTHING").bind(editionId, now, now).run();
+        continue;
+      }
+      let expenses;
+      try { expenses = JSON.parse(snapshot.expenses_json || "[]"); } catch { return json({ error: "De kosten van deze editie zijn ongeldig." }, 500); }
+      const index = expenseId ? expenses.findIndex(item => item.id === expenseId) : -1;
+      if (expenseId && index < 0) return json({ error: "Deze kost bestaat niet meer." }, 404);
+      if (index >= 0 && !(expenses[index].enteredBy === "family" && expenses[index].advancedBy === registrationId)) {
+        return json({ error: "Deze kost werd door de organisatie ingevoerd. Vraag hen om hem aan te passen." }, 403);
+      }
+      if (request.method === "DELETE") {
+        expenses.splice(index, 1);
+      } else {
+        const expense = { id: input.id || "kost-" + crypto.randomUUID(), description: input.description, amountCents: input.amountCents, date: input.date, method: input.method, advancedBy: registrationId, enteredBy: "family" };
+        // The cost must be divisible: e.g. a meat cost needs ordered portions.
+        const rows = await env.DB.prepare("SELECT id, data_json FROM event_registrations WHERE edition_id = ? AND status = 'active'").bind(editionId).all();
+        const registrations = (rows.results || []).map(row => { let data = {}; try { data = JSON.parse(row.data_json || "{}"); } catch { /* empty */ } return { id: row.id, members: Array.isArray(data.members) ? data.members : [], adults: data.adults, children: data.children }; });
+        try { getExpenseShares(expense, registrations, { strict: true }); }
+        catch (error) { return json({ error: error.message || "Deze kost kan nog niet verdeeld worden." }, 400); }
+        if (index >= 0) expenses[index] = expense; else expenses.push(expense);
+      }
+      const result = await env.DB.prepare(
+        "UPDATE edition_finance_snapshots SET expenses_json = ?, costs_finalized = 0, costs_finalized_at = NULL, updated_at = ? WHERE edition_id = ? AND updated_at = ?"
+      ).bind(JSON.stringify(expenses), Math.max(now, Number(snapshot.updated_at) + 1), editionId, snapshot.updated_at).run();
+      if (Number(result?.meta?.changes ?? 0)) return json({ saved: true });
+    }
+    return json({ error: "Het is momenteel erg druk. Probeer het over enkele seconden opnieuw." }, 409);
   }
 
   if (path === "/api/family-account/logout" && request.method === "POST") {

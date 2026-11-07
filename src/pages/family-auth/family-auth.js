@@ -145,6 +145,17 @@ export async function startFamilyAuth() {
       render(); return;
     }
     const action = control.dataset.action;
+    if (action === "edit-expense") { account.view.editingExpenseId = control.dataset.id; render(); return; }
+    if (action === "cancel-edit-expense") { account.view.editingExpenseId = null; render(); return; }
+    if (action === "delete-expense") {
+      const item = activeItem();
+      if (!item || !window.confirm("Deze kost verwijderen? De afrekening wordt opnieuw berekend.")) return;
+      try {
+        await request("/api/family-account/expenses", { edition: item.edition, registrationId: item.registration.id, expenseId: control.dataset.id }, "DELETE");
+        account.signature = null; await refreshAccount(); feedback("De kost is verwijderd.", "success");
+      } catch (error) { feedback(error.message); }
+      return;
+    }
     if (action === "self-register") {
       control.disabled = true; control.textContent = "Inschrijven…";
       try {
@@ -201,6 +212,25 @@ export async function startFamilyAuth() {
     else account.view.openPeople.delete(details.dataset.orderPerson);
   }, true);
 
+  view.addEventListener("submit", async event => {
+    const expenseForm = event.target.closest("[data-family-expense]");
+    if (!expenseForm) return;
+    event.preventDefault();
+    const item = activeItem();
+    if (!item) return;
+    const amountCents = Math.round(Number(String(expenseForm.elements.amount.value).replace(",", ".")) * 100);
+    const button = expenseForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await request("/api/family-account/expenses", { edition: item.edition, registrationId: item.registration.id, expense: {
+        id: expenseForm.dataset.familyExpense || undefined, description: expenseForm.elements.description.value.trim(), amountCents,
+        date: expenseForm.elements.date.value, method: expenseForm.elements.method.value } });
+      account.view.editingExpenseId = null; account.view.addCostOpen = false;
+      account.signature = null; await refreshAccount();
+      feedback("De kost is bewaard en verdeeld.", "success");
+    } catch (error) { feedback(error.message); button.disabled = false; }
+  });
+
   view.addEventListener("submit", event => {
     const item = activeItem();
     const addForm = event.target.closest("[data-add-member]");
@@ -219,6 +249,10 @@ export async function startFamilyAuth() {
       const person = members.find(entry => entry.id === editForm.dataset.editMember);
       if (!person) return;
       person.name = name; person.type = type;
+      const diet = [...editForm.querySelectorAll('input[name="diet"]:checked')].map(input => input.value);
+      const notes = (editForm.elements.notes?.value || "").trim();
+      if (diet.length) person.diet = diet; else delete person.diet;
+      if (notes) person.notes = notes; else delete person.notes;
       account.view.editingMemberId = null;
     }
     render();

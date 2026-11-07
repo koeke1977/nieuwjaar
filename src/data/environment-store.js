@@ -6,7 +6,12 @@ import { state } from "./demo-data.js";
 
 const clone = value => JSON.parse(JSON.stringify(value ?? null));
 
-const memberPayload = person => ({ id: person.id, name: person.name, type: person.type, orders: { ...(person.orders || {}) } });
+// Every stored member field must be listed here, otherwise an admin save would drop it.
+const memberPayload = person => ({
+  id: person.id, name: person.name, type: person.type, orders: { ...(person.orders || {}) },
+  ...((person.diet || []).length ? { diet: [...person.diet] } : {}),
+  ...(person.notes ? { notes: person.notes } : {})
+});
 const registrationPayload = reg => ({
   id: reg.id, familyId: reg.familyId || null, name: reg.name,
   members: (reg.members || []).map(memberPayload), revision: Number(reg.revision) || 0
@@ -14,6 +19,7 @@ const registrationPayload = reg => ({
 const productPayload = product => ({ id: product.id, name: product.name, image: product.image || null, active: product.active !== false });
 
 // Canonical payload: fixed field order so it can be compared as text.
+export { memberPayload };
 export function payloadFrom(source) {
   return {
     editionId: source.editionId,

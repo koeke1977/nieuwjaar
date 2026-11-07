@@ -116,3 +116,49 @@ test("archived editions cannot be registered for", async () => {
   DB.raw.prepare("INSERT INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES ('old', 'ev', '2020', 'archived', '{}', 0, 0)").run();
   assert.equal((await call(DB, "ua", "POST", "/api/family-account/register", { edition: "old", familyId: "fa" })).status, 404);
 });
+
+test("allergies and notes are saved per person, and an allergy-only change is not ignored", async () => {
+  const DB = await setup();
+  const result = await save(DB, "ua", "ra", [{ ...member("a1", 1), diet: ["Glutenvrij", "Onbekend"], notes: "x" }]);
+  assert.equal(result.status, 400, "unknown options are refused");
+  const ok = await save(DB, "ua", "ra", [{ ...member("a1", 1), diet: ["Glutenvrij"], notes: "  geen pikant " }]);
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.notEqual(ok.body.unchanged, true);
+  const stored = JSON.parse(row(DB, "ra").data_json).members[0];
+  assert.deepEqual(stored.diet, ["Glutenvrij"]);
+  assert.equal(stored.notes, "geen pikant");
+  const session = (await call(DB, "ua", "GET", "/api/family-account/session")).body;
+  assert.deepEqual(session.registrations[0].registration.members[0].diet, ["Glutenvrij"]);
+});
+
+test("a family can add, change and delete its own costs; not the organisation's", async () => {
+  const DB = await setup();
+  const expense = { description: "Drank", amountCents: 3000, date: "2026-12-20", method: "general" };
+  const added = await call(DB, "ua", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense });
+  assert.equal(added.status, 200, JSON.stringify(added.body));
+  const snapshot = () => DB.raw.prepare("SELECT expenses_json, costs_finalized FROM edition_finance_snapshots").get();
+  let expenses = JSON.parse(snapshot().expenses_json);
+  assert.equal(expenses.length, 1);
+  assert.equal(expenses[0].advancedBy, "ra");
+  assert.equal(expenses[0].enteredBy, "family");
+  assert.equal(snapshot().costs_finalized, 0, "a new cost reopens the settlement");
+  const id = expenses[0].id;
+  assert.equal((await call(DB, "ua", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense: { ...expense, id, amountCents: 3500 } })).status, 200);
+  assert.equal(JSON.parse(snapshot().expenses_json)[0].amountCents, 3500);
+  assert.equal((await call(DB, "ub", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "rb", expense: { ...expense, id } })).status, 403, "another family cannot change it");
+  assert.equal((await call(DB, "uv", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense })).status, 403, "viewers cannot add costs");
+  // A cost entered by the organisation (no enteredBy) cannot be removed by the family.
+  expenses = JSON.parse(snapshot().expenses_json);
+  expenses.push({ id: "org", description: "Zaal", amountCents: 9000, date: "2026-12-01", method: "general", advancedBy: "ra" });
+  DB.raw.prepare("UPDATE edition_finance_snapshots SET expenses_json = ?").run(JSON.stringify(expenses));
+  assert.equal((await call(DB, "ua", "DELETE", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expenseId: "org" })).status, 403);
+  assert.equal((await call(DB, "ua", "DELETE", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expenseId: id })).status, 200);
+  assert.deepEqual(JSON.parse(snapshot().expenses_json).map(e => e.id), ["org"]);
+});
+
+test("a meat cost cannot be entered while nobody ordered meat", async () => {
+  const DB = await setup();
+  DB.raw.prepare("UPDATE event_registrations SET data_json = ?").run(JSON.stringify({ name: "X", members: [{ id: "x1", name: "X", type: "Volwassene", orders: {} }] }));
+  const result = await call(DB, "ua", "POST", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expense: { description: "Vlees", amountCents: 1000, date: "2026-12-01", method: "meat" } });
+  assert.equal(result.status, 400);
+});

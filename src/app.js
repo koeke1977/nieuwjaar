@@ -425,6 +425,10 @@ async function handleSubmit(event) {
     const name = form.elements.memberName.value.trim(), type = form.elements.memberType.value;
     if (!member || !name || !["Volwassene", "Kind"].includes(type)) { window.alert("Vul een geldige naam in en kies Volwassene of Kind."); return; }
     member.name = name; member.type = type;
+    const diet = [...form.querySelectorAll('input[name="diet"]:checked')].map(input => input.value);
+    const notes = (form.elements.notes?.value || "").trim();
+    if (diet.length) member.diet = diet; else delete member.diet;
+    if (notes) member.notes = notes; else delete member.notes;
     recount(registration); markCostsProvisional(); state.editingAdminMemberIndex = null; renderApp(); return;
   }
 
