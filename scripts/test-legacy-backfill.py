@@ -162,12 +162,12 @@ def main():
             db.execute(sql, params)
         db.commit()
 
-        require(db.execute(
+        require([tuple(row) for row in db.execute(
             "SELECT environment, data_json, updated_at FROM app_state ORDER BY environment"
-        ).fetchall() == [tuple(row) for row in source_state], "app_state is gewijzigd.")
-        require(db.execute(
+        ).fetchall()] == [tuple(row) for row in source_state], "app_state is gewijzigd.")
+        require([tuple(row) for row in db.execute(
             "SELECT id, user_id, edition_id, registration_id, created_at FROM family_user_registrations ORDER BY id"
-        ).fetchall() == [tuple(row) for row in source_links], "Bestaande accountkoppelingen zijn gewijzigd.")
+        ).fetchall()] == [tuple(row) for row in source_links], "Bestaande accountkoppelingen zijn gewijzigd.")
         require(db.execute("SELECT COUNT(*) FROM events WHERE id LIKE 'legacy-event-%'").fetchone()[0] == 2,
                 "Verwachtte niet exact twee overgenomen evenementen.")
         require(db.execute("SELECT COUNT(*) FROM event_editions WHERE id LIKE 'legacy-edition-%'").fetchone()[0] == 2,
