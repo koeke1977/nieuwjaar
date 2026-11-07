@@ -48,14 +48,14 @@ function renderNormalizedFamilyOptions(families) {
   select.innerHTML = '<option value="">Kies een familie</option>' + families.map(family => '<option value="'+escapeHtml(family.id)+'">'+escapeHtml(family.name)+'</option>').join("");
 }
 
-async async function loadNormalizedFamilies() {
+async function loadNormalizedFamilies() {
   const target = root?.querySelector("[data-normalized-families]");
   if (!target) return;
   try {
     const result = await api("/api/admin/families");
     const families = result.families || [];
     renderNormalizedFamilyOptions(families);
-    root.querySelector("[data-normalized-family-count]").textContent = families.length + (families.length === 1 ? " families" : " families");
+    root.querySelector("[data-normalized-family-count]").textContent = families.length + (families.length === 1 ? " familie" : " families");
     if (!families.length) {
       target.innerHTML = '<p class="catalog-note">Er zijn nog geen relationele families aangemaakt.</p>';
       return;
@@ -67,7 +67,7 @@ async async function loadNormalizedFamilies() {
       const registrations = family.registrations.map(item =>
         '<div class="family-normalized-registration"><strong>'+escapeHtml(item.event || "Evenement")+'</strong><span>'+escapeHtml(item.edition || "Editie")+' · '+escapeHtml(item.name || "Inschrijving")+'</span><small>'+escapeHtml(item.status || "")+' · '+escapeHtml(item.financeStrategy || "geen financiële strategie")+(item.invalidData ? " · gegevens nakijken" : "")+'</small></div>'
       ).join("");
-      return '<article class="family-user-row"><div class="family-user-main"><strong>'+escapeHtml(family.name || "Familie")+'</strong><small>'+escapeHtml(family.contactEmail || "Geen contactadres")+'</small><div class="family-users-links">'+(accounts || '<span>Geen accounts gekoppeld</span>')+'</div><div class="family-normalized-registrations">'+(registrations || '<span>Geen evenementinschrijvingen</span>')+'</div></div></article>';
+      return '<article class="family-user-row"><div class="family-user-main"><strong>'+escapeHtml(family.name || "Familie")+'</strong><small>'+escapeHtml(family.contactEmail || "Geen contactadres")+'</small><div class="family-user-links">'+(accounts || '<span>Geen accounts gekoppeld</span>')+'</div><div class="family-normalized-registrations">'+(registrations || '<span>Geen evenementinschrijvingen</span>')+'</div></div></article>';
     }).join("");
   } catch (error) {
     target.innerHTML = '<p class="catalog-note">'+escapeHtml(error.message || "Relationele gegevens niet beschikbaar.")+'</p>';
