@@ -62,3 +62,15 @@
 .admin-finance-add-grid h3{margin:0}
 .admin-finance-add-grid input,.admin-finance-add-grid select{width:100%;min-width:0;padding:10px;border:1px solid var(--line,#e8e4dd);border-radius:8px;background:#fff;font:inherit}
 @media(max-width:700px){.admin-finance-add-grid{grid-template-columns:1fr}.admin-finance-line{align-items:flex-start;flex-wrap:wrap}}
+
+.admin-finance-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.admin-finance-heading h2{margin:0 0 6px}
+.admin-finance-forms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}
+.admin-finance-forms form{display:grid;align-content:start;gap:9px;padding:14px;border:1px solid var(--line,#e8e4dd);border-radius:10px;background:#faf9f7}
+.admin-finance-forms h3{margin:0 0 3px}
+.admin-finance-forms label{display:grid;gap:5px;font-size:12px;font-weight:700}
+.admin-finance-forms input,.admin-finance-forms select{width:100%;min-width:0;padding:10px;border:1px solid var(--line,#e8e4dd);border-radius:8px;background:#fff;color:inherit;font:inherit;font-weight:400}
+.admin-finance-finalized{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13px}
+.admin-finance-finalized input{width:17px;height:17px}
+.admin-finance-line button{flex:0 0 auto}
+@media(max-width:700px){.admin-finance-forms{grid-template-columns:1fr}.admin-finance-line{align-items:flex-start;flex-wrap:wrap}.admin-finance-line span{flex:1 1 100%}}
