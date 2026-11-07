@@ -91,29 +91,58 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     const contactEmail = typeof body?.contactEmail === "string" ? body.contactEmail.trim().toLowerCase() : "";
     const editionId = typeof body?.editionId === "string" ? body.editionId.trim() : "";
     const registrationName = typeof body?.registrationName === "string" ? body.registrationName.trim().slice(0, 160) : name;
-    if (!name || !editionId || !registrationName || (contactEmail && !validEmail(contactEmail))) {
-      return json({ error: "Vul een familienaam, geldige editie en eventueel een geldig e-mailadres in." }, 400);
+    const ownerName = typeof body?.ownerDisplayName === "string" ? body.ownerDisplayName.trim().slice(0, 100) : "";
+    const ownerEmail = typeof body?.ownerEmail === "string" ? body.ownerEmail.trim().toLowerCase() : "";
+    if (!name || !editionId || !registrationName || !ownerName || !validEmail(ownerEmail) ||
+        (contactEmail && !validEmail(contactEmail))) {
+      return json({ error: "Vul familienaam, editie, inschrijvingsnaam en de naam en het e-mailadres van de eerste beheerder in." }, 400);
     }
     const edition = await env.DB.prepare(
-      "SELECT d.id, d.status, d.config_json, e.status AS event_status FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?"
+      "SELECT d.id, d.status, e.status AS event_status FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?"
     ).bind(editionId).first();
     if (!edition) return json({ error: "De gekozen editie bestaat niet." }, 404);
-    if (edition.status === "archived" || edition.event_status === "archived") return json({ error: "Aan een gearchiveerd evenement of editie kan je geen nieuwe inschrijving toevoegen." }, 409);
-    const familyId = crypto.randomUUID();
-    const registrationId = crypto.randomUUID();
-    const emptyRegistration = { name: registrationName, adults: 0, children: 0, members: [] };
-    try {
-      await env.DB.batch([
-        env.DB.prepare("INSERT INTO families (id, display_name, contact_email, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
-          .bind(familyId, name, contactEmail || null, now, now),
-        env.DB.prepare("INSERT INTO event_registrations (id, edition_id, family_id, status, data_json, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?)")
-          .bind(registrationId, editionId, familyId, JSON.stringify(emptyRegistration), now, now)
-      ]);
-      return json({ created: true, family: { id: familyId, name, contactEmail: contactEmail || null }, registration: { id: registrationId, name: registrationName, editionId } }, 201);
-    } catch (error) {
-      console.error("Normalized family creation failed:", error);
-      return json({ error: "Familie en inschrijving konden niet samen worden aangemaakt." }, 503);
+    if (edition.status === "archived" || edition.status === "closed" || edition.event_status === "archived") return json({ error: "Aan een gesloten of gearchiveerde editie kan je geen nieuwe inschrijving toevoegen." }, 409);
+    const existingUser = await env.DB.prepare("SELECT id, status FROM family_users WHERE email = ?").bind(ownerEmail).first();
+    if (existingUser?.status === "disabled") return json({ error: "Het gekozen beheeraccount is geblokkeerd. Activeer het eerst opnieuw." }, 409);
+    const familyId = crypto.randomUUID(), registrationId = crypto.randomUUID(), now = Math.floor(Date.now() / 1000);
+    const userId = existingUser?.id || crypto.randomUUID();
+    const needsInvite = !existingUser || existingUser.status === "invited";
+    const token = needsInvite ? base64Url(crypto.getRandomValues(new Uint8Array(32))) : "";
+    const statements = [
+      env.DB.prepare("INSERT INTO families (id, display_name, contact_email, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(familyId, name, contactEmail || ownerEmail, now, now),
+      env.DB.prepare("INSERT INTO event_registrations (id, edition_id, family_id, status, data_json, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?)")
+        .bind(registrationId, editionId, familyId, JSON.stringify({ name: registrationName, adults: 0, children: 0, members: [] }), now, now)
+    ];
+    if (!existingUser) statements.push(env.DB.prepare("INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'invited', ?, ?)")
+      .bind(userId, ownerEmail, ownerName, now, now));
+    statements.push(env.DB.prepare("INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, 'owner', ?)")
+      .bind(crypto.randomUUID(), familyId, userId, now));
+    if (needsInvite) {
+      statements.push(env.DB.prepare("UPDATE family_user_invites SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL").bind(now, userId));
+      statements.push(env.DB.prepare("INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(crypto.randomUUID(), userId, await sha256(token), now, now + 7 * 24 * 60 * 60));
     }
+    try {
+      await env.DB.batch(statements);
+    } catch (error) {
+      console.error("Normalized family and owner creation failed:", error);
+      if (/UNIQUE|constraint/i.test(String(error?.message || ""))) return json({ error: "Er bestaat al een familie-inschrijving voor deze editie of het beheeraccount kon niet uniek worden gekoppeld." }, 409);
+      return json({ error: "Familie, inschrijving en eerste beheerder konden niet samen worden aangemaakt." }, 503);
+    }
+    if (needsInvite) {
+      try {
+        const inviteUrl = "https://nieuwjaar.datuur.be/familie/" + token;
+        const html = '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Toegang tot een familie-inschrijving</h2><p>Dag ' + escapeHtml(ownerName) + ',</p><p>Je bent als beheerder toegevoegd aan familie ' + escapeHtml(name) + '.</p><p><a href="' + inviteUrl + '">Activeer je account</a></p><p>Deze link is 7 dagen geldig.</p></div>';
+        await sendGraphMail(env, ownerEmail, "Uitnodiging familieportaal – beheerder", html);
+      } catch (error) {
+        console.error("First family owner invitation mail failed:", error);
+        return json({ created: true, invitePending: true, mailFailed: true, familyId, registrationId,
+          warning: "De familie is aangemaakt met een beheerder, maar de uitnodigingsmail kon niet worden verzonden. Verstuur de uitnodiging opnieuw." }, 201);
+      }
+    }
+    return json({ created: true, invitePending: needsInvite, family: { id: familyId, name, contactEmail: contactEmail || ownerEmail },
+      registration: { id: registrationId, name: registrationName, editionId }, owner: { userId, email: ownerEmail, role: "owner" } }, 201);
   }
 
   const membershipMatch = path.match(/^\/api\/admin\/families\/([^/]+)\/memberships\/([^/]+)$/);
