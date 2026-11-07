@@ -99,6 +99,7 @@ export async function startFamilyAuth() {
     if (signature === account.signature && !account.items.some(item => item.dirty || item.saving)) return true;
     account.signature = signature;
     account.user = result.user || null;
+    account.openEditions = result.openEditions || [];
     const previous = new Map(account.items.map(item => [item.registration.id, item]));
     account.items = (result.registrations || []).map(item => {
       const old = previous.get(item.registration.id);
@@ -144,6 +145,18 @@ export async function startFamilyAuth() {
       render(); return;
     }
     const action = control.dataset.action;
+    if (action === "self-register") {
+      control.disabled = true; control.textContent = "Inschrijven…";
+      try {
+        await request("/api/family-account/register", { edition: control.dataset.edition, familyId: control.dataset.family });
+        account.signature = null;
+        await refreshAccount();
+        const created = account.items.find(item => item.edition === control.dataset.edition);
+        if (created) { account.activeId = created.registration.id; account.view = { tab: "family", editingMemberId: null, openPeople: null }; render(); }
+        feedback("Jullie zijn ingeschreven. Controleer de gezinsleden en kies daarna jullie bestelling.", "success");
+      } catch (error) { feedback(error.message); control.disabled = false; control.textContent = "Inschrijven"; }
+      return;
+    }
     if (action === "show-forgot") show("forgot");
     if (action === "show-login") show("login");
     if (action === "logout") {

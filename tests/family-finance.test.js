@@ -120,3 +120,25 @@ test("family session includes a finance breakdown limited to the own registratio
   assert.equal(finance.categories.find(category => category.method === "meat").familyCents, 4000);
   assert.ok(!JSON.stringify(body).includes("Piet"), "other families' members are not exposed");
 });
+
+test("a refund to a family that advanced too much reduces what it still gets back", () => {
+  const before = getFamilyFinanceBreakdown(familyB, registrations, expenses, payments).totals;
+  assert.ok(before.creditCents > 0);
+  const refund = { id: "r1", registrationId: "b", amountCents: before.creditCents - 100, date: "2027-01-05", method: "bank", kind: "refund" };
+  const after = getFamilyFinanceBreakdown(familyB, registrations, expenses, payments.concat(refund)).totals;
+  assert.equal(after.refundedCents, before.creditCents - 100);
+  assert.equal(after.creditCents, 100);
+  assert.equal(after.paymentStatus, "Gedeeltelijk terugbetaald");
+  const settled = getFinancialSummary(registrations, expenses, payments.concat({ ...refund, amountCents: before.creditCents })).find(row => row.id === "b");
+  assert.equal(settled.creditCents, 0);
+  assert.equal(settled.paymentStatus, "Terugbetaald");
+  assert.equal(settled.paidCents, 0, "a refund is not counted as money paid in");
+});
+
+test("a cost paid from the shared kitty gives nobody an advance but is still shared", () => {
+  const kitty = [{ id: "k1", description: "Zaal", amountCents: 9000, method: "general", advancedBy: "kas" }];
+  const rows = getFinancialSummary(registrations, kitty, []);
+  assert.equal(rows.reduce((sum, row) => sum + row.advancedCents, 0), 0);
+  assert.equal(rows.reduce((sum, row) => sum + row.shareCents, 0), 9000);
+  assert.equal(rows.reduce((sum, row) => sum + row.remainingCents, 0), 9000, "families owe the full amount to the kitty");
+});

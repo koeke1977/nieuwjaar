@@ -92,3 +92,27 @@ test("archived editions are not shown and cannot be edited", async () => {
   assert.equal((await call(DB, "ua", "GET", "/api/family-account/session")).body.registrations.length, 0);
   assert.equal((await save(DB, "ua", "ra", [member("a1", 2)])).status, 409);
 });
+
+test("a family can register itself for a new open edition, with last year's members", async () => {
+  const DB = await setup();
+  DB.raw.prepare("INSERT INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES ('ed2', 'ev', '2027–2028', 'open', '{}', 2, 2)").run();
+  const before = (await call(DB, "ua", "GET", "/api/family-account/session")).body;
+  assert.deepEqual(before.openEditions.map(open => open.edition), ["ed2"]);
+  const viewer = await call(DB, "uv", "POST", "/api/family-account/register", { edition: "ed2", familyId: "fa" });
+  assert.equal(viewer.status, 403, "viewers cannot register the family");
+  const result = await call(DB, "ua", "POST", "/api/family-account/register", { edition: "ed2", familyId: "fa" });
+  assert.equal(result.status, 201, JSON.stringify(result.body));
+  const after = (await call(DB, "ua", "GET", "/api/family-account/session")).body;
+  assert.equal(after.openEditions.length, 0);
+  const next = after.registrations.find(item => item.edition === "ed2");
+  assert.deepEqual(next.registration.members.map(p => p.id), ["a1"]);
+  assert.deepEqual(next.registration.members[0].orders, {}, "orders start empty");
+  assert.equal((await call(DB, "ua", "POST", "/api/family-account/register", { edition: "ed2", familyId: "fa" })).status, 409);
+  assert.equal((await call(DB, "ub", "POST", "/api/family-account/register", { edition: "ed2", familyId: "fa" })).status, 404, "not your family");
+});
+
+test("archived editions cannot be registered for", async () => {
+  const DB = await setup();
+  DB.raw.prepare("INSERT INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES ('old', 'ev', '2020', 'archived', '{}', 0, 0)").run();
+  assert.equal((await call(DB, "ua", "POST", "/api/family-account/register", { edition: "old", familyId: "fa" })).status, 404);
+});

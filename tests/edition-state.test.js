@@ -122,3 +122,36 @@ test("starting the next edition archives the current one; families and accounts 
   assert.equal(DB.raw.prepare("SELECT COUNT(*) n FROM family_memberships").get().n, 1);
   assert.equal((await startNextEdition({ DB }, result.editionId, { label: "2027–2028" }, NOW)).status, 409, "duplicate label refused");
 });
+
+test("refunds and shared-kitty costs are accepted; unknown payment kinds are not", async () => {
+  const DB = setup();
+  const base = payload(await loadEditionState({ DB }, "ed1"));
+  const data = clone(base);
+  data.expenses.push({ id: "e1", description: "Zaal", amountCents: 5000, date: "2026-12-01", method: "general", advancedBy: "kas" });
+  data.payments.push({ id: "p1", registrationId: "ra", amountCents: 100, date: "2026-12-02", method: "bank", kind: "refund" });
+  const ok = await saveEditionState({ DB }, "ed1", { base, data }, NOW);
+  assert.equal(ok.status, 200, ok.error);
+  assert.equal(ok.state.payments[0].kind, "refund");
+  assert.equal(ok.state.expenses[0].advancedBy, "kas");
+  const bad = clone(payload(ok.state));
+  bad.payments[0].kind = "gift";
+  assert.equal((await saveEditionState({ DB }, "ed1", { base: payload(ok.state), data: bad }, NOW)).status, 400);
+});
+
+test("a family can be registered again after being unregistered from the same edition", async () => {
+  const DB = setup();
+  let base = payload(await loadEditionState({ DB }, "ed1"));
+  let data = clone(base);
+  data.registrations = data.registrations.filter(r => r.id !== "rb"); // unregister family B
+  let result = await saveEditionState({ DB }, "ed1", { base, data }, NOW);
+  assert.equal(result.status, 200, result.error);
+  base = payload(result.state);
+  data = clone(base);
+  data.registrations.push({ id: "rb-new", familyId: "fb", name: "Gezin fb", members: [member("rb1", 2)] });
+  result = await saveEditionState({ DB }, "ed1", { base, data }, NOW + 5);
+  assert.equal(result.status, 200, result.error);
+  const again = result.state.registrations.find(r => r.familyId === "fb");
+  assert.ok(again, "family B is registered again");
+  assert.equal(again.members[0].orders.steak, 2);
+  assert.equal(DB.raw.prepare("SELECT COUNT(*) n FROM event_registrations WHERE family_id = 'fb'").get().n, 1, "the old row is reused");
+});

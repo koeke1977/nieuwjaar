@@ -2,6 +2,7 @@ import { handleFamilyAccountApi } from "./modules/family-account.js";
 import { handleAdminFamilyUsers } from "./modules/admin-family-users.js";
 import { handleAdminEvents } from "./modules/admin-events.js";
 import { handleAdminEditionState } from "./modules/admin-edition-state.js";
+import { backupDatabase, handleAdminBackups } from "./modules/backup.js";
 const SESSION_COOKIE = "ny_admin";
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
 const encoder = new TextEncoder();
@@ -120,6 +121,10 @@ async function adminSession(request, env) {
 async function handleAdminApi(request, env, url) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
 
+  if (url.pathname === "/api/admin/backups" || url.pathname.startsWith("/api/admin/backups/")) {
+    return handleAdminBackups(request, env, url, { json, sameOrigin, adminSession });
+  }
+
   if (url.pathname.startsWith("/api/admin/editions/")) {
     return (await handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession })) || json({ error: "Niet gevonden." }, 404);
   }
@@ -227,6 +232,11 @@ async function handleAdminApi(request, env, url) {
 }
 
 export default {
+  // Daily backup (cron in wrangler.jsonc).
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(backupDatabase(env).then(result => console.log("Backup written:", result)).catch(error => console.error("Backup failed:", error)));
+  },
+
   async fetch(request, env) {
     try {
       const url = new URL(request.url);

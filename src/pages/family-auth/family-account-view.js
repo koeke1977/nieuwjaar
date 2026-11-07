@@ -184,12 +184,13 @@ function renderCosts(item) {
     '<li><span>Ons aandeel in de kosten</span><b>' + euro(t.shareCents) + '</b></li>',
     t.advancedCents ? '<li><span>Min: door jullie voorgeschoten</span><b>− ' + euro(t.advancedCents) + '</b></li>' : "",
     t.paidCents ? '<li><span>Min: al betaald</span><b>− ' + euro(t.paidCents) + '</b></li>' : "",
+    t.refundedCents ? '<li><span>Al terugbetaald aan jullie</span><b>' + euro(t.refundedCents) + '</b></li>' : "",
     t.remainingCents > 0 ? '<li class="fa-settle-total fa-due"><span>Nog te betalen</span><b>' + euro(t.remainingCents) + '</b></li>'
       : t.creditCents > 0 ? '<li class="fa-settle-total fa-credit"><span>Jullie krijgen terug</span><b>' + euro(t.creditCents) + '</b></li>'
       : '<li class="fa-settle-total fa-ok"><span>Saldo</span><b>' + euro(0) + '</b></li>'
   ].join("");
   const payments = finance.payments.length
-    ? '<ul class="fa-payments">' + finance.payments.map(payment => '<li><span>' + esc(formatDate(payment.date) || "Betaling") + ' · ' + (payment.method === "cash" ? "cash" : payment.method === "bank" ? "overschrijving" : "betaling") + '</span><b>' + euro(payment.amountCents) + '</b></li>').join("") + '</ul>'
+    ? '<ul class="fa-payments">' + finance.payments.map(payment => '<li><span>' + (payment.kind === "refund" ? "Terugbetaald aan jullie · " : "Betaald · ") + esc(formatDate(payment.date) || "") + ' · ' + (payment.method === "cash" ? "cash" : "overschrijving") + '</span><b>' + (payment.kind === "refund" ? "+ " : "") + euro(payment.amountCents) + '</b></li>').join("") + '</ul>'
     : "";
 
   return '<div class="fa-section-head"><h3>1. Kosten van het evenement</h3><p>Per soort kost: het totaal en het deel dat jullie gezin draagt.</p></div>' + categories +
@@ -207,13 +208,17 @@ export function renderEvent(item, view) {
     '<div class="fa-tab-body" role="tabpanel">' + body + '</div></section>';
 }
 
-export function renderAccount({ user, items, activeId, view }) {
+function renderOpenEditions(openEditions = []) {
+  return openEditions.map(open => '<section class="fa-open"><div><p class="fa-eyebrow">' + esc(open.event) + '</p><h2>Inschrijven voor ' + esc(open.event) + ' ' + esc(open.editionLabel) + '</h2><p>' + esc(open.familyName) + ' is nog niet ingeschreven. De gezinsleden van jullie vorige inschrijving worden overgenomen; daarna kies je zelf de bestelling.</p></div><button type="button" class="fa-btn fa-btn-primary" data-action="self-register" data-edition="' + esc(open.edition) + '" data-family="' + esc(open.familyId) + '">Inschrijven</button></section>').join("");
+}
+
+export function renderAccount({ user, items, activeId, view, openEditions = [] }) {
   const name = user?.displayName || "";
   const top = '<header class="fa-top"><div><p class="fa-eyebrow">Familieportaal</p><h1>' + (name ? "Hallo, " + esc(name) : "Welkom") + '</h1>' + (user?.email ? '<small>' + esc(user.email) + '</small>' : "") + '</div><button type="button" class="fa-btn fa-btn-quiet" data-action="logout">Afmelden</button></header>';
-  if (!items.length) return top + '<p class="fa-empty">Je account is actief, maar er is nog geen inschrijving aan gekoppeld. Neem contact op met de organisatie als je dit niet verwacht.</p>';
+  if (!items.length) return top + (renderOpenEditions(openEditions) || '<p class="fa-empty">Je account is actief, maar er is nog geen inschrijving aan gekoppeld. Neem contact op met de organisatie als je dit niet verwacht.</p>');
   const active = items.find(item => item.registration.id === activeId) || items[0];
   const switcher = items.length > 1
     ? '<nav class="fa-switch" aria-label="Evenementen">' + items.map(item => '<button type="button" data-switch-registration="' + esc(item.registration.id) + '" aria-pressed="' + (item === active) + '"><strong>' + esc(item.event || "Evenement") + '</strong><small>' + esc(item.editionLabel || "") + '</small></button>').join("") + '</nav>'
     : "";
-  return top + switcher + renderEvent(active, view);
+  return top + renderOpenEditions(openEditions) + switcher + renderEvent(active, view);
 }

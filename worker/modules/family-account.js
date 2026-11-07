@@ -178,7 +178,37 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
         finance: row.finance_strategy === "nieuwjaar" ? await normalizedFamilyFinance(env, row.edition_id, own) : null
       });
     }
-    return json({ authenticated: true, user: { email: session.email, displayName: session.display_name }, registrations });
+    // Open editions this family can still register for (owners and editors only).
+    const open = await env.DB.prepare(
+      "SELECT d.id AS edition_id, d.label AS edition_label, e.name AS event_name, f.id AS family_id, f.display_name AS family_name FROM family_memberships fm JOIN families f ON f.id = fm.family_id JOIN event_editions d ON d.status = 'open' JOIN events e ON e.id = d.event_id AND e.status = 'active' WHERE fm.user_id = ? AND fm.role IN ('owner', 'editor') AND NOT EXISTS (SELECT 1 FROM event_registrations er WHERE er.edition_id = d.id AND er.family_id = f.id AND er.status = 'active') ORDER BY d.created_at DESC"
+    ).bind(session.user_id).all();
+    const openEditions = (open.results || []).map(row => ({ edition: row.edition_id, editionLabel: row.edition_label, event: row.event_name, familyId: row.family_id, familyName: row.family_name }));
+    return json({ authenticated: true, user: { email: session.email, displayName: session.display_name }, registrations, openEditions });
+  }
+
+  if (path === "/api/family-account/register" && request.method === "POST") {
+    if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+    const session = await familyAccountSession(request, env, cookieValue, sha256);
+    if (!session) return json({ error: "Je sessie is verlopen. Meld je opnieuw aan." }, 401);
+    const body = await request.json().catch(() => null);
+    const editionId = typeof body?.edition === "string" ? body.edition : "";
+    const familyId = typeof body?.familyId === "string" ? body.familyId : "";
+    const target = await env.DB.prepare(
+      "SELECT d.id, f.display_name, fm.role FROM event_editions d JOIN events e ON e.id = d.event_id JOIN family_memberships fm ON fm.family_id = ? AND fm.user_id = ? JOIN families f ON f.id = fm.family_id WHERE d.id = ? AND d.status = 'open' AND e.status = 'active'"
+    ).bind(familyId, session.user_id, editionId).first();
+    if (!target) return json({ error: "Deze editie is niet (meer) open voor inschrijving." }, 404);
+    if (!["owner", "editor"].includes(target.role)) return json({ error: "Je hebt alleen leesrechten voor dit gezin." }, 403);
+    // Start from the members of the family's most recent registration; orders start empty.
+    const previous = await env.DB.prepare("SELECT data_json FROM event_registrations WHERE family_id = ? AND edition_id != ? ORDER BY updated_at DESC LIMIT 1").bind(familyId, editionId).first();
+    let members = [];
+    try { members = (JSON.parse(previous?.data_json || "{}").members || []).map(person => ({ id: person.id, name: person.name, type: person.type, orders: {} })); } catch { members = []; }
+    const data = JSON.stringify({ name: target.display_name, adults: members.filter(p => p.type === "Volwassene").length, children: members.filter(p => p.type === "Kind").length, members });
+    const registrationId = "inschrijving-" + crypto.randomUUID();
+    const result = await env.DB.prepare(
+      "INSERT INTO event_registrations (id, edition_id, family_id, status, data_json, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?) ON CONFLICT(edition_id, family_id) DO UPDATE SET status = 'active', data_json = excluded.data_json, updated_at = excluded.updated_at WHERE event_registrations.status = 'cancelled'"
+    ).bind(registrationId, editionId, familyId, data, now, now).run();
+    if (!Number(result?.meta?.changes ?? 0)) return json({ error: "Jullie gezin is al ingeschreven voor deze editie." }, 409);
+    return json({ registered: true }, 201);
   }
 
   if (path === "/api/family-account/registration" && request.method === "PUT") {

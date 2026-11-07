@@ -8,6 +8,8 @@
 const ID = /^[A-Za-z0-9_-]{1,120}$/;
 const PRODUCT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const CONFLICT = "edition-state-conflict";
+// A cost paid from the shared kitty (not advanced by a family): nobody gets an advance credit.
+export const SHARED_FUND = "kas";
 
 function parse(json, fallback) { try { return JSON.parse(json || ""); } catch { return fallback; } }
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -99,15 +101,16 @@ function cleanFinance(data, registrationIds) {
   for (const item of data.expenses) {
     const description = validName(item?.description, 120);
     if (!item || !ID.test(String(item.id)) || expenseIds.has(item.id) || !description || !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0 ||
-        typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !["general", "adults", "meat"].includes(item.method) || !registrationIds.has(item.advancedBy)) return null;
+        typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !["general", "adults", "meat"].includes(item.method) || !(registrationIds.has(item.advancedBy) || item.advancedBy === SHARED_FUND)) return null;
     expenseIds.add(item.id);
     expenses.push({ id: item.id, description, amountCents: item.amountCents, date: item.date, method: item.method, advancedBy: item.advancedBy });
   }
   for (const item of data.payments) {
     if (!item || !ID.test(String(item.id)) || paymentIds.has(item.id) || !registrationIds.has(item.registrationId) || !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0 ||
-        typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !["cash", "bank"].includes(item.method)) return null;
+        typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !["cash", "bank"].includes(item.method) ||
+        (item.kind != null && !["payment", "refund"].includes(item.kind))) return null;
     paymentIds.add(item.id);
-    payments.push({ id: item.id, registrationId: item.registrationId, amountCents: item.amountCents, date: item.date, method: item.method });
+    payments.push({ id: item.id, registrationId: item.registrationId, amountCents: item.amountCents, date: item.date, method: item.method, ...(item.kind === "refund" ? { kind: "refund" } : {}) });
   }
   return { expenses, payments };
 }
@@ -167,7 +170,10 @@ export async function saveEditionState(env, editionId, body, now) {
     if (!previous) {
       const familyId = reg.familyId || "family-" + crypto.randomUUID();
       statements.push(env.DB.prepare("INSERT INTO families (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO NOTHING").bind(familyId, reg.name, now, now));
-      statements.push(env.DB.prepare("INSERT INTO event_registrations (id, edition_id, family_id, status, data_json, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?)").bind(reg.id, editionId, familyId, payload, now, now));
+      // One registration per family per edition. Re-registering after "uitschrijven" reactivates
+      // the cancelled row; registering a family that is already active is a conflict.
+      statements.push(guard(env, "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM event_registrations WHERE edition_id = ? AND family_id = ? AND status = 'active')", editionId, familyId));
+      statements.push(env.DB.prepare("INSERT INTO event_registrations (id, edition_id, family_id, status, data_json, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?) ON CONFLICT(edition_id, family_id) DO UPDATE SET status = 'active', data_json = excluded.data_json, updated_at = excluded.updated_at").bind(reg.id, editionId, familyId, payload, now, now));
       continue;
     }
     if (same(registrationContent(previous), registrationContent({ ...reg, familyId: previous.familyId }))) continue;

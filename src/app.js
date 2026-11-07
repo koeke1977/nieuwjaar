@@ -109,6 +109,11 @@ async function loadFamiliesAndAccounts() {
   setBeheerFamilies(state.beheerFamiliesCache);
   setBeheerAccounts(accounts.users || []);
 }
+async function loadBackups() {
+  try { state.backups = (await adminApi("/api/admin/backups", undefined, "GET")).backups || []; }
+  catch (error) { console.warn("Backups unavailable:", error); state.backups = []; }
+  liveRenderPending = true; renderWhenIdle();
+}
 async function loadEverything() {
   const editionId = await loadAdminState(remembered());
   rememberEdition(editionId);
@@ -162,6 +167,7 @@ function handleClick(event) {
   if (sectionButton) {
     Object.assign(state, { activeSection: sectionButton.dataset.section, beheerFamilyId: null, beheerUserFamilyId: null, beheerEventView: null, editingExpenseId: null, editingAdminMemberIndex: null, beheerRenaming: false });
     if (state.activeSection === "users") loadFamiliesAndAccounts().then(() => { liveRenderPending = true; renderWhenIdle(); }).catch(() => {});
+    if (state.activeSection === "settings") loadBackups();
     renderApp(); window.scrollTo(0, 0); return;
   }
   const action = event.target.closest("[data-action]");
@@ -180,6 +186,17 @@ function handleClick(event) {
   if (type === "rename-registration") { go({ beheerRenaming: true }); document.querySelector("#rename-registration-form input")?.focus(); return; }
   if (type === "cancel-rename") { go({ beheerRenaming: false }); return; }
 
+  if (type === "unregister-family") {
+    const registration = state.registrations.find(item => item.id === action.dataset.id);
+    if (!registration) return;
+    const linked = state.expenses.filter(item => item.advancedBy === registration.id).length + state.payments.filter(item => item.registrationId === registration.id).length;
+    if (linked) { window.alert(registration.name + " heeft nog " + linked + " kost(en) of betaling(en) in deze editie. Verwijder of wijzig die eerst bij Financiën, en schrijf het gezin daarna uit."); return; }
+    if (!window.confirm(registration.name + " uitschrijven uit " + state.eventName + " " + state.activeEvent.name + "? De bestelling van deze editie vervalt. Het gezin en zijn accounts blijven bestaan onder Gebruikers.")) return;
+    state.registrations = state.registrations.filter(item => item.id !== registration.id);
+    markCostsProvisional();
+    go({ beheerFamilyId: null, editingAdminMemberIndex: null });
+    return;
+  }
   if (type === "register-family") {
     // Register a known family for the open edition, starting from the members of its last registration.
     const familyId = action.dataset.id;
@@ -213,6 +230,12 @@ function handleClick(event) {
     return;
   }
 
+  if (type === "create-backup") {
+    action.disabled = true; action.textContent = "Bezig…";
+    adminApi("/api/admin/backups", {}).then(result => { window.alert("Back-up gemaakt (" + Math.round(result.bytes / 1024) + " kB)."); return loadBackups(); })
+      .catch(error => { window.alert(error.message); action.disabled = false; action.textContent = "Nu back-up maken"; });
+    return;
+  }
   if (type === "admin-logout") {
     (async () => { try { await flushAdminState(); } catch (error) { window.alert(error.message); renderApp(); return; }
       fetch("/api/admin/logout", { method: "POST", credentials: "same-origin" }).finally(() => { adminAuthenticated = false; window.location.href = "/"; });
@@ -410,7 +433,7 @@ async function handleSubmit(event) {
     const description = form.elements.description.value.trim();
     const amount = Number(form.elements.amount.value), amountCents = Math.round(amount * 100);
     const date = form.elements.date.value, method = form.elements.method.value, advancedBy = form.elements.advancedBy.value;
-    if (!description || !Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amountCents) || !date || !advancedBy || !["general", "adults", "meat"].includes(method) || !state.registrations.some(item => item.id === advancedBy)) {
+    if (!description || !Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amountCents) || !date || !advancedBy || !["general", "adults", "meat"].includes(method) || !(advancedBy === "kas" || state.registrations.some(item => item.id === advancedBy))) {
       window.alert("Controleer de omschrijving, het bedrag, de datum, de verdeelsleutel en wie voorschoot."); return;
     }
     const existing = id === "edit-expense-form" ? state.expenses.find(item => item.id === state.editingExpenseId) : null;
@@ -431,6 +454,18 @@ async function handleSubmit(event) {
     const balance = getFinancialSummary(state.registrations, state.expenses, state.payments).find(row => row.id === registrationId);
     if (!balance || amountCents > balance.remainingCents) { window.alert(`Het bedrag is hoger dan het openstaande saldo van ${money((balance?.remainingCents || 0) / 100)}.`); return; }
     state.payments.push({ id: makeId("betaling"), registrationId, amountCents, date, method });
+    renderApp(); return;
+  }
+
+  if (id === "add-refund-form") {
+    event.preventDefault();
+    const registrationId = form.elements.registrationId.value;
+    const amount = Number(form.elements.amount.value), amountCents = Math.round(amount * 100);
+    const date = form.elements.date.value, method = form.elements.method.value;
+    const balance = getFinancialSummary(state.registrations, state.expenses, state.payments).find(row => row.id === registrationId);
+    if (!balance || !Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amountCents) || !date || !["cash", "bank"].includes(method)) { window.alert("Controleer het gezin, het bedrag, de datum en de betaalwijze."); return; }
+    if (amountCents > balance.creditCents) { window.alert(`Het bedrag is hoger dan wat dit gezin nog terugkrijgt (${money(balance.creditCents / 100)}).`); return; }
+    state.payments.push({ id: makeId("terugbetaling"), registrationId, amountCents, date, method, kind: "refund" });
     renderApp(); return;
   }
 

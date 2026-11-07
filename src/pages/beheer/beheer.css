@@ -301,3 +301,7 @@ button.bh-kpi:hover { border-color: #cdd3dc; }
   .bh-card { box-shadow: none; break-inside: avoid; }
   .bh-table th:first-child, .bh-table td:first-child { position: static; }
 }
+
+/* Refunds (money paid back to a family) */
+.bh-refund b { color: var(--bh-info); }
+.bh-refund small, .bh-refund > span:first-child { color: var(--bh-info); }

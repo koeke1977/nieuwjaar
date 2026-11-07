@@ -18,6 +18,16 @@ const formatDate = value => {
 export const eventName = () => state.eventName || "Nieuwjaar";
 export const editionName = () => state.activeEvent?.name || "";
 const eventTitle = () => eventName() + (editionName() ? " " + editionName() : "");
+const SHARED_FUND = "kas";
+const payerName = (id, regs = state.registrations || []) => id === SHARED_FUND ? "de gemeenschappelijke kas" : regs.find(reg => reg.id === id)?.name || "Onbekend";
+function paymentLine(payment, withFamily) {
+  const refund = payment.kind === "refund";
+  const label = (refund ? "Terugbetaald aan het gezin" : "Betaling") + " · " + esc(formatDate(payment.date)) + " · " + (payment.method === "cash" ? "cash" : "overschrijving");
+  return '<li' + (refund ? ' class="bh-refund"' : "") + '><span>' + (withFamily ? '<strong>' + esc(payerName(payment.registrationId)) + '</strong><small>' + label + '</small>' : label) + '</span><span class="bh-line-end"><b>' + (refund ? "− " : "") + euro(payment.amountCents) + '</b><button type="button" class="bh-icon-btn" data-action="delete-payment" data-id="' + esc(payment.id) + '" aria-label="' + (refund ? "Terugbetaling" : "Betaling") + ' verwijderen">×</button></span></li>';
+}
+function refundForm(registrationId, creditCents, compact = true) {
+  return '<form id="add-refund-form" class="bh-form-grid' + (compact ? " bh-form-compact" : "") + '"><input type="hidden" name="registrationId" value="' + esc(registrationId) + '"><label>Terugbetaald (€)<input name="amount" type="number" min="0.01" step="0.01" max="' + (creditCents / 100).toFixed(2) + '" value="' + (creditCents / 100).toFixed(2) + '" required></label><label>Datum<input name="date" type="date" value="' + today() + '" required></label><label>Wijze<select name="method"><option value="bank">Overschrijving</option><option value="cash">Cash</option></select></label><button type="submit" class="bh-btn bh-btn-primary">Terugbetaling registreren</button></form>';
+}
 const METHOD_SHORT = { general: "Algemeen", adults: "18+", meat: "Vlees" };
 const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖" };
 const METHOD_HINT = { general: "Iedereen, ook kinderen (bv. zaal, decoratie, frisdrank)", adults: "Alleen volwassenen (bv. alcohol, cava)", meat: "Volgens bestelde porties" };
@@ -73,9 +83,10 @@ function eventTotals() {
     children: counts.reduce((sum, c) => sum + c.children, 0),
     portions: regs.reduce((sum, r) => sum + familyPortions(r), 0),
     costs: (state.expenses || []).reduce((sum, e) => sum + (Number(e.amountCents) || 0), 0),
-    received: (state.payments || []).reduce((sum, p) => sum + (Number(p.amountCents) || 0), 0),
+    received: (state.payments || []).filter(p => p.kind !== "refund").reduce((sum, p) => sum + (Number(p.amountCents) || 0), 0),
     outstanding: summary.reduce((sum, row) => sum + row.remainingCents, 0),
-    toRefund: summary.reduce((sum, row) => sum + Math.max(0, row.balanceCents) + row.overpaidCents, 0),
+    toRefund: summary.reduce((sum, row) => sum + row.creditCents, 0),
+    refunded: (state.payments || []).filter(p => p.kind === "refund").reduce((sum, p) => sum + (Number(p.amountCents) || 0), 0),
     summary
   };
 }
@@ -96,7 +107,7 @@ function kpi(value, label, sub = "", target = "") {
 function familyBalanceChip(row) {
   if (!row) return "";
   if (row.remainingCents > 0) return '<span class="bh-chip bh-chip-due">' + euro(row.remainingCents) + ' open</span>';
-  const credit = Math.max(0, row.balanceCents) + row.overpaidCents;
+  const credit = row.creditCents;
   if (credit > 0) return '<span class="bh-chip bh-chip-info">' + euro(credit) + ' terug</span>';
   if (row.shareCents > 0) return '<span class="bh-chip bh-chip-ok">In orde</span>';
   return '<span class="bh-chip">Geen saldo</span>';
@@ -213,16 +224,17 @@ function renderFamilyDetail(registration) {
       '<li class="bh-line-strong"><span>Aandeel van het gezin</span><b>' + euro(t.shareCents) + '</b></li>' +
       (t.advancedCents ? '<li><span>Min: voorgeschoten</span><b>− ' + euro(t.advancedCents) + '</b></li>' : "") +
       (t.paidCents ? '<li><span>Min: betaald</span><b>− ' + euro(t.paidCents) + '</b></li>' : "") +
+      (t.refundedCents ? '<li><span>Al terugbetaald aan het gezin</span><b>' + euro(t.refundedCents) + '</b></li>' : "") +
       (t.remainingCents ? '<li class="bh-line-total bh-due"><span>Nog te betalen</span><b>' + euro(t.remainingCents) + '</b></li>'
         : t.creditCents ? '<li class="bh-line-total bh-credit"><span>Terug te geven</span><b>' + euro(t.creditCents) + '</b></li>'
         : '<li class="bh-line-total bh-ok"><span>Saldo</span><b>' + euro(0) + '</b></li>') + '</ul>' +
       '<div class="bh-member-costs">' + finance.members.map(member => '<span>' + esc(member.name) + ' <b>' + euro(member.totalCents) + '</b></span>').join("") + '</div>'
     : '<p class="bh-empty">Nog geen kosten ingevoerd.</p>';
 
-  const paymentList = payments.length ? '<ul class="bh-lines">' + payments.map(payment => '<li><span>' + esc(formatDate(payment.date)) + ' · ' + (payment.method === "cash" ? "cash" : "overschrijving") + '</span><span class="bh-line-end"><b>' + euro(payment.amountCents) + '</b><button type="button" class="bh-icon-btn" data-action="delete-payment" data-id="' + esc(payment.id) + '" aria-label="Betaling verwijderen">×</button></span></li>').join("") + '</ul>' : "";
+  const paymentList = payments.length ? '<ul class="bh-lines">' + payments.map(payment => paymentLine(payment, false)).join("") + '</ul>' : "";
   const paymentForm = t.remainingCents > 0
     ? '<form id="add-payment-form" class="bh-form-grid bh-form-compact"><input type="hidden" name="registrationId" value="' + esc(registration.id) + '"><label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" max="' + (t.remainingCents / 100).toFixed(2) + '" value="' + (t.remainingCents / 100).toFixed(2) + '" required></label><label>Datum<input name="date" type="date" value="' + today() + '" required></label><label>Wijze<select name="method"><option value="bank">Overschrijving</option><option value="cash">Cash</option></select></label><button type="submit" class="bh-btn bh-btn-primary">Betaling registreren</button></form>'
-    : "";
+    : t.creditCents > 0 ? refundForm(registration.id, t.creditCents) : "";
 
   return '<button type="button" class="bh-back" data-action="close-family">‹ Alle inschrijvingen</button>' +
     '<header class="bh-page-head"><div>' +
@@ -237,8 +249,9 @@ function renderFamilyDetail(registration) {
       '</section>' +
       '<div class="bh-stack">' +
         '<section class="bh-card"><header class="bh-card-head"><h2>Afrekening</h2>' + statusChip() + '</header>' + settlement + '</section>' +
-        '<section class="bh-card"><header class="bh-card-head"><h2>Betalingen</h2><span class="bh-count">' + payments.length + '</span></header>' + (paymentList || (t.remainingCents ? "" : '<p class="bh-empty">Geen betalingen nodig.</p>')) + paymentForm + '</section>' +
+        '<section class="bh-card"><header class="bh-card-head"><h2>Betalingen</h2><span class="bh-count">' + payments.length + '</span></header>' + (paymentList || (t.remainingCents ? "" : '<p class="bh-empty">Geen betalingen of terugbetalingen nodig.</p>')) + paymentForm + '</section>' +
         '<section class="bh-card"><header class="bh-card-head"><h2>Gezin & toegang</h2>' + accessChip(registration.familyId) + '</header><p class="bh-note">Namen, accounts en uitnodigingen beheer je bij het gezin onder Gebruikers.</p><button type="button" class="bh-btn" data-action="open-user-family" data-id="' + esc(registration.familyId) + '">Gezin openen in Gebruikers ›</button></section>' +
+        '<section class="bh-card"><header class="bh-card-head"><h2>Uitschrijven</h2></header><p class="bh-note">Haalt dit gezin uit ' + esc(eventTitle()) + '. Het gezin, de leden en de accounts blijven bestaan onder Gebruikers.</p><button type="button" class="bh-btn bh-btn-danger" data-action="unregister-family" data-id="' + esc(registration.id) + '">Uitschrijven uit deze editie</button></section>' +
       '</div>' +
     '</div>';
 }
@@ -285,14 +298,14 @@ function renderExpenseForm(expense = null) {
     '<label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" value="' + (expense ? (expense.amountCents / 100).toFixed(2) : "") + '" placeholder="0,00" required></label>' +
     '<label>Datum<input name="date" type="date" value="' + esc(expense?.date || today()) + '" required></label>' +
     '<label class="bh-span-2">Wie betaalt mee?<select name="method">' + Object.keys(COST_METHODS).map(key => '<option value="' + key + '"' + (key === method ? " selected" : "") + '>' + METHOD_ICON[key] + " " + esc(COST_METHODS[key].label) + " — " + esc(METHOD_HINT[key]) + '</option>').join("") + '</select></label>' +
-    '<label class="bh-span-2">Voorgeschoten door<select name="advancedBy" required><option value="">Kies het gezin dat betaalde</option>' + (state.registrations || []).map(reg => '<option value="' + esc(reg.id) + '"' + (expense?.advancedBy === reg.id ? " selected" : "") + '>' + esc(reg.name) + '</option>').join("") + '</select></label>' +
+    '<label class="bh-span-2">Voorgeschoten door<select name="advancedBy" required><option value="">Wie betaalde deze kost?</option><option value="' + SHARED_FUND + '"' + (expense?.advancedBy === SHARED_FUND ? " selected" : "") + '>Gemeenschappelijke kas / organisatie</option>' + (state.registrations || []).map(reg => '<option value="' + esc(reg.id) + '"' + (expense?.advancedBy === reg.id ? " selected" : "") + '>' + esc(reg.name) + '</option>').join("") + '</select></label>' +
     '<div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">' + (isEdit ? "Wijzigingen bewaren" : "+ Kost toevoegen") + '</button>' + (isEdit ? '<button type="button" class="bh-btn" data-action="cancel-edit-expense">Annuleren</button>' : "") + '</div></form>';
 }
 
 function renderFinance() {
   const t = eventTotals();
   const regs = state.registrations || [];
-  const nameOf = id => regs.find(reg => reg.id === id)?.name || "Onbekend";
+  const nameOf = id => payerName(id, regs);
   const groups = Object.keys(COST_METHODS).map(method => {
     const list = (state.expenses || []).filter(expense => expense.method === method);
     if (!list.length) return "";
@@ -308,7 +321,7 @@ function renderFinance() {
   const shareTotal = t.summary.reduce((sum, row) => sum + row.shareCents, 0);
   const balanced = shareTotal === t.costs;
   const settlementRows = t.summary.map(row => {
-    const credit = Math.max(0, row.balanceCents) + row.overpaidCents;
+    const credit = row.creditCents;
     return '<tr><th scope="row"><button type="button" class="bh-link" data-action="open-family" data-id="' + esc(row.id) + '">' + esc(row.name) + '</button></th><td>' + euro(row.shareCents) + '</td><td>' + (row.advancedCents ? euro(row.advancedCents) : '<span class="bh-dim">–</span>') + '</td><td>' + (row.paidCents ? euro(row.paidCents) : '<span class="bh-dim">–</span>') + '</td><td class="' + (row.remainingCents ? "bh-due" : credit ? "bh-credit" : "") + '"><b>' + (row.remainingCents ? euro(row.remainingCents) + " te betalen" : credit ? euro(credit) + " terug" : "In orde") + '</b></td></tr>';
   }).join("");
 
@@ -322,8 +335,9 @@ function renderFinance() {
         (groups || '<p class="bh-empty">Nog geen kosten. Voeg hieronder de eerste toe.</p>') +
         '<details class="bh-add"' + ((state.expenses || []).length ? "" : " open") + '><summary>+ Nieuwe kost</summary>' + (state.editingExpenseId ? '<p class="bh-note">Bewaar eerst de kost die je aan het wijzigen bent.</p>' : renderExpenseForm()) + '</details></section>' +
       '<section class="bh-card"><header class="bh-card-head"><h2>Betalingen</h2><span class="bh-count">' + payments.length + '</span></header>' +
-        (payments.length ? '<ul class="bh-lines">' + payments.map(payment => '<li><span><strong>' + esc(nameOf(payment.registrationId)) + '</strong><small>' + esc(formatDate(payment.date)) + ' · ' + (payment.method === "cash" ? "cash" : "overschrijving") + '</small></span><span class="bh-line-end"><b>' + euro(payment.amountCents) + '</b><button type="button" class="bh-icon-btn" data-action="delete-payment" data-id="' + esc(payment.id) + '" aria-label="Betaling verwijderen">×</button></span></li>').join("") + '</ul>' : '<p class="bh-empty">Nog geen betalingen.</p>') +
+        (payments.length ? '<ul class="bh-lines">' + payments.map(payment => paymentLine(payment, true)).join("") + '</ul>' : '<p class="bh-empty">Nog geen betalingen.</p>') +
         '<details class="bh-add"><summary>+ Betaling registreren</summary><form id="add-payment-form" class="bh-form-grid"><label class="bh-span-2">Van<select name="registrationId" required><option value="">Kies een gezin</option>' + t.summary.filter(row => row.remainingCents > 0).map(row => '<option value="' + esc(row.id) + '">' + esc(row.name) + ' — ' + euro(row.remainingCents) + ' open</option>').join("") + '</select></label><label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Datum<input name="date" type="date" value="' + today() + '" required></label><label class="bh-span-2">Wijze<select name="method"><option value="bank">Overschrijving</option><option value="cash">Cash</option></select></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Betaling registreren</button></div></form></details>' +
+        (t.summary.some(row => row.creditCents > 0) ? '<details class="bh-add"><summary>+ Terugbetaling registreren</summary><p class="bh-note">Geld dat je teruggeeft aan een gezin dat meer voorschoot dan zijn aandeel.</p><form id="add-refund-form" class="bh-form-grid"><label class="bh-span-2">Aan<select name="registrationId" required><option value="">Kies een gezin</option>' + t.summary.filter(row => row.creditCents > 0).map(row => '<option value="' + esc(row.id) + '">' + esc(row.name) + ' — ' + euro(row.creditCents) + ' terug te geven</option>').join("") + '</select></label><label>Bedrag (€)<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Datum<input name="date" type="date" value="' + today() + '" required></label><label class="bh-span-2">Wijze<select name="method"><option value="bank">Overschrijving</option><option value="cash">Cash</option></select></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Terugbetaling registreren</button></div></form></details>' : "") +
       '</section>' +
     '</div>' +
     '<section class="bh-card"><header class="bh-card-head"><h2>Afrekening per gezin</h2><span class="bh-chip ' + (balanced ? "bh-chip-ok" : "bh-chip-due") + '">' + (balanced ? "✓ Sluitend: alle kosten zijn verdeeld" : "Niet sluitend: " + euro(t.costs - shareTotal) + " niet verdeeld") + '</span></header>' +
@@ -479,8 +493,19 @@ function renderUsers() {
 }
 
 // ---------------- Instellingen (global) ----------------
+function renderBackups() {
+  const list = state.backups;
+  const rows = (list || []).slice(0, 10).map(backup => {
+    const file = backup.key.slice("backups/".length);
+    return '<li><span><strong>' + esc(formatDate(file.slice(3, 13))) + '</strong><small>' + Math.max(1, Math.round((backup.size || 0) / 1024)) + ' kB</small></span><a class="bh-btn bh-btn-sm" href="/api/admin/backups/' + encodeURIComponent(file) + '" download>Downloaden</a></li>';
+  }).join("");
+  return '<section class="bh-card"><header class="bh-card-head"><h2>Back-ups</h2><button type="button" class="bh-btn bh-btn-sm" data-action="create-backup">Nu back-up maken</button></header>' +
+    '<p class="bh-note">Elke nacht wordt automatisch een volledige kopie van de gegevens bewaard (de laatste 35 dagen), in de beveiligde opslag van de app. Daarnaast houdt Cloudflare zelf 7 dagen herstelpunten bij.</p>' +
+    (list === undefined ? '<p class="bh-empty">Back-ups laden…</p>' : rows ? '<ul class="bh-lines">' + rows + '</ul>' : '<p class="bh-empty">Nog geen back-ups. De eerste wordt vannacht gemaakt, of klik op "Nu back-up maken".</p>') + '</section>';
+}
+
 function renderSettings() {
-  return pageHead("Instellingen", "Algemene instellingen voor de hele app.") + renderMail() +
+  return pageHead("Instellingen", "Algemene instellingen voor de hele app.") + renderMail() + renderBackups() +
     '<section class="bh-card"><header class="bh-card-head"><h2>Over deze app</h2></header><ul class="bh-lines"><li><span>Adres</span><b>nieuwjaar.datuur.be</b></li><li><span>Afzender e-mails</span><b>registratie@datuur.be</b></li><li><span>Familieportaal</span><b>nieuwjaar.datuur.be/familie</b></li></ul></section>';
 }
 

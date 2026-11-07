@@ -74,18 +74,26 @@ export function getFinancialSummary(registrations, expenses, payments = []) {
       if (row) row.shareCents += share.cents;
     }
   }
+  // A payment is money a family paid in; kind "refund" is money paid back to a family.
   for (const payment of (Array.isArray(payments) ? payments : [])) {
     const row = byId.get(payment.registrationId);
-    if (row) row.paidCents += payment.amountCents;
+    if (!row) continue;
+    if (payment.kind === "refund") row.refundedCents = (row.refundedCents || 0) + payment.amountCents;
+    else row.paidCents += payment.amountCents;
   }
   rows.forEach(row => {
     row.balanceCents = row.advancedCents - row.shareCents;
     row.amountDueCents = Math.max(0, -row.balanceCents);
     row.paidCents = row.paidCents || 0;
+    row.refundedCents = row.refundedCents || 0;
     row.remainingCents = Math.max(0, row.amountDueCents - row.paidCents);
     row.overpaidCents = Math.max(0, row.paidCents - row.amountDueCents);
-    row.paymentStatus = row.remainingCents === 0 ? (row.amountDueCents === 0 ? "Geen bedrag verschuldigd" : "Betaald")
-      : row.paidCents > 0 ? "Gedeeltelijk betaald" : "Openstaand";
+    // Still to pay back: advanced more than the own share, or paid more than due, minus refunds.
+    row.creditCents = Math.max(0, Math.max(0, row.balanceCents) + row.overpaidCents - row.refundedCents);
+    row.paymentStatus = row.remainingCents > 0 ? (row.paidCents > 0 ? "Gedeeltelijk betaald" : "Openstaand")
+      : row.creditCents > 0 ? (row.refundedCents > 0 ? "Gedeeltelijk terugbetaald" : "Terug te betalen")
+      : row.refundedCents > 0 ? "Terugbetaald"
+      : row.amountDueCents === 0 ? "Geen bedrag verschuldigd" : "Betaald";
   });
   return rows;
 }
@@ -178,18 +186,19 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
   }
   const paymentRows = (Array.isArray(payments) ? payments : [])
     .filter(payment => payment && payment.registrationId === registration.id)
-    .map(payment => ({ id: payment.id, date: payment.date || null, amountCents: Number(payment.amountCents) || 0, method: payment.method || null }));
+    .map(payment => ({ id: payment.id, date: payment.date || null, amountCents: Number(payment.amountCents) || 0, method: payment.method || null, kind: payment.kind === "refund" ? "refund" : "payment" }));
   const summary = getFinancialSummary(registrations, expenses, payments).find(row => row.id === registration.id)
-    || { shareCents: 0, advancedCents, paidCents: 0, balanceCents: advancedCents, remainingCents: 0, overpaidCents: 0, amountDueCents: 0, paymentStatus: "Geen bedrag verschuldigd" };
+    || { shareCents: 0, advancedCents, paidCents: 0, refundedCents: 0, balanceCents: advancedCents, remainingCents: 0, overpaidCents: 0, amountDueCents: 0, creditCents: Math.max(0, advancedCents), paymentStatus: "Geen bedrag verschuldigd" };
   return {
     totals: {
       shareCents: summary.shareCents,
       advancedCents: summary.advancedCents,
       paidCents: summary.paidCents,
+      refundedCents: summary.refundedCents,
       amountDueCents: summary.amountDueCents,
       remainingCents: summary.remainingCents,
-      // Tegoed: meer voorgeschoten dan het eigen aandeel, of meer betaald dan verschuldigd.
-      creditCents: Math.max(0, summary.balanceCents) + summary.overpaidCents,
+      // Tegoed: meer voorgeschoten dan het eigen aandeel, of meer betaald dan verschuldigd, min terugbetalingen.
+      creditCents: summary.creditCents,
       paymentStatus: summary.paymentStatus
     },
     counts: { family: ownCounts, event: eventCounts },
