@@ -50,7 +50,7 @@ function registrationEditor(item) {
       '<label>'+escapeHtml(product.name)+'<input type="number" min="0" max="99" step="1" data-product-id="'+escapeHtml(product.id)+'" value="'+Number(person.orders?.[product.id]||0)+'"></label>'
     ).join("")+'</div></div>'
   ).join("");
-  return '<form class="family-registration-editor" data-registration-editor="'+escapeHtml(item.id)+'" data-revision="'+Number(item.updatedAt)+'"><label>Naam inschrijving<input name="registrationName" maxlength="160" value="'+escapeHtml(item.name)+'" required></label><p class="catalog-note">Pas namen, categorieën en productaantallen aan. Historische inschrijvingen blijven alleen-lezen.</p>'+rows+'<div class="family-registration-edit-actions"><button class="button button-small button-dark" type="submit">Wijzigingen opslaan</button><button class="button button-small button-outline" type="button" data-cancel-registration-edit>Annuleren</button></div></form>';
+  return '<form class="family-registration-editor" data-registration-editor="'+escapeHtml(item.id)+'" data-revision="'+Number(item.updatedAt)+'"><label>Naam inschrijving<input name="registrationName" maxlength="160" value="'+escapeHtml(item.name)+'" required></label><p class="catalog-note">Pas namen, categorieën en productaantallen aan. Ook speel- en oudere edities kan je hier aanpassen.</p>'+rows+'<div class="family-registration-edit-actions"><button class="button button-small button-dark" type="submit">Wijzigingen opslaan</button><button class="button button-small button-outline" type="button" data-cancel-registration-edit>Annuleren</button></div></form>';
 }
 
 function renderNormalizedFamilyOptions(families) {
