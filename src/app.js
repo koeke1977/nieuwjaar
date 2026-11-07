@@ -2,7 +2,6 @@ import { startFamilyPortal } from "./pages/family-portal.js";
 import { startFamilyAuth } from "./pages/family-auth/family-auth.js";
 import { state } from "./data/demo-data.js";
 import { initAdminUsersSection, renderAdminUsersSection } from "./pages/admin-platform/users.js";
-import { initAdminEventsSection, renderAdminEventsSection } from "./pages/admin-platform/events.js";
 import { renderBeheer, normalizeSection, setBeheerAccounts, setBeheerInvites } from "./pages/beheer/beheer-view.js";
 import "./pages/beheer/beheer.css";
 import { money } from "./utils/format.js";
@@ -130,11 +129,10 @@ function renderBeheerApp() {
   document.querySelector("#app").innerHTML = renderBeheer({
     section: state.activeSection,
     notice,
-    platformHtml: tab => tab === "accounts" ? renderAdminUsersSection(state.registrations, "live") : renderAdminEventsSection()
+    platformHtml: tab => tab === "accounts" ? renderAdminUsersSection(state.registrations, "live") : ""
   });
   scheduleAdminStateSave();
   if (state.activeSection === "settings" && state.beheerSettingsTab === "accounts") initAdminUsersSection();
-  if (state.activeSection === "settings" && state.beheerSettingsTab === "platform") initAdminEventsSection();
 }
 function renderApp() {
   if (state.activeConsole === "admin" && !adminAuthenticated) { document.querySelector("#app").innerHTML=renderAdminLogin(); return; }
@@ -239,6 +237,21 @@ function handleClick(event) {
   }
 }
 async function handleSubmit(event){
+  if(event.target.id==="event-settings-form"){
+    event.preventDefault();
+    const eventName=event.target.elements.eventName.value.trim();
+    const editionName=event.target.elements.editionName.value.trim();
+    if(!eventName||!editionName){window.alert("Vul de naam van het evenement en van de editie in.");return;}
+    state.eventName=eventName;
+    state.activeEvent={...state.activeEvent,name:editionName};
+    renderApp();
+    // Keep the event platform tables in sync (used for the family account labels).
+    Promise.all([
+      adminApi("/api/admin/events/legacy-event-live",{name:eventName},"PATCH"),
+      adminApi("/api/admin/events/legacy-event-live/editions/legacy-edition-live",{label:editionName},"PATCH")
+    ]).catch(error=>console.warn("Event name sync failed:",error));
+    return;
+  }
   if(event.target.id==="rename-registration-form"){
     event.preventDefault();
     const registration=state.registrations.find(item=>item.id===state.beheerFamilyId);

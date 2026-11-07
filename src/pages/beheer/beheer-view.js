@@ -15,6 +15,9 @@ const formatDate = value => {
   const [y, m, d] = value.slice(0, 10).split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("nl-BE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 };
+export const eventName = () => state.eventName || "Nieuwjaar";
+export const editionName = () => state.activeEvent?.name || "";
+const eventTitle = () => eventName() + (editionName() ? " " + editionName() : "");
 const METHOD_SHORT = { general: "Algemeen", adults: "18+", meat: "Vlees" };
 const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖" };
 const METHOD_HINT = { general: "Iedereen, ook kinderen (bv. zaal, decoratie, frisdrank)", adults: "Alleen volwassenen (bv. alcohol, cava)", meat: "Volgens bestelde porties" };
@@ -108,7 +111,7 @@ function renderOverview() {
   const maxMeat = Math.max(1, ...meat.map(item => item.count));
   const byMethod = Object.keys(COST_METHODS).map(method => ({ method, cents: (state.expenses || []).filter(e => e.method === method).reduce((s, e) => s + (Number(e.amountCents) || 0), 0) })).filter(row => row.cents > 0);
   const progress = t.received + t.outstanding > 0 ? Math.round(t.received / (t.received + t.outstanding) * 100) : 0;
-  return pageHead(state.activeEvent?.name || "Evenement", "Alles voor dit evenement op één plek.", statusChip()) +
+  return pageHead(eventTitle(), "Alles voor deze editie op één plek.", statusChip()) +
     '<section class="bh-kpis">' +
       kpi(t.families, "gezinnen", "", "families") +
       kpi(t.people, "deelnemers", t.adults + " volwassenen · " + t.children + " kinderen", "families") +
@@ -307,12 +310,12 @@ function renderFinance() {
 
 // ---------------- Instellingen ----------------
 export const SETTINGS_TABS = [
+  { id: "event", label: "Evenement" },
   { id: "products", label: "Producten" },
   { id: "accounts", label: "Accounts" },
-  { id: "editions", label: "Edities" },
-  { id: "mail", label: "E-mail" },
-  { id: "platform", label: "Evenementen (nieuw)" }
+  { id: "mail", label: "E-mail" }
 ];
+const SETTINGS_ALIASES = { editions: "event", platform: "event" };
 
 function renderProducts() {
   const rows = state.catalog.map(item => '<li class="bh-product-row"><div class="bh-product-thumb">' + (item.image ? '<img src="' + esc(item.image) + '" alt="">' : "<span>🍖</span>") + '</div>' +
@@ -324,17 +327,21 @@ function renderProducts() {
     '<form id="add-product-form" class="bh-inline-form"><label for="new-product-name">Nieuw product</label><div><input id="new-product-name" name="productName" maxlength="60" placeholder="Bijvoorbeeld: Kippenbrochette" required><button type="submit" class="bh-btn bh-btn-primary">+ Toevoegen</button></div></form></section>';
 }
 
-function renderEditions() {
+function renderEventSettings() {
   const archives = [...(state.editionArchive || [])].reverse();
+  const headcount = row => (row.members || []).length || (Number(row.adults) || 0) + (Number(row.children) || 0);
   const archiveCards = archives.map(edition => {
     const regs = edition.registrations || [];
-    const people = regs.reduce((sum, row) => sum + (Number(row.adults) || 0) + (Number(row.children) || 0), 0);
+    const people = regs.reduce((sum, row) => sum + headcount(row), 0);
     const costs = (edition.expenses || []).reduce((sum, item) => sum + (Number(item.amountCents) || 0), 0);
-    return '<details class="bh-subtle"><summary><strong>' + esc(edition.event?.name || "Editie") + '</strong> · ' + people + ' deelnemers · ' + euro(costs) + '</summary><ul class="bh-lines">' + regs.map(row => '<li><span>' + esc(row.name) + '</span><b>' + ((Number(row.adults) || 0) + (Number(row.children) || 0)) + '</b></li>').join("") + '</ul></details>';
+    return '<details class="bh-subtle"><summary><strong>' + esc(eventName()) + ' ' + esc(edition.event?.name || "Editie") + '</strong> · ' + plural(regs.length, "gezin", "gezinnen") + ' · ' + people + ' deelnemers · ' + euro(costs) + '</summary><ul class="bh-lines">' + regs.map(row => '<li><span>' + esc(row.name) + '</span><b>' + headcount(row) + '</b></li>').join("") + '</ul></details>';
   }).join("");
-  return '<section class="bh-card"><header class="bh-card-head"><h2>Actieve editie</h2><span class="bh-chip bh-chip-ok">Actief</span></header><p class="bh-big">' + esc(state.activeEvent?.name || "—") + '</p><p class="bh-note">' + plural((state.registrations || []).length, "gezin", "gezinnen") + ' · ' + plural((state.expenses || []).length, "kost", "kosten") + ' · ' + plural((state.payments || []).length, "betaling", "betalingen") + '</p></section>' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Nieuwe editie starten</h2></header><p class="bh-note">De huidige editie wordt eerst volledig gearchiveerd. De nieuwe editie start zonder gezinnen, kosten en betalingen.</p><form id="new-edition-form" class="bh-form-grid"><label class="bh-span-2">Naam<input name="editionName" maxlength="80" placeholder="Bijvoorbeeld: Nieuwjaar 2027–2028" required></label><label class="bh-check bh-span-2"><input type="checkbox" name="copyCatalog" checked> Producten en foto\'s overnemen</label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-danger">Archiveren & nieuwe editie starten</button></div></form></section>' +
-    '<section class="bh-card"><header class="bh-card-head"><h2>Archief</h2><span class="bh-count">' + archives.length + '</span></header>' + (archiveCards || '<p class="bh-empty">Nog geen gearchiveerde edities.</p>') + '</section>';
+  return '<section class="bh-card"><header class="bh-card-head"><h2>Evenement & huidige editie</h2><span class="bh-chip bh-chip-ok">Actief</span></header>' +
+      '<p class="bh-note">Een evenement komt elk jaar terug met een nieuwe <strong>editie</strong>. Gezinnen, bestellingen, kosten en betalingen horen altijd bij één editie.</p>' +
+      '<form id="event-settings-form" class="bh-form-grid"><label>Evenement<input name="eventName" maxlength="80" value="' + esc(eventName()) + '" placeholder="Bijvoorbeeld: Nieuwjaar" required></label><label>Huidige editie<input name="editionName" maxlength="80" value="' + esc(editionName()) + '" placeholder="Bijvoorbeeld: 2026–2027" required></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Namen bewaren</button></div></form>' +
+      '<p class="bh-note">' + plural((state.registrations || []).length, "gezin", "gezinnen") + ' · ' + plural((state.expenses || []).length, "kost", "kosten") + ' · ' + plural((state.payments || []).length, "betaling", "betalingen") + ' in deze editie.</p></section>' +
+    '<section class="bh-card"><header class="bh-card-head"><h2>Volgende editie starten</h2></header><p class="bh-note">Doe dit pas als ' + esc(eventTitle()) + ' volledig is afgerond. De huidige editie gaat dan naar het archief, en de nieuwe editie start zonder gezinnen, kosten en betalingen.</p><form id="new-edition-form" class="bh-form-grid"><label class="bh-span-2">Naam nieuwe editie<input name="editionName" maxlength="80" placeholder="Bijvoorbeeld: 2027–2028" required></label><label class="bh-check bh-span-2"><input type="checkbox" name="copyCatalog" checked> Producten en foto\'s overnemen</label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-danger">Archiveren & nieuwe editie starten</button></div></form></section>' +
+    '<section class="bh-card"><header class="bh-card-head"><h2>Vorige edities</h2><span class="bh-count">' + archives.length + '</span></header>' + (archiveCards || '<p class="bh-empty">Nog geen vorige edities. Ze verschijnen hier zodra je een nieuwe editie start.</p>') + '</section>';
 }
 
 function renderMail() {
@@ -342,8 +349,9 @@ function renderMail() {
 }
 
 function renderSettings(platformHtml) {
-  const tab = SETTINGS_TABS.some(entry => entry.id === state.beheerSettingsTab) ? state.beheerSettingsTab : "products";
-  const body = tab === "products" ? renderProducts() : tab === "editions" ? renderEditions() : tab === "mail" ? renderMail() : platformHtml(tab);
+  const requested = SETTINGS_ALIASES[state.beheerSettingsTab] || state.beheerSettingsTab;
+  const tab = SETTINGS_TABS.some(entry => entry.id === requested) ? requested : "event";
+  const body = tab === "products" ? renderProducts() : tab === "event" ? renderEventSettings() : tab === "mail" ? renderMail() : platformHtml(tab);
   return pageHead("Instellingen") +
     '<nav class="bh-subtabs" aria-label="Instellingen">' + SETTINGS_TABS.map(entry => '<button type="button" data-action="settings-tab" data-tab="' + entry.id + '" aria-current="' + (entry.id === tab) + '">' + esc(entry.label) + '</button>').join("") + '</nav>' + body;
 }
@@ -353,7 +361,7 @@ export function renderBeheer({ section, notice = "", platformHtml }) {
   const content = active === "families" ? renderFamilies() : active === "order" ? renderOrder() : active === "finance" ? renderFinance() : active === "settings" ? renderSettings(platformHtml) : renderOverview();
   const nav = SECTIONS.map(entry => '<button type="button" data-section="' + entry.id + '" aria-current="' + (entry.id === active ? "page" : "false") + '"><span aria-hidden="true">' + entry.icon + '</span>' + esc(entry.label) + '</button>').join("");
   return '<div class="bh-app">' +
-    '<header class="bh-top"><div class="bh-brand"><span class="bh-brand-mark" aria-hidden="true">✳</span><span><strong>Nieuwjaar</strong><small>Beheer · ' + esc(state.activeEvent?.name || "") + '</small></span></div><button type="button" class="bh-btn bh-btn-ghost" data-action="admin-logout">Afmelden</button></header>' +
+    '<header class="bh-top"><div class="bh-brand"><span class="bh-brand-mark" aria-hidden="true">✳</span><span><strong>' + esc(eventName()) + '</strong><small>Beheer · editie ' + esc(editionName()) + '</small></span></div><button type="button" class="bh-btn bh-btn-ghost" data-action="admin-logout">Afmelden</button></header>' +
     '<nav class="bh-nav" aria-label="Beheer">' + nav + '</nav>' +
     '<main class="bh-main content">' + (notice ? '<div class="bh-alert" role="alert">' + notice + '</div>' : "") + content + '</main>' +
     '</div>';

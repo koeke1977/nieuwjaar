@@ -289,8 +289,8 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       }));
       registrations.push({
         edition: link.edition_id,
-        editionLabel: link.edition_label || data.activeEvent?.name || "Editie",
-        event: link.event_name || data.activeEvent?.name || data.activeEvent?.title || "Evenement",
+        editionLabel: data.activeEvent?.name || link.edition_label || "Editie",
+        event: data.eventName || link.event_name || "Evenement",
         accessRole: link.membership_role || "editor",
         registration: {
           id: registration.id,

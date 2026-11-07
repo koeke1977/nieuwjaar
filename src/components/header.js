@@ -11,7 +11,7 @@ export function renderHeader() {
     <header class="topbar">
       <a class="brand" href="#" aria-label="Nieuwjaar start">
         <span class="brand-mark">✳</span>
-        <span><strong>NIEUWJAAR</strong><small>${escapeHtml(editionName.toUpperCase())}</small></span>
+        <span><strong>${escapeHtml((state.eventName || "Nieuwjaar").toUpperCase())}</strong><small>${escapeHtml(editionName.toUpperCase())}</small></span>
       </a>
       <div class="topbar-right">
         <span class="edition-pill"><i></i> ${active ? "Inschrijving actief" : "Geen actieve editie"}</span>

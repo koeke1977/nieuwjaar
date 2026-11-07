@@ -7,6 +7,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 // Persisted edition fields. UI selection (active/managing registration) is deliberately
 // not persisted: saving it made merely browsing the admin bump the shared revision.
 const fields = [
+  "eventName",
   "activeEvent",
   "expenses",
   "editionArchive",
@@ -18,7 +19,8 @@ const fields = [
 ];
 
 const emptyLiveData = {
-  activeEvent: { id: "nieuwjaar-2026-2027-live", name: "Nieuwjaar 2026–2027", status: "active" },
+  eventName: "Nieuwjaar",
+  activeEvent: { id: "nieuwjaar-2026-2027-live", name: "2026–2027", status: "active" },
   expenses: [],
   editionArchive: [],
   costsFinalized: false,

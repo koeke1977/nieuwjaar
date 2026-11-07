@@ -3,7 +3,8 @@ import { getFinancialSummary } from "../utils/finance.js";
 // Shared in-memory state for the admin and the legacy link portal. It starts empty and is
 // filled from the database (app_state "live"); there is no demo or test data anymore.
 export const state = {
-  activeEvent: { id: "nieuwjaar-2026-2027", name: "Nieuwjaar 2026–2027", status: "active" },
+  eventName: "Nieuwjaar",
+  activeEvent: { id: "nieuwjaar-2026-2027", name: "2026–2027", status: "active" },
   expenses: [],
   editionArchive: [],
   costsFinalized: false,
