@@ -9,7 +9,7 @@ import {
   barBalance
 } from "./pages/beheer/beheer-view.js";
 import "./pages/beheer/beheer.css";
-import { money } from "./utils/format.js";
+import { euro } from "./utils/html.js";
 import { isMemberType, EVENING } from "./utils/member-types.js";
 import { getExpenseShares, getFinancialSummary, SHARED_FUND } from "./utils/finance.js";
 import {
@@ -502,9 +502,9 @@ function handleClick(event) {
       bar.difference &&
       !window.confirm(
         "Let op: de bar is niet sluitend. De barrekeningen samen (" +
-          money(bar.charged / 100) +
+          euro(bar.charged) +
           ") zijn niet gelijk aan de rekening van de drank (" +
-          money(bar.purchases / 100) +
+          euro(bar.purchases) +
           "). Toch verdergaan?"
       )
     )
@@ -529,7 +529,7 @@ function handleClick(event) {
     if (
       !expense ||
       !window.confirm(
-        `Verwijder de kost "${expense.description}" van ${money(expense.amountCents / 100)} definitief? De verdeling en saldi worden opnieuw berekend.`
+        `Verwijder de kost "${expense.description}" van ${euro(expense.amountCents)} definitief? De verdeling en saldi worden opnieuw berekend.`
       )
     )
       return;
@@ -959,7 +959,7 @@ async function handleSubmit(event) {
       row => row.id === registrationId
     );
     if (!balance || amountCents > balance.remainingCents) {
-      window.alert(`Het bedrag is hoger dan het openstaande saldo van ${money((balance?.remainingCents || 0) / 100)}.`);
+      window.alert(`Het bedrag is hoger dan het openstaande saldo van ${euro(balance?.remainingCents || 0)}.`);
       return;
     }
     state.payments.push({ id: makeId("betaling"), registrationId, amountCents, date, method });
@@ -989,7 +989,7 @@ async function handleSubmit(event) {
       return;
     }
     if (amountCents > balance.creditCents) {
-      window.alert(`Het bedrag is hoger dan wat dit gezin nog terugkrijgt (${money(balance.creditCents / 100)}).`);
+      window.alert(`Het bedrag is hoger dan wat dit gezin nog terugkrijgt (${euro(balance.creditCents)}).`);
       return;
     }
     state.payments.push({ id: makeId("terugbetaling"), registrationId, amountCents, date, method, kind: "refund" });

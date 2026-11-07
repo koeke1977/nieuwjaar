@@ -1,5 +1,7 @@
 # Multi-event platform — migratieplan
 
+> **Afgerond op 7 november 2026.** De app draait volledig op deze structuur; `app_state`, de persoonlijke gezinslinks en de testomgeving zijn verwijderd. Dit document blijft bewaard als geschiedenis. Zie de README voor de huidige structuur.
+
 Status: ontwerp- en veiligheidsfase. Dit document verandert geen runtimegedrag en voert geen datamigratie uit.
 
 ## Doel
@@ -19,21 +21,27 @@ Van de huidige Nieuwjaar-app naar een live-only platform voor meerdere evenement
 ## Doelmodel
 
 ### Event
+
 Een soort/organisatie van evenement, bijvoorbeeld Nieuwjaar of BBQ. Bevat naam, beschrijving, standaardinstellingen en verwijzing naar een financiële strategie.
 
 ### Event edition
+
 Een concrete uitvoering van een event, met datum/periode, status, catalogus/configuratie en inschrijvingen. Een editie is geen test/live-omgeving.
 
 ### Family
+
 Een gezin/groep die één inschrijving beheert binnen een editie. Bevat deelnemers, bestellingen en contactgegevens. De registratie wordt niet langer eigendom van één login.
 
 ### Family user en family membership
+
 Een persoon heeft een eigen account en login. Een membership koppelt die gebruiker aan een family met een rol (owner/editor/viewer). Meerdere users mogen dezelfde family delen. Eén user mag lid zijn van meerdere families.
 
 ### Registration
+
 Koppelt een family aan een event edition. Financiële gegevens en deelnemers/bestellingen horen bij deze registratie of bij genormaliseerde onderliggende tabellen, afhankelijk van de migratiefase.
 
 ### Finance
+
 Kosten, voorschotten, betalingen en afsluiting worden aan een editie gekoppeld. De berekening wordt gekozen via de event-specifieke finance strategy.
 
 ## Financiële compatibiliteit: harde acceptatiecriteria
@@ -115,14 +123,12 @@ Deze migrations zijn nog niet uitgevoerd op lokaal of remote D1.
 - Backfill is herhaalbaar en heeft rapport/rollback.
 - Testdata is pas verwijderd na live acceptatie en expliciete laatste cleanup.
 
-
 ## Voortgang na de eerste implementatiestap
 
 - De SQLite-table-rebuild uit migratie 0008 is nagebootst met foreign keys ingeschakeld: bestaande links blijven behouden, twee verschillende accounts kunnen dezelfde registratie koppelen, een dubbele koppeling voor hetzelfde account wordt geweigerd en `PRAGMA foreign_key_check` geeft geen fouten. Dit is een lokale SQLite-simulatie, geen uitvoering op Cloudflare D1.
 - Het familieportaal gebruikt nu een neutrale evenementfallback in plaats van standaard Nieuwjaar en de introductietekst verwijst naar evenementen in het algemeen.
 - Nieuwe en opnieuw verstuurde accountuitnodigingen gebruiken de evenementnaam uit de gekoppelde editiegegevens in onderwerp en mailinhoud.
 - De huidige `test/live`-labels en legacy API-koppelingen zijn bewust nog niet verwijderd. Eerst moet de nieuwe relationele familie-/editiekoppeling volledig worden gevuld en gecontroleerd; voortijdig verwijderen zou bestaande toegang kunnen breken.
-
 
 ## Functionele stap: evenementen- en editiebeheer
 
@@ -137,13 +143,11 @@ De eerste echte platformfunctie is toegevoegd, achter de bestaande adminsectie *
 
 Deze functionaliteit gebruikt tabellen uit migratie 0007. Zonder die migratie kan de pagina geladen worden, maar kunnen evenementen niet worden opgehaald of aangemaakt. De bestaande Nieuwjaar-registraties worden door deze stap niet aangepast. Er is geen lokale build uitgevoerd: de uitvoeromgeving kan GitHub niet clonen door ontbrekende netwerktoegang. De code is wel nagelezen op de relevante API-/UI-koppelingen.
 
-
 ## Migratievoorbereiding in beheer
 
 In het evenementenbeheer staat nu ook een **alleen-lezen migratiecontrole**. Die telt per bestaande omgeving het aantal inschrijvingen, gekoppelde familieaccounts, accountkoppelingen, inschrijvingen zonder account en verweesde koppelingen. De controle geeft geen namen of e-mailadressen terug en voert geen writes uit. Ze is bedoeld om vóór een backfill de omvang en datakwaliteit zichtbaar te maken.
 
 De echte backfill is nog niet vrijgegeven. Eerst moeten de migraties op de juiste database staan, moet de preview gecontroleerd worden en moet een herstelbare snapshot/back-up beschikbaar zijn. De bestaande app_state blijft tijdens deze voorbereidende fase de bron van waarheid.
-
 
 ## Veiligheidscontrole backfill — 7 november 2026
 
@@ -152,7 +156,6 @@ De backfill-endpoint voert nu zelf de kritieke preflight uit; de browser-preview
 De preview toont dezelfde blokkades vóór de gebruiker de migratie kan starten. Eén backfill wordt begrensd op maximaal 1.000 prepared statements om binnen een beheersbare transactie te blijven. Cloudflare documenteert een limiet van 30 seconden voor de volledige D1-batch; er is geen gedocumenteerde vaste limiet op het aantal statements zelf. Boven de lokale veiligheidsgrens stopt de endpoint zonder writes. Zie de [officiële D1-limieten](https://developers.cloudflare.com/d1/platform/limits/).
 
 **Belangrijk:** dit is codecontrole, geen uitvoering op de echte D1-database. De backfill mag pas worden uitgevoerd na remote backup en nadat de preview op de doelomgeving groen is. De oude snapshots blijven behouden.
-
 
 ## Familieaccount-portaal — verdere compatibiliteitsstap
 
@@ -163,7 +166,6 @@ De preview toont dezelfde blokkades vóór de gebruiker de migratie kan starten.
 - Accountkoppelingen die via uitnodiging of accountbeheer worden gelegd, schrijven de legacy link en relationele membership nu atomair in één D1-batch zodra de registratie is overgenomen.
 
 Dit blijft een overgangsroute voor bestaande test/live-registraties. Volledig nieuwe event-edities zonder legacy `app_state` zijn nog niet geschikt voor het huidige account-/bestelportaal. De bestaande legacy token-portalroutes en de event-accountportal zijn nog twee afzonderlijke flows; die mogen niet worden uitgefaseerd voordat de nieuwe route alle registratieacties en autorisatie volledig vervangt.
-
 
 ## Event-native familieportaal (codefase)
 
@@ -178,7 +180,6 @@ Het familieportaal ondersteunt naast de tijdelijke test/live-koppeling nu ook re
 
 **Nog open vóór productie:** het aanmaken en beheren van nieuwe event-native families, registraties en uitnodigingen vanuit het beheerpaneel; de volledige financiële UI/strategie per editie; integratietests op een geïsoleerde D1-kopie; migratievolgorde en rollback-oefening. Deze codewijzigingen voeren geen migraties uit en wijzigen geen bestaande productiegegevens.
 
-
 ## Relationeel familiebeheer (admin-overzicht)
 
 Het bestaande accountbeheer toont nu aanvullend een read-only overzicht uit het nieuwe model:
@@ -190,7 +191,6 @@ Het bestaande accountbeheer toont nu aanvullend een read-only overzicht uit het 
 - De nieuwe lijst is bewust read-only: families, memberships of inschrijvingen worden niet aangemaakt, verwijderd of gewijzigd vanuit dit overzicht.
 
 Volgende stap is de volledige beheerworkflow: familie aanmaken, bestaande account uitnodigen of koppelen, event-native inschrijving aanmaken, en membership beheren. Daarbij moeten owner/editor/viewer-rechten en accountuitnodigingen transactioneel worden afgehandeld. Verwijderen blijft buiten scope tot de datamigratie en rollback volledig zijn gevalideerd.
-
 
 ## Relationeel familiebeheer — acties en toegangsrollen
 
@@ -205,7 +205,6 @@ Het familiebeheer bevat nu ook schrijfacties voor het nieuwe model:
 
 De nieuwe beheeracties zijn alleen beschikbaar via een geldige admin-sessie en same-origin schrijfacties. Dit is nog geen volledige beheer- of financiële afwerking: eventcatalogus/configuratie, registratiebeheer na aanmaak en financiële instellingen per editie moeten nog worden uitgewerkt en getest. De code is niet op de echte D1-database uitgevoerd en er zijn geen migraties gestart.
 
-
 ## Laatste preview- en herstelvoorbereiding — 7 november 2026
 
 - De alleen-lezen preview controleert nu dezelfde basisstructuur voor registraties, kosten en betalingen als de uitvoerende backfill. Een preview mag dus geen groen resultaat geven op een snapshot die de backfill vervolgens op die structuur afkeurt.
@@ -214,7 +213,6 @@ De nieuwe beheeracties zijn alleen beschikbaar via een geldige admin-sessie en s
 - Na schema-installatie wordt de preview opnieuw uitgevoerd op remote D1. Alleen een foutloze preview, een bewaarde back-up en een expliciet akkoord mogen voorafgaan aan de backfill.
 - Herstel gebeurt niet door tabellen blind te droppen. Bij afwijkingen wordt de backfill gestopt; de oude `app_state` blijft de bron van waarheid en herstel gebeurt vanuit de bewaarde D1-export volgens een afzonderlijk gecontroleerd herstelplan.
 - De preview en backfill zijn codegewijs voorbereid, maar de echte remote preview, export, migratie en hersteltest zijn nog niet uitgevoerd.
-
 
 ## Praktisch back-updraaiboek voor Windows — vóór remote D1-migraties
 
@@ -254,6 +252,7 @@ Get-FileHash $backupFile -Algorithm SHA256
 Bewaar de SQL-export én hash buiten de projectmap op een tweede veilige locatie. Een hash bewijst integriteit van het bestand na export, maar niet op zichzelf dat de export herstelbaar is.
 
 5. Bewaar bij de back-up ook:
+
    - de branchnaam en exacte commit-SHA die je gaat migreren;
    - de uitvoer van `d1 migrations list --remote`;
    - de exportdatum en SHA-256-hash;
