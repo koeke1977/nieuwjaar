@@ -96,7 +96,7 @@ export async function handleAdminEvents(request, env, url, dependencies) {
       const name = typeof raw?.name === "string" ? raw.name.trim() : "";
       const image = typeof raw?.image === "string" ? raw.image.trim() : "";
       if (!/^[a-zA-Z0-9_-]{1,64}$/.test(id) || !name || name.length > 100 || seen.has(id) ||
-          image.length > 1000 || (image && !(/^(https:\/\/|\/(?!\/)[^\\s]*)$/i.test(image)))) {
+          image.length > 1000 || (image && !(/^(https:\/\/|\/(?!\/)[^\s]*)$/i.test(image)))) {
         return json({ error: "Elk catalogusitem heeft een unieke code, naam en optioneel een veilige HTTPS- of relatieve afbeeldingslocatie nodig." }, 400);
       }
       seen.add(id);
