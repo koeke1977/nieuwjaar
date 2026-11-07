@@ -261,6 +261,8 @@ export default {
         return await handleAdminApi(request, env, url);
       }
 
+      if (url.pathname.startsWith("/api/")) return json({ error: "Niet gevonden." }, 404);
+
       return env.ASSETS.fetch(request);
     } catch (error) {
       console.error("Nieuwjaar Worker exception:", error);
