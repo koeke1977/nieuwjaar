@@ -5,6 +5,7 @@ import { renderHeader } from "./components/header.js";
 import { renderAdminNavigation } from "./components/navigation.js";
 import { renderAdminContent, setFamilyInvites } from "./pages/admin.js";
 import { initAdminUsersSection } from "./pages/admin-platform/users.js";
+import { initAdminEventsSection } from "./pages/admin-platform/events.js";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
 import { resetTestEnvironment } from "./data/environment-store.js";
@@ -78,6 +79,7 @@ function renderApp() {
   document.querySelector("#app").innerHTML=`${renderHeader()}<main class="shell">${isAdmin?'<div class="admin-session-bar"><span>Beveiligde admin-sessie</span><button class="text-button" data-action="admin-logout">Uitloggen</button></div>':""}${persistenceNotice}${environmentNotice}<div class="workspace">${isAdmin?renderAdminNavigation(state.activeSection):renderUserNavigation(state.activeSection)}<div class="content">${isAdmin?renderAdminContent(state.activeSection):renderUserContent(state.activeSection)}</div></div><footer>Nieuwjaar <span>·</span> Samen vieren, alles geregeld.</footer></main>`;
   if (state.activeConsole === "admin") scheduleAdminStateSave();
   if (state.activeConsole === "admin" && state.activeSection === "users") initAdminUsersSection();
+  if (state.activeConsole === "admin" && state.activeSection === "events") initAdminEventsSection();
 }
 function handleClick(event) {
   const sectionButton=event.target.closest("[data-section]");
