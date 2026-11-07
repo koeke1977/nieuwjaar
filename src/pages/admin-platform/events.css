@@ -20,3 +20,10 @@
 .admin-edition-form{display:grid;grid-template-columns:minmax(150px,1fr) minmax(130px,.7fr) minmax(130px,.7fr) auto;gap:8px;margin-top:13px}
 .admin-edition-form button{white-space:nowrap}
 @media(max-width:700px){.admin-event-form{grid-template-columns:1fr}.admin-event-form label:nth-child(2),.admin-event-form label:nth-child(3){grid-column:auto}.admin-edition-form{grid-template-columns:1fr 1fr}.admin-edition-form input:first-child{grid-column:1/-1}.admin-edition-form button{grid-column:1/-1}.admin-event-card-head{align-items:flex-start}}
+
+.admin-backfill-panel{margin-top:18px}
+.admin-backfill-result{display:grid;gap:8px;margin-top:10px}
+.admin-backfill-totals{display:flex;flex-wrap:wrap;gap:8px}
+.admin-backfill-totals strong{padding:9px 12px;border-radius:9px;background:#f5f1e9;font-size:12px}
+.admin-backfill-row{display:flex;flex-wrap:wrap;gap:8px 16px;padding:10px 12px;border:1px solid var(--line,#e8e4dd);border-radius:9px;font-size:12px}
+.admin-backfill-row strong{flex-basis:100%;font-size:13px}
