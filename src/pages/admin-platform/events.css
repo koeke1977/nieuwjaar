@@ -30,3 +30,9 @@
 
 .admin-edition-row button{flex:0 0 auto}
 @media(max-width:700px){.admin-edition-row{flex-wrap:wrap}.admin-edition-row>span:first-child{flex:1 1 100%}.admin-edition-row button{flex:1 1 auto}}
+
+.admin-inline-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px;padding:16px;border:1px solid var(--line,#e8e4dd);border-radius:12px;background:#faf9f7}
+.admin-inline-editor label{display:grid;gap:6px;font-size:12px;font-weight:700;color:var(--text,#292722)}
+.admin-inline-editor input,.admin-inline-editor textarea,.admin-inline-editor select{width:100%;min-width:0;padding:10px 11px;border:1px solid var(--line,#e8e4dd);border-radius:8px;background:#fff;color:inherit;font:inherit;font-weight:400}
+.admin-inline-actions{display:flex;gap:8px;align-items:center;grid-column:1/-1}
+@media(max-width:700px){.admin-inline-editor{grid-template-columns:1fr}.admin-inline-actions{grid-column:auto;flex-wrap:wrap}}
