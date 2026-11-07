@@ -48,7 +48,14 @@ src/
     admin-core.js           aanmelding, opslaan, live verversen, server-aanroepen, renderApp
     actions/                wat een klik of formulier doet, per onderdeel (navigation, registrations,
                             finance, edition, accounts): `clicks = { "data-action": … }`, `forms = { "form-id": … }`
-  pages/family-auth/        familieportaal: aanmelden, gezin, bestelling, kosten, aftelling
+  pages/family-auth/
+    family-auth.js          start van het familieportaal: klikken/formulieren doorsturen
+    family-account-view.js  kop, keuze van evenement en tabs; elke tab in screens/ (overview, family,
+                            order, costs) + shared.js
+    portal-core.js          gedeelde toestand, opslaan, verversen, meldingen, aftelling
+    sign-in.js              aanmelden, wachtwoord vergeten, activeren, afmelden
+    family-actions.js       zelf inschrijven, personen, bestelling
+    cost-actions.js         eigen kosten met kasticket
   utils/                    gedeelde logica: finance, member-types, diet, time, html, state-merge
 worker/
   index.js                  Cloudflare Worker: routes, admin-login, e-mail, foto's, nachtelijke taken
