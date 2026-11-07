@@ -155,8 +155,12 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
           let data = {}, config = {};
           try { data = JSON.parse(row.legacy_environment ? (row.legacy_data_json || "{}") : (row.data_json || "{}")); } catch { /* Ongeldige payload blijft zichtbaar als waarschuwing. */ }
           try { config = JSON.parse(row.edition_config_json || "{}"); } catch { /* Catalogus blijft leeg bij ongeldige configuratie. */ }
+          const rootData = data;
+          if (row.legacy_environment) {
+            data = (Array.isArray(rootData.registrations) ? rootData.registrations : []).find(item => item.id === row.legacy_registration_id) || {};
+          }
           const members = Array.isArray(data.members) ? data.members : [];
-          const catalog = Array.isArray(config.catalog) ? config.catalog : Array.isArray(data.catalog) ? data.catalog : [];
+          const catalog = Array.isArray(config.catalog) ? config.catalog : Array.isArray(rootData.catalog) ? rootData.catalog : [];
           family.registrations.push({
             id: row.registration_id, name: data.name || family.name, status: row.registration_status,
             editionId: row.edition_id, edition: row.edition_label, editionStatus: row.edition_status,
