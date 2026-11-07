@@ -31,12 +31,30 @@ function renderRows(users) {
   }).join("");
 }
 
+async function loadNormalizedEditions() {
+  const select = root?.querySelector("[data-normalized-editions]");
+  if (!select) return;
+  const result = await api("/api/admin/events");
+  const options = (result.events || []).flatMap(event => (event.editions || [])
+    .filter(edition => !["archived"].includes(edition.status) && event.status !== "archived")
+    .map(edition => ({ id: edition.id, label: event.name + " · " + edition.label })));
+  select.innerHTML = '<option value="">Kies een evenementeditie</option>' + options.map(item => '<option value="'+escapeHtml(item.id)+'">'+escapeHtml(item.label)+'</option>').join("");
+  if (!options.length) select.innerHTML = '<option value="">Maak eerst een evenement en editie aan</option>';
+}
+
+function renderNormalizedFamilyOptions(families) {
+  const select = root?.querySelector("[data-normalized-family-options]");
+  if (!select) return;
+  select.innerHTML = '<option value="">Kies een familie</option>' + families.map(family => '<option value="'+escapeHtml(family.id)+'">'+escapeHtml(family.name)+'</option>').join("");
+}
+
 async function loadNormalizedFamilies() {
   const target = root?.querySelector("[data-normalized-families]");
   if (!target) return;
   try {
     const result = await api("/api/admin/families");
     const families = result.families || [];
+    renderNormalizedFamilyOptions(families);
     root.querySelector("[data-normalized-family-count]").textContent = families.length + (families.length === 1 ? " families" : " families");
     if (!families.length) {
       target.innerHTML = '<p class="catalog-note">Er zijn nog geen relationele families aangemaakt.</p>';
@@ -77,6 +95,42 @@ export function initAdminUsersSection() {
   if (!root?.querySelector("#family-user-create-form")) return;
   loadUsers().catch(error => feedback(error.message, true));
   loadNormalizedFamilies();
+  loadNormalizedEditions().catch(error => {
+    const feedbackTarget = root.querySelector("[data-normalized-family-feedback]");
+    if (feedbackTarget) feedbackTarget.textContent = error.message;
+  });
+  root.querySelector("[data-create-normalized-family]")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const form = event.currentTarget, button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      const values = Object.fromEntries(new FormData(form).entries());
+      await api("/api/admin/families", { method: "POST", body: JSON.stringify(values) });
+      form.reset();
+      const target = root.querySelector("[data-normalized-family-feedback]");
+      if (target) target.textContent = "Familie en inschrijving zijn aangemaakt.";
+      await loadNormalizedFamilies();
+    } catch (error) {
+      const target = root.querySelector("[data-normalized-family-feedback]");
+      if (target) target.textContent = error.message;
+    } finally { button.disabled = false; }
+  });
+  root.querySelector("[data-add-normalized-member]")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const form = event.currentTarget, button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      const values = Object.fromEntries(new FormData(form).entries());
+      const result = await api("/api/admin/families/memberships", { method: "POST", body: JSON.stringify(values) });
+      form.reset();
+      const target = root.querySelector("[data-normalized-family-feedback]");
+      if (target) target.textContent = result.mailFailed ? result.error : result.invited ? "Account gekoppeld en uitnodiging verzonden." : "Account aan de familie gekoppeld.";
+      await loadNormalizedFamilies();
+    } catch (error) {
+      const target = root.querySelector("[data-normalized-family-feedback]");
+      if (target) target.textContent = error.message;
+    } finally { button.disabled = false; }
+  });
   const form = root.querySelector("#family-user-create-form");
   form.addEventListener("submit", async event => {
     event.preventDefault();
