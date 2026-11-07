@@ -156,7 +156,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
           try { data = JSON.parse(row.legacy_environment ? (row.legacy_data_json || "{}") : (row.data_json || "{}")); } catch { /* Ongeldige payload blijft zichtbaar als waarschuwing. */ }
           try { config = JSON.parse(row.edition_config_json || "{}"); } catch { /* Catalogus blijft leeg bij ongeldige configuratie. */ }
           const members = Array.isArray(data.members) ? data.members : [];
-          const catalog = Array.isArray(config.catalog) ? config.catalog : [];
+          const catalog = Array.isArray(config.catalog) ? config.catalog : Array.isArray(data.catalog) ? data.catalog : [];
           family.registrations.push({
             id: row.registration_id, name: data.name || family.name, status: row.registration_status,
             editionId: row.edition_id, edition: row.edition_label, editionStatus: row.edition_status,
