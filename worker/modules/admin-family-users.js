@@ -213,6 +213,32 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     return json({ linked: true });
   }
 
+  if (action === "registrations" && request.method === "PATCH") {
+    const body = await request.json().catch(() => null);
+    const linkId = Number(body?.linkId);
+    const role = body?.role;
+    if (!Number.isSafeInteger(linkId) || linkId < 1 || !["owner", "editor", "viewer"].includes(role)) {
+      return json({ error: "Ongeldige koppeling of toegangsrol." }, 400);
+    }
+    const link = await env.DB.prepare(
+      "SELECT edition_id, registration_id FROM family_user_registrations WHERE id = ? AND user_id = ?"
+    ).bind(linkId, userId).first();
+    if (!link) return json({ error: "Accountkoppeling niet gevonden." }, 404);
+    try {
+      const relational = await env.DB.prepare(
+        "SELECT family_id FROM event_registrations WHERE legacy_environment = ? AND legacy_registration_id = ?"
+      ).bind(link.edition_id, link.registration_id).first();
+      if (!relational?.family_id) return json({ error: "De relationele familiegegevens zijn nog niet overgenomen. Pas rollen pas aan na de gecontroleerde migratie." }, 409);
+      await env.DB.prepare(
+        "INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(family_id, user_id) DO UPDATE SET role = excluded.role"
+      ).bind("legacy-membership-" + link.edition_id + "-" + link.registration_id + "-" + userId, relational.family_id, userId, role, now).run();
+      return json({ updated: true, role });
+    } catch (error) {
+      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+      return json({ error: "De relationele toegangsrollen zijn nog niet beschikbaar. Voer eerst de gecontroleerde migratie uit." }, 503);
+    }
+  }
+
   if (action === "registrations" && request.method === "DELETE") {
     const linkId = Number(url.searchParams.get("linkId"));
     if (!Number.isSafeInteger(linkId) || linkId < 1) return json({ error: "Ongeldige koppeling." }, 400);
