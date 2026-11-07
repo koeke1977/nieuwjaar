@@ -82,6 +82,101 @@ export async function handleAdminEvents(request, env, url, dependencies) {
     return json({ updated: true });
   }
 
+  const financeMatch = url.pathname.match(/^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/finance$/);
+  if (financeMatch && request.method === "GET") {
+    const editionId = financeMatch[1];
+    try {
+      const edition = await env.DB.prepare(
+        "SELECT d.id, d.label, d.config_json, e.name AS event_name, e.finance_strategy FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?"
+      ).bind(editionId).first();
+      if (!edition) return json({ error: "Editie niet gevonden." }, 404);
+      const snapshot = await env.DB.prepare(
+        "SELECT expenses_json, payments_json, costs_finalized, costs_finalized_at, source_environment, updated_at FROM edition_finance_snapshots WHERE edition_id = ?"
+      ).bind(editionId).first();
+      const registrations = await env.DB.prepare(
+        "SELECT id, family_id, status, data_json, updated_at FROM event_registrations WHERE edition_id = ? AND status != 'cancelled' ORDER BY created_at, id"
+      ).bind(editionId).all();
+      let config = {};
+      try { config = JSON.parse(edition.config_json || "{}"); } catch { return json({ error: "De editieconfiguratie is ongeldig." }, 409); }
+      return json({
+        edition: { id: edition.id, label: edition.label, eventName: edition.event_name, financeStrategy: edition.finance_strategy },
+        registrations: (registrations.results || []).map(row => {
+          let data = {};
+          try { data = JSON.parse(row.data_json || "{}"); } catch {}
+          return { id: row.id, familyId: row.family_id, status: row.status, name: String(data.name || "Inschrijving"), adults: Number(data.adults) || 0, children: Number(data.children) || 0, members: Array.isArray(data.members) ? data.members : [] };
+        }),
+        catalog: Array.isArray(config.catalog) ? config.catalog : [],
+        finance: {
+          expenses: (() => { try { return JSON.parse(snapshot?.expenses_json || "[]"); } catch { return []; } })(),
+          payments: (() => { try { return JSON.parse(snapshot?.payments_json || "[]"); } catch { return []; } })(),
+          costsFinalized: Boolean(snapshot?.costs_finalized),
+          costsFinalizedAt: snapshot?.costs_finalized_at || null,
+          revision: Number(snapshot?.updated_at) || 0,
+          legacySnapshot: Boolean(snapshot?.source_environment)
+        }
+      });
+    } catch (error) {
+      console.error("Edition finance load failed:", error);
+      return json({ error: "De financiële gegevens van deze editie konden niet worden geladen." }, 503);
+    }
+  }
+
+  if (financeMatch && request.method === "PUT") {
+    const editionId = financeMatch[1];
+    const body = await request.json().catch(() => null);
+    if (!Number.isSafeInteger(body?.revision) || !Array.isArray(body?.expenses) || !Array.isArray(body?.payments) ||
+        body.expenses.length > 2000 || body.payments.length > 5000 || typeof body.costsFinalized !== "boolean") {
+      return json({ error: "Ongeldige financiële gegevens of revisie." }, 400);
+    }
+    try {
+      const edition = await env.DB.prepare("SELECT id FROM event_editions WHERE id = ?").bind(editionId).first();
+      if (!edition) return json({ error: "Editie niet gevonden." }, 404);
+      const registrationsResult = await env.DB.prepare(
+        "SELECT id FROM event_registrations WHERE edition_id = ? AND status != 'cancelled'"
+      ).bind(editionId).all();
+      const registrationIds = new Set((registrationsResult.results || []).map(row => row.id));
+      const ids = new Set();
+      const expenses = [];
+      for (const item of body.expenses) {
+        if (!item || typeof item.id !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(item.id) || ids.has(item.id) ||
+            typeof item.description !== "string" || !item.description.trim() || item.description.trim().length > 120 ||
+            !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0 ||
+            typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) ||
+            !["general", "adults", "meat"].includes(item.method) || !registrationIds.has(item.advancedBy)) {
+          return json({ error: "Een uitgave bevat ongeldige gegevens. Controleer omschrijving, bedrag, datum, verdeelsleutel en voorschieter." }, 400);
+        }
+        ids.add(item.id);
+        expenses.push({ id: item.id, description: item.description.trim(), amountCents: item.amountCents, date: item.date, method: item.method, advancedBy: item.advancedBy });
+      }
+      ids.clear();
+      const payments = [];
+      for (const item of body.payments) {
+        if (!item || typeof item.id !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(item.id) || ids.has(item.id) ||
+            !registrationIds.has(item.registrationId) || !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0 ||
+            typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !["cash", "bank"].includes(item.method)) {
+          return json({ error: "Een betaling bevat ongeldige gegevens. Controleer inschrijving, bedrag, datum en betaalmethode." }, 400);
+        }
+        ids.add(item.id);
+        payments.push({ id: item.id, registrationId: item.registrationId, amountCents: item.amountCents, date: item.date, method: item.method });
+      }
+      const current = await env.DB.prepare(
+        "SELECT updated_at, source_environment FROM edition_finance_snapshots WHERE edition_id = ?"
+      ).bind(editionId).first();
+      if (current?.source_environment) return json({ error: "Deze financiële snapshot komt uit de historische Nieuwjaar-overname en blijft ongewijzigd." }, 409);
+      if ((Number(current?.updated_at) || 0) !== body.revision) return json({ error: "De financiële gegevens zijn intussen gewijzigd. Herlaad de editie en probeer opnieuw." }, 409);
+      const now = Math.floor(Date.now() / 1000);
+      const finalizedAt = body.costsFinalized ? (typeof body.costsFinalizedAt === "string" && !Number.isNaN(Date.parse(body.costsFinalizedAt)) ? body.costsFinalizedAt : new Date(now * 1000).toISOString()) : null;
+      const result = await env.DB.prepare(
+        "INSERT INTO edition_finance_snapshots (edition_id, expenses_json, payments_json, costs_finalized, costs_finalized_at, source_environment, source_revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?) ON CONFLICT(edition_id) DO UPDATE SET expenses_json = excluded.expenses_json, payments_json = excluded.payments_json, costs_finalized = excluded.costs_finalized, costs_finalized_at = excluded.costs_finalized_at, updated_at = MAX(edition_finance_snapshots.updated_at + 1, excluded.updated_at) WHERE edition_finance_snapshots.source_environment IS NULL AND edition_finance_snapshots.updated_at = ? RETURNING updated_at"
+      ).bind(editionId, JSON.stringify(expenses), JSON.stringify(payments), body.costsFinalized ? 1 : 0, finalizedAt, now, now, body.revision).first();
+      if (!result) return json({ error: "De financiële gegevens zijn intussen gewijzigd of horen bij een historische snapshot. Er is niets aangepast." }, 409);
+      return json({ saved: true, revision: result.updated_at, expenses, payments, costsFinalized: body.costsFinalized, costsFinalizedAt: finalizedAt });
+    } catch (error) {
+      console.error("Edition finance save failed:", error);
+      return json({ error: "De financiële gegevens konden niet veilig worden opgeslagen." }, 503);
+    }
+  }
+
   const catalogMatch = url.pathname.match(/^\/api\/admin\/events\/([A-Za-z0-9_-]+)\/editions\/([A-Za-z0-9_-]+)\/catalog$/);
   if (catalogMatch && request.method === "PUT") {
     const [, eventId, editionId] = catalogMatch;
@@ -152,8 +247,12 @@ export async function handleAdminEvents(request, env, url, dependencies) {
     if (!event) return json({ error: "Evenement niet gevonden." }, 404);
     const id = crypto.randomUUID(), now = Math.floor(Date.now() / 1000);
     try {
-      await env.DB.prepare("INSERT INTO event_editions (id, event_id, label, starts_at, ends_at, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?)")
-        .bind(id, eventId, label, startsAt, endsAt, now, now).run();
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO event_editions (id, event_id, label, starts_at, ends_at, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?)")
+          .bind(id, eventId, label, startsAt, endsAt, now, now),
+        env.DB.prepare("INSERT INTO edition_finance_snapshots (edition_id, expenses_json, payments_json, costs_finalized, created_at, updated_at) VALUES (?, '[]', '[]', 0, ?, ?)")
+          .bind(id, now, now)
+      ]);
       return json({ created: true, edition: { id, label, startsAt, endsAt, status: "draft" } }, 201);
     } catch (error) {
       console.error("Edition creation failed:", error);
