@@ -61,7 +61,7 @@ export async function handleAdminEvents(request, env, url, dependencies) {
     }
   }
 
-  const eventMatch = url.pathname.match(/^\/api\/admin\/events\/([0-9a-f-]+)$/i);
+  const eventMatch = url.pathname.match(/^\/api\/admin\/events\/([A-Za-z0-9_-]+)$/);
   if (eventMatch && request.method === "PATCH") {
     const eventId = eventMatch[1];
     const body = await request.json().catch(() => null);
