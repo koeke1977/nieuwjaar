@@ -308,10 +308,21 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     await env.DB.prepare("UPDATE family_user_invites SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL").bind(now, userId).run();
     await env.DB.prepare("INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
       .bind(crypto.randomUUID(), userId, await sha256(token), now, now + 7 * 24 * 60 * 60).run();
-    const linkedEdition = await env.DB.prepare("SELECT edition_id FROM family_user_registrations WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").bind(userId).first();
-    const linkedState = linkedEdition ? await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(linkedEdition.edition_id).first() : null;
     let eventName = "het evenement";
-    try { const linkedData = JSON.parse(linkedState?.data_json || "{}"); eventName = String(linkedData.activeEvent?.name || linkedData.activeEvent?.title || eventName); } catch { /* Gebruik de neutrale benaming bij ongeldige oude data. */ }
+    try {
+      const normalizedEvent = await env.DB.prepare(
+        "SELECT e.name AS event_name FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE fm.user_id = ? ORDER BY er.updated_at DESC LIMIT 1"
+      ).bind(userId).first();
+      if (normalizedEvent?.event_name) eventName = normalizedEvent.event_name;
+      else {
+        const linkedEdition = await env.DB.prepare("SELECT edition_id FROM family_user_registrations WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").bind(userId).first();
+        const linkedState = linkedEdition ? await env.DB.prepare("SELECT data_json FROM app_state WHERE environment = ?").bind(linkedEdition.edition_id).first() : null;
+        const linkedData = JSON.parse(linkedState?.data_json || "{}");
+        eventName = String(linkedData.activeEvent?.name || linkedData.activeEvent?.title || eventName);
+      }
+    } catch (error) {
+      console.warn("Could not resolve event name for invitation resend:", error.message);
+    }
     const url = "https://nieuwjaar.datuur.be/familie/activeren/" + token;
     const html = '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Uitnodiging voor ' + escapeHtml(eventName) + '</h2><p>Dag ' + escapeHtml(user.display_name) + ',</p><p><a href="' + url + '">Activeer je account</a></p><p>Deze link is 7 dagen geldig.</p></div>';
     try { await sendGraphMail(env, user.email, eventName + " – nieuwe activatielink", html); }
