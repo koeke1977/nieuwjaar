@@ -57,7 +57,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       return json({ error: "Controleer de inschrijvingsnaam en de gezinsleden." }, 400);
     }
     const row = await env.DB.prepare(
-      "SELECT er.id, er.data_json, er.updated_at, er.status, er.legacy_environment, er.legacy_registration_id, d.status AS edition_status, e.status AS event_status, d.config_json FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE er.id = ?"
+      "SELECT er.id, er.edition_id, er.data_json, er.updated_at, er.status, er.legacy_environment, er.legacy_registration_id, d.status AS edition_status, e.status AS event_status, d.config_json FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id WHERE er.id = ?"
     ).bind(registrationId).first();
     if (!row) return json({ error: "Inschrijving niet gevonden." }, 404);
     if (row.legacy_environment || row.legacy_registration_id) {
@@ -108,6 +108,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND updated_at = ? AND legacy_environment IS NULL AND legacy_registration_id IS NULL RETURNING updated_at"
     ).bind(JSON.stringify(registration), now, registrationId, body.revision).first();
     if (!updated) return json({ error: "De inschrijving is intussen gewijzigd. Herlaad de gegevens en probeer opnieuw." }, 409);
+    await env.DB.prepare("UPDATE edition_finance_snapshots SET costs_finalized = 0, costs_finalized_at = NULL, updated_at = MAX(updated_at + 1, ?) WHERE edition_id = ? AND costs_finalized = 1").bind(now, row.edition_id).run();
     return json({ saved: true, revision: updated.updated_at, registration: {
       id: registrationId, name: registration.name, adults: registration.adults, children: registration.children, members: registration.members
     } });
