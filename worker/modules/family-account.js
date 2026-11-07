@@ -139,7 +139,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     const links = [...linksByKey.values()].sort((a,b) => a.edition_id.localeCompare(b.edition_id));
     const registrations = [];
     const catalogByEdition = {};
-    for (const link of links.results || []) {
+    for (const link of links) {
       const stateRow = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(link.edition_id).first();
       if (!stateRow) continue;
       let data;
@@ -180,9 +180,22 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
         !Array.isArray(body?.members) || body.members.length < 1 || body.members.length > 30) {
       return json({ error: "Ongeldige inschrijvingsgegevens." }, 400);
     }
-    const linked = await env.DB.prepare(
+    let linked = await env.DB.prepare(
       "SELECT 1 AS linked FROM family_user_registrations WHERE user_id = ? AND edition_id = ? AND registration_id = ?"
     ).bind(session.user_id, edition, registrationId).first();
+    // Normalized family membership is the preferred authorization source after backfill.
+    // Legacy links remain valid during the transition; viewers may read but never edit.
+    try {
+      const relational = await env.DB.prepare(
+        "SELECT fm.role FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id WHERE fm.user_id = ? AND er.legacy_environment = ? AND er.legacy_registration_id = ?"
+      ).bind(session.user_id, edition, registrationId).first();
+      if (relational) {
+        if (relational.role === "viewer") return json({ error: "Je hebt alleen leesrechten voor deze inschrijving." }, 403);
+        linked = { linked: 1 };
+      }
+    } catch (error) {
+      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+    }
     if (!linked) return json({ error: "Deze inschrijving is niet aan je account gekoppeld." }, 403);
     const stateRow = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(edition).first();
     if (!stateRow) return json({ error: "De editie is niet beschikbaar." }, 404);
