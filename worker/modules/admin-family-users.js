@@ -23,7 +23,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     const environment = url.searchParams.get("environment");
     if (!["test", "live"].includes(environment)) return json({ error: "Ongeldige omgeving." }, 400);
     const result = await env.DB.prepare(
-      "SELECT u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at, r.id AS link_id, r.edition_id, r.registration_id FROM family_users u LEFT JOIN family_user_registrations r ON r.user_id = u.id AND r.edition_id = ? ORDER BY u.email COLLATE NOCASE, r.registration_id"
+      "SELECT u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at, r.id AS link_id, r.edition_id, r.registration_id, (SELECT fm.role FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id WHERE fm.user_id = u.id AND er.legacy_environment = r.edition_id AND er.legacy_registration_id = r.registration_id LIMIT 1) AS membership_role FROM family_users u LEFT JOIN family_user_registrations r ON r.user_id = u.id AND r.edition_id = ? ORDER BY u.email COLLATE NOCASE, r.registration_id"
     ).bind(environment).all();
     const users = new Map();
     for (const row of result.results || []) {
@@ -32,7 +32,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
         createdAt: row.created_at, lastLoginAt: row.last_login_at, registrations: []
       });
       if (row.link_id) users.get(row.id).registrations.push({
-        linkId: row.link_id, registrationId: row.registration_id, environment: row.edition_id
+        linkId: row.link_id, registrationId: row.registration_id, environment: row.edition_id, role: row.membership_role || "editor"
       });
     }
     return json({ users: [...users.values()], environment });
