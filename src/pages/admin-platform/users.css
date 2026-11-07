@@ -29,3 +29,12 @@
 .family-user-actions .danger-text:hover { color: #8f1d14; }
 
 .family-user-link select{max-width:118px;min-height:26px;padding:3px 5px;border:1px solid var(--line,#e8e4dd);border-radius:7px;background:#fff;color:var(--ink,#292720);font:inherit;font-size:11px}
+
+.family-normalized-registration{display:flex;flex-direction:column;gap:3px;padding:9px 11px;border:1px solid var(--line,#e8e4dd);border-radius:9px;background:var(--surface-soft,#faf9f6);min-width:0}
+.family-normalized-registration span,.family-normalized-registration small{color:var(--muted,#777);font-size:12px}
+.family-normalized-registrations{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:10px}
+.family-users-normalized{margin-top:18px}
+.family-users-normalized .family-user-row{margin-bottom:9px}
+.family-users-normalized .family-user-links{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.family-users-normalized .family-user-link{display:flex;align-items:center;gap:8px;padding:5px 8px}
+.family-users-normalized .family-user-link small{font-size:11px;color:var(--muted,#777)}
