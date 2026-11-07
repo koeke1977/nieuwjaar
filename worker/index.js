@@ -271,7 +271,7 @@ async function handleAdminApi(request, env, url) {
     return handleAdminEvents(request, env, url, { json, sameOrigin, adminSession });
   }
 
-  if (url.pathname.startsWith("/api/admin/family-users")) {
+  if (url.pathname.startsWith("/api/admin/family-users") || url.pathname.startsWith("/api/admin/families")) {
     return handleAdminFamilyUsers(request, env, url, { json, sameOrigin, adminSession, sha256, base64Url, sendGraphMail });
   }
 
