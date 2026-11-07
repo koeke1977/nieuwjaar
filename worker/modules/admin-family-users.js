@@ -62,9 +62,8 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       await env.DB.prepare("INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'invited', ?, ?)")
         .bind(id, email, displayName, now, now).run();
       user = { id, status: "invited" };
-    } else {
-      await env.DB.prepare("UPDATE family_users SET display_name = ?, updated_at = ? WHERE id = ?").bind(displayName, now, user.id).run();
     }
+    const newlyCreatedUser = user.status === "invited" && !(await env.DB.prepare("SELECT 1 AS existing FROM family_user_invites WHERE user_id = ? LIMIT 1").bind(user.id).first());
     try {
       let relational = null;
       try {
@@ -81,7 +80,12 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
           .bind("legacy-membership-" + environment + "-" + registrationId + "-" + user.id, relational.family_id, user.id, now));
       }
       await env.DB.batch(statements);
+      await env.DB.prepare("UPDATE family_users SET display_name = ?, updated_at = ? WHERE id = ?").bind(displayName, now, user.id).run();
     } catch (error) {
+      if (newlyCreatedUser) {
+        try { await env.DB.prepare("DELETE FROM family_users WHERE id = ?").bind(user.id).run(); }
+        catch (cleanupError) { console.error("Orphan invitation account cleanup failed:", cleanupError); }
+      }
       if (/UNIQUE|constraint/i.test(String(error?.message || ""))) return json({ error: "Deze inschrijving is al aan dit account gekoppeld." }, 409);
       console.error("Family account link failed:", error);
       return json({ error: "De accountkoppeling kon niet veilig worden opgeslagen." }, 503);
