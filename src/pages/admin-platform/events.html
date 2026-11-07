@@ -1,0 +1,19 @@
+<section class="page-heading admin-events-heading">
+  <p class="eyebrow">PLATFORMBEHEER · ORGANISATIE</p>
+  <h1>Evenementen</h1>
+  <p>Maak verschillende evenementen aan en beheer hun afzonderlijke edities. De bestaande Nieuwjaar-registraties blijven voorlopig in hun huidige omgeving.</p>
+</section>
+<section class="panel admin-event-create">
+  <div class="section-heading"><div><h2>Nieuw evenement</h2><p>Bijvoorbeeld een BBQ, schoolfeest, fuif of nieuwjaarsbijeenkomst.</p></div></div>
+  <form id="admin-event-create-form" class="admin-event-form">
+    <label>Naam evenement<input name="name" maxlength="100" placeholder="Naam van het evenement" required></label>
+    <label>Beschrijving<textarea name="description" maxlength="1000" rows="2" placeholder="Korte omschrijving (optioneel)"></textarea></label>
+    <label>Financiële verdeelmethode<select name="financeStrategy"><option value="nieuwjaar">Nieuwjaar · bestaande afrekening</option><option value="per_person">Gelijk per deelnemer</option><option value="per_adult">Per volwassene</option><option value="per_order">Per bestelling/portie</option><option value="none">Geen financiële afrekening</option></select></label>
+    <button class="button button-dark" type="submit">Evenement aanmaken</button>
+  </form>
+  <p class="admin-event-feedback" data-admin-events-feedback role="status"></p>
+</section>
+<section class="admin-events-list-section">
+  <div class="section-heading"><div><h2>Jouw evenementen</h2><p>Elke evenementfiche krijgt een eigen reeks edities.</p></div><span class="status neutral" data-admin-events-count>…</span></div>
+  <div class="admin-events-list" data-admin-events-list><div class="panel"><p class="catalog-note">Evenementen laden…</p></div></div>
+</section>
