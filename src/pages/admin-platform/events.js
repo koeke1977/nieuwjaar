@@ -66,7 +66,7 @@ export function initAdminEventsSection() {
     try {
       const result = await api("/api/admin/events/backfill-preview");
       const totals = result.totals || {};
-      migrationPreviewSafe = result.readOnly === true && result.canBackfill === true && Number(totals.orphanedRegistrationLinks || 0) === 0;
+      migrationPreviewSafe = result.readOnly === true && result.canBackfill === true && Number(totals.orphanedRegistrationLinks || 0) === 0 && Number(totals.orphanedAccountLinks || 0) === 0 && Number(totals.unsupportedEnvironmentLinks || 0) === 0;
       if (migrateButton) migrateButton.disabled = !migrationPreviewSafe;
       const rows = (result.environments || []).map(row =>
         '<div class="admin-backfill-row"><strong>'+escapeHtml(row.eventName)+' · '+escapeHtml(row.environment)+'</strong><span>'+row.registrations+' inschrijvingen</span><span>'+row.registrationsWithAccounts+' met account</span><span>'+row.accountLinks+' accountkoppelingen</span><span>'+row.orphanedRegistrationLinks+' verweesde koppelingen</span></div>'
