@@ -5,7 +5,8 @@ export function getRegistrationCounts(registration) {
       people: Math.max(0, Number(registration.aggregateCounts.people) || 0),
       adults: Math.max(0, Number(registration.aggregateCounts.adults) || 0),
       children: Math.max(0, Number(registration.aggregateCounts.children) || 0),
-      meat: Math.max(0, Number(registration.aggregateCounts.meat) || 0)
+      meat: Math.max(0, Number(registration.aggregateCounts.meat) || 0),
+      drinks: Math.max(0, Number(registration.aggregateCounts.drinks) || 0)
     };
   }
   const members = registration.members || [];
@@ -15,15 +16,22 @@ export function getRegistrationCounts(registration) {
       adults: members.filter(person => person.type === "Volwassene").length,
       children: members.filter(person => person.type === "Kind").length,
       meat: members.reduce((sum, person) =>
-        sum + Object.values(person.orders || {}).reduce((personSum, qty) => personSum + Math.max(0, Number(qty) || 0), 0), 0)
+        sum + Object.values(person.orders || {}).reduce((personSum, qty) => personSum + Math.max(0, Number(qty) || 0), 0), 0),
+      drinks: members.reduce((sum, person) => sum + memberDrinks(person), 0)
     };
   }
   return {
     people: (Number(registration.adults) || 0) + (Number(registration.children) || 0),
     adults: Number(registration.adults) || 0,
     children: Number(registration.children) || 0,
-    meat: 0
+    meat: 0,
+    drinks: 0
   };
+}
+
+// Open bar: consumptions tallied per person ("streepjes"), entered by the organisation.
+export function memberDrinks(member) {
+  return Math.max(0, Math.floor(Number(member?.drinks) || 0));
 }
 
 // Largest-remainder verdeling: som van shares is altijd exact amountCents.
@@ -55,7 +63,8 @@ export function getExpenseShares(expense, registrations, { strict = false } = {}
     const counts = getRegistrationCounts(registration);
     const weight = expense.method === "general" ? counts.people
       : expense.method === "adults" ? counts.adults
-      : expense.method === "meat" ? counts.meat : 0;
+      : expense.method === "meat" ? counts.meat
+      : expense.method === "bar" ? counts.drinks : 0;
     return { id: registration.id, weight };
   }).filter(row => row.weight > 0);
   return splitCents(expense.amountCents, weightedRows, { strict });
@@ -107,7 +116,8 @@ function memberPortions(member) {
 function memberWeight(member, method) {
   return method === "general" ? 1
     : method === "adults" ? (member.type === "Volwassene" ? 1 : 0)
-    : method === "meat" ? memberPortions(member) : 0;
+    : method === "meat" ? memberPortions(member)
+    : method === "bar" ? memberDrinks(member) : 0;
 }
 
 // Verdeel het aandeel van één inschrijving in één kost over haar leden.
@@ -137,7 +147,8 @@ export function getMemberCostSummary(registration, registrations = [], expenses 
 export const COST_METHODS = {
   general: { label: "Algemene kosten", appliesTo: "Iedereen, ook kinderen", unit: ["persoon", "personen"] },
   adults: { label: "Kosten voor volwassenen (18+)", appliesTo: "Alleen volwassenen", unit: ["volwassene", "volwassenen"] },
-  meat: { label: "Vlees", appliesTo: "Volgens het aantal bestelde porties", unit: ["portie", "porties"] }
+  meat: { label: "Vlees", appliesTo: "Volgens het aantal bestelde porties", unit: ["portie", "porties"] },
+  bar: { label: "Bar (volgens streepjes)", appliesTo: "Volgens het aantal genomen consumpties", unit: ["consumptie", "consumpties"] }
 };
 
 // Volledige, uitlegbare afrekening van één inschrijving. Bevat alleen gegevens van
@@ -148,13 +159,13 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
   const ownCounts = getRegistrationCounts(registration);
   const eventCounts = registrations.reduce((sum, item) => {
     const counts = getRegistrationCounts(item);
-    return { people: sum.people + counts.people, adults: sum.adults + counts.adults, meat: sum.meat + counts.meat };
-  }, { people: 0, adults: 0, meat: 0 });
-  const unitsFor = (counts, method) => method === "general" ? counts.people : method === "adults" ? counts.adults : method === "meat" ? counts.meat : 0;
+    return { people: sum.people + counts.people, adults: sum.adults + counts.adults, meat: sum.meat + counts.meat, drinks: sum.drinks + counts.drinks };
+  }, { people: 0, adults: 0, meat: 0, drinks: 0 });
+  const unitsFor = (counts, method) => method === "general" ? counts.people : method === "adults" ? counts.adults : method === "meat" ? counts.meat : method === "bar" ? counts.drinks : 0;
 
   const memberRows = new Map(members.map(member => [member.id, {
     id: member.id, name: member.name, type: member.type, portions: memberPortions(member),
-    totalCents: 0, byMethod: { general: 0, adults: 0, meat: 0 }
+    drinks: memberDrinks(member), totalCents: 0, byMethod: { general: 0, adults: 0, meat: 0, bar: 0 }
   }]));
   const categories = new Map();
   const expenseRows = [];

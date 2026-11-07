@@ -1,5 +1,8 @@
 import { getFamilyFinanceBreakdown, getExpenseShares } from "../../src/utils/finance.js";
 import { withDiet } from "../../src/utils/diet.js";
+import { ordersClosed } from "../../src/utils/time.js";
+
+const closedMessage = deadline => "Bestellen is afgesloten" + (deadline ? " sinds " + deadline.replace("T", " om ") : "") + ". Wil je toch nog iets wijzigen? Vraag het aan de organisatie.";
 import { storeReceipt, receiptExists, deleteReceipt, streamReceipt, parseReceiptKey } from "./receipts.js";
 
 // The registration of the signed-in user, if their family owns it.
@@ -173,7 +176,8 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       const members = (Array.isArray(registration.members) ? registration.members : []).map(person => ({
         id: person.id, name: person.name, type: person.type,
         orders: person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {},
-        diet: Array.isArray(person.diet) ? person.diet : [], notes: typeof person.notes === "string" ? person.notes : ""
+        diet: Array.isArray(person.diet) ? person.diet : [], notes: typeof person.notes === "string" ? person.notes : "",
+        drinks: Math.max(0, Number(person.drinks) || 0)
       }));
       const own = { id: row.registration_id, name: registration.name || "", members,
         adults: members.filter(person => person.type === "Volwassene").length, children: members.filter(person => person.type === "Kind").length };
@@ -182,6 +186,8 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
         editionLabel: row.edition_label || "Editie",
         editionStatus: row.edition_status,
         startsAt: row.starts_at || null,
+        orderDeadline: typeof config.orderDeadline === "string" ? config.orderDeadline : null,
+        ordersClosed: ordersClosed(config.orderDeadline),
         event: row.event_name || "Evenement",
         accessRole: row.membership_role || "viewer",
         registration: own,
@@ -245,6 +251,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     catch { return json({ error: "De inschrijvingsgegevens zijn ongeldig." }, 500); }
     const activeIds = new Set((Array.isArray(config.catalog) ? config.catalog : []).filter(item => item && item.active !== false).map(item => item.id));
     const stored = new Map((Array.isArray(registration.members) ? registration.members : []).map(person => [person.id, person]));
+    const closed = ordersClosed(config.orderDeadline);
     const memberIds = new Set(), members = [];
     for (const person of body.members) {
       if (!person || typeof person.id !== "string" || !/^[A-Za-z0-9_-]{1,120}$/.test(person.id) ||
@@ -261,11 +268,19 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       for (const productId of activeIds) {
         const quantity = Number(sent[productId] ?? 0);
         if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) return json({ error: "Ongeldig aantal in de bestelling." }, 400);
+        if (closed && quantity !== (Number(stored.get(person.id)?.orders?.[productId]) || 0)) return json({ error: closedMessage(config.orderDeadline), ordersClosed: true }, 409);
         orders[productId] = quantity;
       }
-      const member = withDiet({ id: person.id, name: person.name.trim(), type: person.type, orders }, person);
+      const drinks = Math.max(0, Number(stored.get(person.id)?.drinks) || 0); // tally marks: only the organisation
+      const member = withDiet({ id: person.id, name: person.name.trim(), type: person.type, orders, ...(drinks ? { drinks } : {}) }, person);
       if (!member) return json({ error: "Controleer de allergieën en opmerkingen (maximaal 200 tekens)." }, 400);
       members.push(member);
+    }
+    if (closed) {
+      for (const [id, person] of stored) {
+        const ordered = Object.values(person.orders || {}).some(qty => Number(qty) > 0);
+        if (!memberIds.has(id) && (ordered || Number(person.drinks) > 0)) return json({ error: closedMessage(config.orderDeadline), ordersClosed: true }, 409);
+      }
     }
     const updatedRegistration = { ...registration, members,
       adults: members.filter(person => person.type === "Volwassene").length,
@@ -327,7 +342,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       const description = typeof raw.description === "string" ? raw.description.trim() : "";
       const amountCents = Number(raw.amountCents);
       if (!description || description.length > 120 || !Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > 10_000_000 ||
-          typeof raw.date !== "string" || Number.isNaN(Date.parse(raw.date)) || !["general", "adults", "meat"].includes(raw.method)) {
+          typeof raw.date !== "string" || Number.isNaN(Date.parse(raw.date)) || !["general", "adults", "meat", "bar"].includes(raw.method)) {
         return json({ error: "Controleer de omschrijving, het bedrag, de datum en de soort kost." }, 400);
       }
       input = { id: typeof raw.id === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(raw.id) ? raw.id : null, description, amountCents, date: raw.date.slice(0, 10), method: raw.method, receipt: null };
@@ -366,7 +381,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
         // The cost must be divisible: e.g. a meat cost needs ordered portions.
         const rows = await env.DB.prepare("SELECT id, data_json FROM event_registrations WHERE edition_id = ? AND status = 'active'").bind(editionId).all();
         const registrations = (rows.results || []).map(row => { let data = {}; try { data = JSON.parse(row.data_json || "{}"); } catch { /* empty */ } return { id: row.id, members: Array.isArray(data.members) ? data.members : [], adults: data.adults, children: data.children }; });
-        try { getExpenseShares(expense, registrations, { strict: true }); }
+        try { if (expense.method !== "bar") getExpenseShares(expense, registrations, { strict: true }); }
         catch (error) { return json({ error: error.message || "Deze kost kan nog niet verdeeld worden." }, 400); }
         if (index >= 0) expenses[index] = expense; else expenses.push(expense);
       }

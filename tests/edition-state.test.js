@@ -164,3 +164,34 @@ test("the edition date and time are saved for the countdown", async () => {
   assert.equal(result.state.startsAt, "2026-12-31T20:00");
   assert.equal((await saveEditionState({ DB }, "ed1", { base: payload(result.state), data: { ...payload(result.state), startsAt: "morgen" } }, NOW)).status, 400);
 });
+
+test("tally marks and the order deadline are saved by the admin", async () => {
+  const DB = setup();
+  const base = payload(await loadEditionState({ DB }, "ed1"));
+  const data = clone(base);
+  data.orderDeadline = "2026-12-20T23:59";
+  data.registrations[0].members[0].drinks = 12;
+  data.expenses.push({ id: "bar1", description: "Drank", amountCents: 5000, date: "2026-12-01", method: "bar", advancedBy: "kas" });
+  const result = await saveEditionState({ DB }, "ed1", { base, data }, NOW);
+  assert.equal(result.status, 200, result.error);
+  assert.equal(result.state.orderDeadline, "2026-12-20T23:59");
+  assert.equal(result.state.registrations[0].members[0].drinks, 12);
+  assert.equal(result.state.expenses[0].method, "bar");
+});
+
+test("a message goes to the accounts of the chosen families only", async () => {
+  const { messageRecipients, messageHtml } = await import("../worker/modules/admin-edition-state.js");
+  const DB = setup();
+  for (const [user, fam, status] of [["u1", "fa", "active"], ["u2", "fb", "invited"], ["u3", "fb", "disabled"]]) {
+    DB.raw.prepare("INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, 1, 1)").run(user, user + "@x.be", user, status);
+    DB.raw.prepare("INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, 'owner', 1)").run("m" + user, fam, user);
+  }
+  assert.deepEqual((await messageRecipients({ DB }, "ed1", "all")).map(r => r.email).sort(), ["u1@x.be", "u2@x.be"], "disabled accounts get nothing");
+  DB.raw.prepare("UPDATE event_registrations SET data_json = ? WHERE id = 'rb'").run(JSON.stringify({ name: "B", members: [member("rb1", 0)] }));
+  assert.deepEqual((await messageRecipients({ DB }, "ed1", "no-order")).map(r => r.email), ["u2@x.be"]);
+  const html = messageHtml({ displayName: "Jan", subject: "Info", message: "Regel 1\nRegel 2\n\n<script>x</script>", eventTitle: "Nieuwjaar 2026–2027" });
+  assert.match(html, /Dag Jan,/);
+  assert.match(html, /Regel 1<br>Regel 2/);
+  assert.ok(!html.includes("<script>"), "message text is escaped");
+  assert.match(html, /Naar het familieportaal/);
+});

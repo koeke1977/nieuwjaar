@@ -142,3 +142,17 @@ test("a cost paid from the shared kitty gives nobody an advance but is still sha
   assert.equal(rows.reduce((sum, row) => sum + row.shareCents, 0), 9000);
   assert.equal(rows.reduce((sum, row) => sum + row.remainingCents, 0), 9000, "families owe the full amount to the kitty");
 });
+
+test("bar costs are split by tally marks, like meat by portions", async () => {
+  const { getFinancialSummary: summary } = await import("../src/utils/finance.js");
+  const a = { id: "a", members: [{ id: "a1", type: "Volwassene", orders: {}, drinks: 30 }, { id: "a2", type: "Kind", orders: {}, drinks: 10 }] };
+  const b = { id: "b", members: [{ id: "b1", type: "Volwassene", orders: {}, drinks: 60 }] };
+  const bar = [{ id: "bar1", description: "Drank", amountCents: 20000, method: "bar", advancedBy: "kas" }];
+  const rows = summary([a, b], bar, []);
+  assert.equal(rows.find(r => r.id === "a").shareCents, 8000, "40 of 100 consumptions");
+  assert.equal(rows.find(r => r.id === "b").shareCents, 12000);
+  const breakdown = getFamilyFinanceBreakdown(a, [a, b], bar, []);
+  assert.deepEqual(breakdown.members.map(m => m.byMethod.bar), [6000, 2000], "split further per person");
+  assert.equal(breakdown.categories[0].familyUnits, 40);
+  assert.equal(summary([{ id: "x", members: [{ id: "x1", type: "Volwassene", orders: {} }] }], bar, [])[0].shareCents, 0, "no tally yet: nothing divided");
+});

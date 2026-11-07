@@ -206,3 +206,25 @@ test("a cost from a family needs a receipt that belongs to that family", async (
   await call(DB, "ua", "DELETE", "/api/family-account/expenses", { edition: "ed", registrationId: "ra", expenseId: id });
   assert.equal(bucketFor(DB).objects.has(ticket), false, "deleting the cost deletes its receipt");
 });
+
+test("after the order deadline a family cannot change its order, but can still edit allergies", async () => {
+  const DB = await setup();
+  DB.raw.prepare("UPDATE event_editions SET config_json = json_set(config_json, '$.orderDeadline', '2020-01-01T00:00')").run();
+  const session = (await call(DB, "ua", "GET", "/api/family-account/session")).body.registrations[0];
+  assert.equal(session.ordersClosed, true);
+  const order = await save(DB, "ua", "ra", [member("a1", 5)]);
+  assert.equal(order.status, 409);
+  assert.equal(order.body.ordersClosed, true);
+  const allergy = await save(DB, "ua", "ra", [{ ...member("a1", 1), diet: ["Lactosevrij"] }]);
+  assert.equal(allergy.status, 200, JSON.stringify(allergy.body));
+  const removeOrdered = await save(DB, "ua", "ra", [{ id: "nieuw", name: "Nieuw", type: "Kind", orders: {} }]);
+  assert.equal(removeOrdered.status, 409, "removing a person with an order is also blocked");
+});
+
+test("tally marks are kept when a family saves and cannot be changed by the family", async () => {
+  const DB = await setup();
+  DB.raw.prepare("UPDATE event_registrations SET data_json = ? WHERE id = 'ra'").run(JSON.stringify({ name: "A", members: [{ ...member("a1", 1), drinks: 6 }] }));
+  const result = await save(DB, "ua", "ra", [{ ...member("a1", 2), drinks: 0 }]);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(JSON.parse(row(DB, "ra").data_json).members[0].drinks, 6);
+});

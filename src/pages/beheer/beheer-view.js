@@ -2,6 +2,7 @@
 // Pure render functions over the shared admin `state`; event handling lives in app.js.
 import { state } from "../../data/demo-data.js";
 import { DIET_OPTIONS, NOTE_MAX, hasDiet } from "../../utils/diet.js";
+import { ordersClosed, localToDate } from "../../utils/time.js";
 import { getExpenseShares, getFinancialSummary, getFamilyFinanceBreakdown, getRegistrationCounts, COST_METHODS } from "../../utils/finance.js";
 
 const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -31,9 +32,9 @@ function paymentLine(payment, withFamily) {
 function refundForm(registrationId, creditCents, compact = true) {
   return '<form id="add-refund-form" class="bh-form-grid' + (compact ? " bh-form-compact" : "") + '"><input type="hidden" name="registrationId" value="' + esc(registrationId) + '"><label>Terugbetaald (€)<input name="amount" type="number" min="0.01" step="0.01" max="' + (creditCents / 100).toFixed(2) + '" value="' + (creditCents / 100).toFixed(2) + '" required></label><label>Datum<input name="date" type="date" value="' + today() + '" required></label><label>Wijze<select name="method"><option value="cash">Cash</option><option value="bank">Overschrijving</option></select></label><button type="submit" class="bh-btn bh-btn-primary">Terugbetaling registreren</button></form>';
 }
-const METHOD_SHORT = { general: "Algemeen", adults: "18+", meat: "Vlees" };
-const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖" };
-const METHOD_HINT = { general: "Iedereen, ook kinderen (bv. zaal, decoratie, frisdrank)", adults: "Alleen volwassenen (bv. alcohol, cava)", meat: "Volgens bestelde porties" };
+const METHOD_SHORT = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" };
+const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖", bar: "🍺" };
+const METHOD_HINT = { general: "Iedereen, ook kinderen (bv. zaal, decoratie, frisdrank)", adults: "Alleen volwassenen (bv. alcohol, cava)", meat: "Volgens bestelde porties" , bar: "Volgens de streepjes aan de bar (aankoop drank voor de open bar)" };
 
 // ---- External data provided by app.js (accounts and personal links) ----
 let families = [];
@@ -62,6 +63,7 @@ export const EDITION_TABS = [
   { id: "registrations", label: "Inschrijvingen" },
   { id: "order", label: "Bestelling" },
   { id: "finance", label: "Financiën" },
+  { id: "bar", label: "Bar" },
   { id: "products", label: "Producten" },
   { id: "edition", label: "Editie" }
 ];
@@ -287,6 +289,24 @@ function orderForFamilyCard() {
     '</select><button type="submit" class="bh-btn bh-btn-primary">Bestelling invullen</button></div><small class="bh-muted">Voor gezinnen die liever niet zelf met de app werken. Staat het gezin er nog niet in? <button type="button" class="bh-link" data-action="edition-tab" data-tab="registrations">Schrijf het eerst in</button>.</small></form></section>';
 }
 
+function renderBar() {
+  const regs = state.registrations || [];
+  const drinksOf = person => Math.max(0, Number(person.drinks) || 0);
+  const total = regs.reduce((sum, reg) => sum + (reg.members || []).reduce((s, p) => s + drinksOf(p), 0), 0);
+  const barCosts = (state.expenses || []).filter(expense => expense.method === "bar").reduce((sum, expense) => sum + (Number(expense.amountCents) || 0), 0);
+  const perDrink = total ? barCosts / total : 0;
+  const cards = regs.map(reg => {
+    const familyDrinks = (reg.members || []).reduce((s, p) => s + drinksOf(p), 0);
+    const rows = (reg.members || []).map(person => '<div class="bh-stepper-row"><span>' + esc(person.name) + (person.type === "Kind" ? ' <small class="bh-muted">(kind)</small>' : "") + '</span><div class="bh-stepper"><button type="button" data-action="admin-drinks" data-registration="' + esc(reg.id) + '" data-person="' + esc(person.id) + '" data-delta="-1" aria-label="Eén minder voor ' + esc(person.name) + '"' + (drinksOf(person) ? "" : " disabled") + '>−</button><input class="bh-drinks-input" type="number" min="0" max="9999" inputmode="numeric" value="' + drinksOf(person) + '" data-drinks-input data-registration="' + esc(reg.id) + '" data-person="' + esc(person.id) + '" aria-label="Streepjes van ' + esc(person.name) + '"><button type="button" data-action="admin-drinks" data-registration="' + esc(reg.id) + '" data-person="' + esc(person.id) + '" data-delta="1" aria-label="Eén meer voor ' + esc(person.name) + '">+</button></div></div>').join("");
+    return '<details class="bh-member"' + (familyDrinks ? "" : " open") + '><summary><span class="bh-avatar bh-avatar-sm">' + esc((reg.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(reg.name) + '</strong><small>' + plural((reg.members || []).length, "persoon", "personen") + '</small></span><span class="bh-chip' + (familyDrinks ? " bh-chip-ok" : "") + '">🍺 ' + familyDrinks + '</span>' + (perDrink ? '<b class="bh-family-money">' + euro(Math.round(familyDrinks * perDrink)) + '</b>' : "") + '<i class="bh-chev" aria-hidden="true">›</i></summary><div class="bh-member-body">' + (rows || '<p class="bh-empty">Nog geen gezinsleden.</p>') + '</div></details>';
+  }).join("");
+  return pageHead("Bar", "Open bar met streepjes: tel na het feest per persoon de streepjes en vul ze hier in.") +
+    '<section class="bh-kpis bh-kpis-4">' + kpi(total, "consumpties") + kpi(euro(barCosts), "drankkosten bar") + kpi(perDrink ? euro(Math.round(perDrink)) : "–", "per consumptie") + kpi(regs.filter(reg => (reg.members || []).some(p => drinksOf(p))).length + "/" + regs.length, "gezinnen geteld") + '</section>' +
+    '<section class="bh-card"><p class="bh-note">Zo werkt het: voer de aankoop van de drank in bij Financiën als kost van het soort <strong>🍺 Bar (volgens streepjes)</strong>. Vul hieronder de streepjes per persoon in. De drankkosten worden dan verdeeld volgens het aantal consumpties, net zoals het vlees volgens de porties. Gezinnen zien hun deel in hun afrekening.</p>' +
+      (barCosts ? "" : '<p class="bh-alert bh-alert-info">Er is nog geen drankkost van het soort Bar ingevoerd. <button type="button" class="bh-link" data-action="edition-tab" data-tab="finance">Naar Financiën</button></p>') + '</section>' +
+    (cards ? '<div class="bh-members">' + cards + '</div>' : '<p class="bh-empty">Nog geen inschrijvingen.</p>');
+}
+
 function renderOrder() {
   const regs = state.registrations || [];
   const products = state.catalog.filter(product => product.active || regs.some(r => (r.members || []).some(p => Number(p.orders?.[product.id]) > 0)));
@@ -305,7 +325,10 @@ function renderOrder() {
     return '<tbody class="bh-group"><tr class="bh-group-row"><th scope="row"><button type="button" class="bh-link" data-action="open-family" data-id="' + esc(reg.id) + '">' + esc(reg.name) + '</button></th>' + cells + '<td><b>' + familyPortions(reg) + '</b></td></tr>' + memberRows + '</tbody>';
   }).join("");
   const foot = '<tfoot><tr><th>Totaal</th>' + products.map(product => '<th>' + countFor(allMembers, product.id) + '</th>').join("") + '<th>' + total + '</th></tr></tfoot>';
-  return pageHead("Bestelling", plural(total, "portie", "porties") + " in totaal, door " + plural(regs.filter(r => familyPortions(r) > 0).length, "gezin", "gezinnen") + ".", '<button type="button" class="bh-btn" data-action="print">Afdrukken</button>') +
+  const deadlineBanner = !state.orderDeadline ? '<p class="bh-alert bh-alert-info">Er is geen einddatum om te bestellen. Stel er een in bij <button type="button" class="bh-link" data-action="edition-tab" data-tab="edition">Editie</button>.</p>'
+    : ordersClosed(state.orderDeadline) ? '<p class="bh-alert">🔒 Bestellen is gesloten sinds ' + esc(deadlineText()) + '. Gezinnen kunnen niets meer wijzigen; jij kan dat als beheerder nog wel.</p>'
+    : '<p class="bh-alert bh-alert-info">Gezinnen kunnen bestellen tot ' + esc(deadlineText()) + '.</p>';
+  return deadlineBanner + pageHead("Bestelling", plural(total, "portie", "porties") + " in totaal, door " + plural(regs.filter(r => familyPortions(r) > 0).length, "gezin", "gezinnen") + ".", '<button type="button" class="bh-btn" data-action="print">Afdrukken</button>') +
     orderForFamilyCard() + '<section class="bh-card"><header class="bh-card-head"><h2>Voor de slager</h2></header><div class="bh-products">' + (cards || '<p class="bh-empty">Geen producten.</p>') + '</div></section>' +
     '<section class="bh-card"><header class="bh-card-head"><h2>Wie bestelde wat?</h2></header>' + (regs.length ? '<div class="bh-table-wrap"><table class="bh-table">' + '<thead>' + head + '</thead>' + body + foot + '</table></div>' : '<p class="bh-empty">Nog geen gezinnen.</p>') + '</section>' + renderDietOverview();
 }
@@ -379,6 +402,37 @@ function renderProducts() {
     '<form id="add-product-form" class="bh-inline-form"><label for="new-product-name">Nieuw product</label><div><input id="new-product-name" name="productName" maxlength="60" placeholder="Bijvoorbeeld: Kippenbrochette" required><button type="submit" class="bh-btn bh-btn-primary">+ Toevoegen</button></div></form></section>';
 }
 
+const deadlineText = () => {
+  const date = state.orderDeadline ? localToDate(state.orderDeadline) : null;
+  return date ? date.toLocaleDateString("nl-BE", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Brussels" }) + " om " + date.toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Brussels" }) : "";
+};
+
+export const MESSAGE_TEMPLATES = {
+  reminder: { subject: () => eventTitle() + ": vergeet niet te bestellen", message: () => "We zien dat jullie nog geen vlees besteld hebben voor " + eventTitle() + ".\n\n" + (state.orderDeadline ? "Bestellen kan nog tot " + deadlineText() + ". " : "") + "Meld je aan in het familieportaal, kies per persoon wat je wil eten, en klaar.\n\nTot op het feest!" },
+  info: { subject: () => "Praktische info voor " + eventTitle(), message: () => "Het feest komt eraan!\n\nWanneer: \nWaar: \nWat breng je mee: \n\nDe bar werkt met streepjes: neem je een drankje, zet dan een streepje achter je naam. Na het feest tellen we alles op en verrekenen we het in jullie afrekening.\n\nTot dan!" }
+};
+
+function recipientCount(audience) {
+  const regs = (state.registrations || []).filter(reg => audience !== "no-order" || !familyPortions(reg));
+  const emails = new Set();
+  for (const reg of regs) for (const user of accountsForFamily(reg.familyId)) if (user.status !== "disabled") emails.add(user.email);
+  return { families: regs.length, people: emails.size };
+}
+
+function renderMessageCard() {
+  const all = recipientCount("all"), noOrder = recipientCount("no-order");
+  const draft = state.beheerMessageDraft || {};
+  return '<section class="bh-card"><header class="bh-card-head"><h2>Bericht aan gezinnen</h2></header>' +
+    '<p class="bh-note">Verstuur een e-mail vanaf registratie@datuur.be naar de gezinnen van deze editie, met een knop naar het familieportaal.</p>' +
+    '<div class="bh-actions"><button type="button" class="bh-btn bh-btn-sm" data-action="message-template" data-template="reminder">Herinnering bestellen</button><button type="button" class="bh-btn bh-btn-sm" data-action="message-template" data-template="info">Praktische info</button></div>' +
+    '<form id="family-message-form" class="bh-form-grid">' +
+      '<label class="bh-span-2">Naar<select name="audience"><option value="all"' + (draft.audience !== "no-order" ? " selected" : "") + '>Alle ingeschreven gezinnen (' + plural(all.people, "ontvanger", "ontvangers") + ')</option><option value="no-order"' + (draft.audience === "no-order" ? " selected" : "") + '>Alleen gezinnen zonder bestelling (' + plural(noOrder.people, "ontvanger", "ontvangers") + ')</option></select></label>' +
+      '<label class="bh-span-2">Onderwerp<input name="subject" maxlength="150" value="' + esc(draft.subject || "") + '" required></label>' +
+      '<label class="bh-span-2">Bericht<textarea name="message" rows="8" maxlength="5000" required>' + esc(draft.message || "") + '</textarea></label>' +
+      '<p class="bh-note bh-span-2">Elke ontvanger krijgt "Dag [naam]," bovenaan en "Groeten, de organisatie van ' + esc(eventTitle()) + '" onderaan. Alleen gezinnen met een account ontvangen het bericht.</p>' +
+      '<div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Bericht versturen</button></div></form></section>';
+}
+
 function renderEventSettings() {
   const event = (state.events || []).find(item => item.id === state.activeEventId);
   const others = (event?.editions || []).filter(edition => edition.id !== state.activeEditionId);
@@ -386,8 +440,9 @@ function renderEventSettings() {
   const otherRows = others.map(edition => '<li><span><strong>' + esc(edition.label) + '</strong><small>' + (edition.status === "archived" ? "Afgesloten" : "Actief") + '</small></span><button type="button" class="bh-btn bh-btn-sm" data-action="open-edition" data-id="' + esc(edition.id) + '">Openen ›</button></li>').join("");
   return '<section class="bh-card"><header class="bh-card-head"><h2>Evenement & editie</h2>' + (archived ? '<span class="bh-chip">Afgesloten</span>' : '<span class="bh-chip bh-chip-ok">Actief</span>') + '</header>' +
       '<p class="bh-note">Een evenement komt terug in <strong>edities</strong>. Gezinnen en hun accounts blijven bestaan; per editie schrijven ze zich opnieuw in, met hun eigen bestellingen, kosten en betalingen.</p>' +
-      '<form id="event-settings-form" class="bh-form-grid"><label>Evenement<input name="eventName" maxlength="80" value="' + esc(eventName()) + '" placeholder="Bijvoorbeeld: Nieuwjaar" required></label><label>Deze editie<input name="editionName" maxlength="80" value="' + esc(editionName()) + '" placeholder="Bijvoorbeeld: 2026–2027" required></label><label class="bh-span-2">Datum en uur van het feest<input name="startsAt" type="datetime-local" value="' + esc(state.startsAt ? (state.startsAt.length === 10 ? state.startsAt + "T20:00" : state.startsAt) : "") + '"><small class="bh-muted">Gezinnen zien hiermee een aftelling in hun portaal.</small></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Namen bewaren</button></div></form>' +
+      '<form id="event-settings-form" class="bh-form-grid"><label>Evenement<input name="eventName" maxlength="80" value="' + esc(eventName()) + '" placeholder="Bijvoorbeeld: Nieuwjaar" required></label><label>Deze editie<input name="editionName" maxlength="80" value="' + esc(editionName()) + '" placeholder="Bijvoorbeeld: 2026–2027" required></label><label class="bh-span-2">Bestellen kan tot<input name="orderDeadline" type="datetime-local" value="' + esc(state.orderDeadline ? (state.orderDeadline.length === 10 ? state.orderDeadline + "T23:59" : state.orderDeadline) : "") + '"><small class="bh-muted">Daarna kunnen gezinnen hun bestelling niet meer wijzigen (jij als beheerder wel). Leeg laten = altijd open.</small></label><label class="bh-span-2">Datum en uur van het feest<input name="startsAt" type="datetime-local" value="' + esc(state.startsAt ? (state.startsAt.length === 10 ? state.startsAt + "T20:00" : state.startsAt) : "") + '"><small class="bh-muted">Gezinnen zien hiermee een aftelling in hun portaal.</small></label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-primary">Namen bewaren</button></div></form>' +
       '<p class="bh-note">' + plural((state.registrations || []).length, "gezin", "gezinnen") + ' · ' + plural((state.expenses || []).length, "kost", "kosten") + ' · ' + plural((state.payments || []).length, "betaling", "betalingen") + ' in deze editie.</p></section>' +
+    (archived ? "" : renderMessageCard()) +
     (archived ? "" : '<section class="bh-card"><header class="bh-card-head"><h2>Volgende editie starten</h2></header><p class="bh-note">Doe dit pas als ' + esc(eventTitle()) + ' volledig is afgerond. Deze editie wordt dan afgesloten (je kan ze nog altijd openen). Gezinnen en accounts blijven bestaan en kunnen zich inschrijven voor de nieuwe editie.</p><form id="new-edition-form" class="bh-form-grid"><label class="bh-span-2">Naam nieuwe editie<input name="editionName" maxlength="80" placeholder="Bijvoorbeeld: 2027–2028" required></label><label class="bh-check bh-span-2"><input type="checkbox" name="copyCatalog" checked> Producten en foto\'s overnemen</label><div class="bh-actions bh-span-2"><button type="submit" class="bh-btn bh-btn-danger">Afsluiten & nieuwe editie starten</button></div></form></section>') +
     '<section class="bh-card"><header class="bh-card-head"><h2>Andere edities van ' + esc(eventName()) + '</h2><span class="bh-count">' + others.length + '</span></header>' + (otherRows ? '<ul class="bh-lines">' + otherRows + '</ul>' : '<p class="bh-empty">Nog geen andere edities.</p>') + '</section>';
 }
@@ -420,7 +475,7 @@ function renderEvents() {
 function renderEdition() {
   const tab = editionTab();
   const body = tab === "registrations" ? renderFamilies() : tab === "order" ? renderOrder() : tab === "finance" ? renderFinance()
-    : tab === "products" ? renderProducts() : tab === "edition" ? renderEventSettings() : renderOverview();
+    : tab === "products" ? renderProducts() : tab === "edition" ? renderEventSettings() : tab === "bar" ? renderBar() : renderOverview();
   return '<nav class="bh-crumbs" aria-label="Kruimelpad"><button type="button" class="bh-link" data-action="close-edition">Evenementen</button><span aria-hidden="true">›</span><span>' + esc(eventName()) + '</span><span aria-hidden="true">›</span><strong>' + esc(editionName()) + '</strong></nav>' +
     '<header class="bh-edition-head"><div><p class="bh-eyebrow">' + esc(eventName()) + '</p><h1>Editie ' + esc(editionName()) + '</h1></div><div class="bh-page-actions">' + (state.editionStatus === "archived" ? '<span class="bh-chip">Afgesloten editie</span>' : "") + statusChip() + '</div></header>' +
     '<nav class="bh-subtabs bh-subtabs-sticky" aria-label="Editie">' + EDITION_TABS.map(entry => '<button type="button" data-action="edition-tab" data-tab="' + entry.id + '" aria-current="' + (entry.id === tab) + '">' + esc(entry.label) + '</button>').join("") + '</nav>' +

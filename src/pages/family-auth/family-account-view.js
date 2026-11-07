@@ -14,6 +14,16 @@ const formatDate = value => {
 };
 import { DIET_OPTIONS, NOTE_MAX, hasDiet } from "../../utils/diet.js";
 import { countdownState, formatEventDate } from "./countdown.js";
+import { ordersClosed, localToDate } from "../../utils/time.js";
+
+const deadlineLabel = deadline => {
+  const date = deadline ? localToDate(deadline) : null;
+  return date ? date.toLocaleDateString("nl-BE", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Brussels" }) + " om " + date.toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Brussels" }) : "";
+};
+const daysLeft = deadline => {
+  const date = deadline ? localToDate(deadline) : null;
+  return date ? Math.ceil((date.getTime() - Date.now()) / 86400000) : null;
+};
 
 // Countdown card on the overview; numbers are refreshed every second by family-auth.js.
 function countdownCard(item) {
@@ -30,7 +40,7 @@ function countdownChip(item) {
 }
 const dietChips = person => hasDiet(person)
   ? '<div class="fa-diet">' + (person.diet || []).map(item => '<span>' + esc(item) + '</span>').join("") + (person.notes ? '<em>' + esc(person.notes) + '</em>' : "") + '</div>' : "";
-const METHOD_CHOICES = [["general", "Algemeen — iedereen, ook kinderen (zaal, decoratie, frisdrank)"], ["adults", "18+ — alleen volwassenen (alcohol, cava)"], ["meat", "Vlees — volgens bestelde porties"]];
+const METHOD_CHOICES = [["general", "Algemeen — iedereen, ook kinderen (zaal, decoratie, frisdrank)"], ["adults", "18+ — alleen volwassenen (alcohol, cava)"], ["meat", "Vlees — volgens bestelde porties"], ["bar", "Bar — drank voor de open bar, verdeeld volgens streepjes"]];
 const typeLabel = type => type === "Kind" ? "Kind" : type === "Volwassene" ? "Volwassene (18+)" : "Deelnemer";
 
 export const TABS = [
@@ -40,8 +50,8 @@ export const TABS = [
   { id: "costs", label: "Kosten" }
 ];
 
-const UNITS = { general: ["persoon", "personen"], adults: ["volwassene", "volwassenen"], meat: ["portie", "porties"] };
-const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖" };
+const UNITS = { general: ["persoon", "personen"], adults: ["volwassene", "volwassenen"], meat: ["portie", "porties"], bar: ["consumptie", "consumpties"] };
+const METHOD_ICON = { general: "👥", adults: "🥂", meat: "🍖", bar: "🍺" };
 
 function statusChip(finance) {
   if (!finance) return "";
@@ -80,7 +90,7 @@ function renderOverview(item) {
     (members.length ? "" : '<p class="fa-empty">Voeg eerst jullie gezinsleden toe via <button type="button" class="fa-inline-link" data-tab-target="family">Gezin</button>.</p>');
 }
 
-const SHORT_LABEL = { general: "Algemeen", adults: "18+", meat: "Vlees" };
+const SHORT_LABEL = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" };
 
 // Per-person cost from the server breakdown; null while a new person is not yet saved.
 function memberCost(item, personId) {
@@ -119,7 +129,7 @@ function renderFamily(item, view) {
         '<div class="fa-row-actions"><button type="submit" class="fa-btn fa-btn-primary">Bewaren</button><button type="button" class="fa-btn" data-action="cancel-edit-member">Annuleren</button></div></form>';
     }
     return '<div class="fa-member"><span class="fa-avatar">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span>' +
-      '<div class="fa-member-name"><strong>' + esc(person.name) + '</strong><small>' + esc(typeLabel(person.type)) + ' · ' + plural(portionsOf(person), UNITS.meat) + '</small>' + dietChips(person) + memberCostDetail(item, person) + '</div>' +
+      '<div class="fa-member-name"><strong>' + esc(person.name) + '</strong><small>' + esc(typeLabel(person.type)) + ' · ' + plural(portionsOf(person), UNITS.meat) + (Number(person.drinks) > 0 ? ' · 🍺 ' + plural(Number(person.drinks), UNITS.bar) : "") + '</small>' + dietChips(person) + memberCostDetail(item, person) + '</div>' +
       memberCostTotal(item, person) +
       (readOnly ? "" : '<div class="fa-row-actions"><button type="button" class="fa-btn fa-btn-small" data-action="edit-member" data-person="' + esc(person.id) + '">Wijzigen</button>' +
         (members.length > 1 ? '<button type="button" class="fa-btn fa-btn-small fa-btn-quiet" data-action="remove-member" data-index="' + index + '" aria-label="' + esc(person.name) + ' verwijderen">Verwijderen</button>' : "") + '</div>') +
@@ -137,7 +147,12 @@ function renderFamily(item, view) {
 function renderOrder(item, view) {
   const members = item.registration.members || [];
   const catalog = item.catalog || [];
-  const readOnly = item.accessRole === "viewer";
+  const closed = item.ordersClosed || ordersClosed(item.orderDeadline);
+  const readOnly = item.accessRole === "viewer" || closed;
+  const left = daysLeft(item.orderDeadline);
+  const banner = !item.orderDeadline ? ""
+    : closed ? '<p class="fa-deadline fa-deadline-closed">🔒 Bestellen is afgesloten sinds ' + esc(deadlineLabel(item.orderDeadline)) + '. Wil je toch nog iets wijzigen? Vraag het aan de organisatie.</p>'
+    : '<p class="fa-deadline' + (left <= 3 ? " fa-deadline-soon" : "") + '">⏰ Bestellen kan nog tot ' + esc(deadlineLabel(item.orderDeadline)) + (left <= 1 ? " — laatste kans!" : " (nog " + left + " dagen)") + '.</p>';
   if (!catalog.length) return '<p class="fa-empty">Er zijn nog geen producten om te bestellen.</p>';
   if (!members.length) return '<p class="fa-empty">Voeg eerst jullie gezinsleden toe via <button type="button" class="fa-inline-link" data-tab-target="family">Gezin</button>.</p>';
   const familyTotal = members.reduce((sum, person) => sum + portionsOf(person), 0);
@@ -158,7 +173,7 @@ function renderOrder(item, view) {
     const open = view.openPeople ? view.openPeople.has(person.id) : members.length <= 2;
     return '<details class="fa-order-person" data-order-person="' + esc(person.id) + '"' + (open ? " open" : "") + '><summary><span class="fa-avatar">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="fa-member-name"><strong>' + esc(person.name) + '</strong><small>' + esc(typeLabel(person.type)) + '<span class="fa-portions-inline"> · ' + plural(portions, UNITS.meat) + '</span></small></span><span class="fa-pill">' + plural(portions, UNITS.meat) + '</span>' + memberCostTotal(item, person) + '</summary><div class="fa-steppers">' + controls + '</div></details>';
   }).join("");
-  return '<div class="fa-section-head"><h3>Jullie vleesbestelling</h3><p>Totaal voor het gezin: <strong>' + plural(familyTotal, UNITS.meat) + '</strong>. Het vlees wordt verrekend volgens het aantal porties.</p></div>' +
+  return banner + '<div class="fa-section-head"><h3>Jullie vleesbestelling</h3><p>Totaal voor het gezin: <strong>' + plural(familyTotal, UNITS.meat) + '</strong>. Het vlees wordt verrekend volgens het aantal porties.</p></div>' +
     '<div class="fa-products">' + productCards + '</div>' +
     '<div class="fa-section-head"><h3>Per gezinslid</h3><p>Tik op een naam om de bestelling te openen. Wijzigingen worden meteen bewaard.</p></div>' +
     '<div class="fa-list">' + people + '</div>';
@@ -166,10 +181,13 @@ function renderOrder(item, view) {
 
 function categoryExplanation(category) {
   const unit = UNITS[category.method] || ["deel", "delen"];
-  if (!category.totalUnits) return "Nog niemand komt in aanmerking voor deze kost.";
+  if (!category.totalUnits) return category.method === "bar" ? "De streepjes worden na het feest geteld; daarna zie je hier jullie deel." : "Nog niemand komt in aanmerking voor deze kost.";
   const share = category.familyUnits / category.totalUnits;
   if (category.method === "meat") {
     return "In totaal zijn er " + plural(category.totalUnits, unit) + " besteld. Jullie bestelden er " + category.familyUnits + ": dat is " + percentFormat.format(share) + " van de vleeskost.";
+  }
+  if (category.method === "bar") {
+    return "Aan de bar zijn in totaal " + plural(category.totalUnits, unit) + " genoteerd. Jullie streepjes: " + category.familyUnits + ", dat is " + percentFormat.format(share) + " van de drankkosten.";
   }
   if (category.method === "adults") {
     return "Verdeeld over " + plural(category.totalUnits, unit) + ". Jullie tellen " + plural(category.familyUnits, unit) + " (" + percentFormat.format(share) + "). Kinderen betalen hier niet mee.";
@@ -198,7 +216,7 @@ function renderOwnCosts(item, view) {
 }
 
 const receiptUrl = key => "/api/family-account/receipts?key=" + encodeURIComponent(key);
-const COST_LABELS = { general: "Algemeen", adults: "18+", meat: "Vlees" };
+const COST_LABELS = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" };
 
 function renderCosts(item, view = {}) {
   const finance = item.finance;
@@ -217,9 +235,9 @@ function renderCosts(item, view = {}) {
   const methods = finance.categories.map(category => category.method);
   const members = finance.members.map(member => {
     const parts = methods.map(method => {
-      const label = { general: "Algemeen", adults: "18+", meat: "Vlees" }[method];
+      const label = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" }[method];
       const notApplicable = method === "adults" && member.type !== "Volwassene";
-      const extra = method === "meat" ? " · " + plural(member.portions, UNITS.meat) : "";
+      const extra = method === "meat" ? " · " + plural(member.portions, UNITS.meat) : method === "bar" ? " · " + plural(member.drinks || 0, UNITS.bar) : "";
       return '<li><span>' + label + extra + '</span><b>' + (notApplicable ? '<span class="fa-muted">n.v.t. (kind)</span>' : euro(member.byMethod[method])) + '</b></li>';
     }).join("");
     return '<article class="fa-member-cost"><header><span class="fa-avatar">' + esc((member.name || "?").charAt(0).toUpperCase()) + '</span><div class="fa-member-name"><strong>' + esc(member.name) + '</strong><small>' + esc(typeLabel(member.type)) + '</small></div><strong>' + euro(member.totalCents) + '</strong></header><ul>' + parts + '</ul></article>';

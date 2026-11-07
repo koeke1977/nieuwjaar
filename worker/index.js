@@ -132,7 +132,7 @@ async function handleAdminApi(request, env, url) {
   }
 
   if (url.pathname.startsWith("/api/admin/editions/")) {
-    return (await handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession })) || json({ error: "Niet gevonden." }, 404);
+    return (await handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession, sendGraphMail })) || json({ error: "Niet gevonden." }, 404);
   }
 
   if (url.pathname === "/api/admin/events" || url.pathname.startsWith("/api/admin/events/")) {

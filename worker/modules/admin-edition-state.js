@@ -7,6 +7,9 @@
 
 import { withDiet } from "../../src/utils/diet.js";
 import { parseReceiptKey } from "./receipts.js";
+import { isLocalDateTime } from "../../src/utils/time.js";
+
+const METHODS = ["general", "adults", "meat", "bar"];
 
 const ID = /^[A-Za-z0-9_-]{1,120}$/;
 const PRODUCT_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -42,6 +45,7 @@ export async function loadEditionState(env, editionId) {
     editionLabel: edition.label, editionStatus: edition.status, financeStrategy: edition.finance_strategy,
     startsAt: edition.starts_at, endsAt: edition.ends_at,
     catalog: Array.isArray(config.catalog) ? config.catalog : [],
+    orderDeadline: typeof config.orderDeadline === "string" ? config.orderDeadline : null,
     registrations,
     expenses: parse(snapshot?.expenses_json, []) || [],
     payments: parse(snapshot?.payments_json, []) || [],
@@ -78,7 +82,9 @@ function cleanMembers(members) {
       if (!PRODUCT_ID.test(productId) || !Number.isInteger(quantity) || quantity < 0 || quantity > 99) return null;
       orders[productId] = quantity;
     }
-    const clean = withDiet({ id: person.id, name, type: person.type, orders }, person);
+    const drinks = person.drinks == null ? 0 : Number(person.drinks);
+    if (!Number.isInteger(drinks) || drinks < 0 || drinks > 9999) return null;
+    const clean = withDiet({ id: person.id, name, type: person.type, orders, ...(drinks ? { drinks } : {}) }, person);
     if (!clean) return null;
     out.push(clean);
   }
@@ -106,7 +112,7 @@ function cleanFinance(data, registrationIds) {
   for (const item of data.expenses) {
     const description = validName(item?.description, 120);
     if (!item || !ID.test(String(item.id)) || expenseIds.has(item.id) || !description || !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0 ||
-        typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !["general", "adults", "meat"].includes(item.method) || !(registrationIds.has(item.advancedBy) || item.advancedBy === SHARED_FUND)) return null;
+        typeof item.date !== "string" || Number.isNaN(Date.parse(item.date)) || !METHODS.includes(item.method) || !(registrationIds.has(item.advancedBy) || item.advancedBy === SHARED_FUND)) return null;
     expenseIds.add(item.id);
     if (item.enteredBy != null && item.enteredBy !== "family") return null;
     if (item.receipt != null && !parseReceiptKey(item.receipt)) return null;
@@ -141,6 +147,8 @@ export async function saveEditionState(env, editionId, body, now) {
   const startsAt = data.startsAt == null || data.startsAt === "" ? null
     : typeof data.startsAt === "string" && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(data.startsAt) && !Number.isNaN(Date.parse(data.startsAt)) ? data.startsAt : undefined;
   if (startsAt === undefined) return { status: 400, error: "Controleer de datum en het uur van de editie." };
+  const orderDeadline = data.orderDeadline == null || data.orderDeadline === "" ? null : isLocalDateTime(data.orderDeadline) ? data.orderDeadline : undefined;
+  if (orderDeadline === undefined) return { status: 400, error: "Controleer de datum waarop het bestellen sluit." };
   const catalog = cleanCatalog(data.catalog);
   if (!eventName || !editionLabel || !catalog || !Array.isArray(data.registrations) || data.registrations.length > 500 || typeof data.costsFinalized !== "boolean") {
     return { status: 400, error: "Controleer de naam van het evenement, de editie en de producten." };
@@ -167,10 +175,11 @@ export async function saveEditionState(env, editionId, body, now) {
   if (!same(base.eventName, eventName)) {
     statements.push(env.DB.prepare("UPDATE events SET name = ?, updated_at = ? WHERE id = ?").bind(eventName, now, current.event_id));
   }
-  if (!same(base.editionLabel, editionLabel) || !same(base.catalog, catalog) || !same(base.startsAt ?? null, startsAt)) {
+  if (!same(base.editionLabel, editionLabel) || !same(base.catalog, catalog) || !same(base.startsAt ?? null, startsAt) || !same(base.orderDeadline ?? null, orderDeadline)) {
     statements.push(guard(env, "SELECT 1 FROM event_editions WHERE id = ? AND updated_at = ?", editionId, Number(base.configRevision) || 0));
     const config = parse(current.config_json, {}) || {};
     config.catalog = catalog;
+    if (orderDeadline) config.orderDeadline = orderDeadline; else delete config.orderDeadline;
     statements.push(env.DB.prepare("UPDATE event_editions SET label = ?, config_json = ?, starts_at = ?, updated_at = ? WHERE id = ?").bind(editionLabel, JSON.stringify(config), startsAt, nextRevision, editionId));
   }
 
@@ -246,11 +255,39 @@ export async function startNextEdition(env, editionId, body, now) {
   return { status: 201, editionId: id };
 }
 
-export async function handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession }) {
+const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+
+// Recipients of a message: accounts (active or invited) of the families registered in this
+// edition; "no-order" limits it to families that have not ordered anything yet.
+export async function messageRecipients(env, editionId, audience) {
+  const rows = await env.DB.prepare("SELECT family_id, data_json FROM event_registrations WHERE edition_id = ? AND status = 'active'").bind(editionId).all();
+  const families = (rows.results || []).filter(row => {
+    if (audience !== "no-order") return true;
+    let data = {};
+    try { data = JSON.parse(row.data_json || "{}"); } catch { /* counts as no order */ }
+    return !(data.members || []).some(person => Object.values(person.orders || {}).some(qty => Number(qty) > 0));
+  }).map(row => row.family_id);
+  if (!families.length) return [];
+  const users = await env.DB.prepare(
+    "SELECT DISTINCT u.email, u.display_name FROM family_memberships fm JOIN family_users u ON u.id = fm.user_id WHERE u.status IN ('active', 'invited') AND fm.family_id IN (" + families.map(() => "?").join(",") + ")"
+  ).bind(...families).all();
+  return users.results || [];
+}
+
+export function messageHtml({ displayName, subject, message, eventTitle }) {
+  const paragraphs = message.replace(/\r\n/g, "\n").split(/\n{2,}/).map(block => '<p>' + escapeHtml(block).replace(/\n/g, "<br>") + '</p>').join("");
+  return '<div style="font-family:Arial,sans-serif;color:#1b2a3b;line-height:1.6;max-width:560px">' +
+    '<p style="color:#b18a3d;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px">' + escapeHtml(eventTitle) + '</p>' +
+    '<h2 style="margin:0 0 16px">' + escapeHtml(subject) + '</h2><p>Dag ' + escapeHtml(displayName || "") + ',</p>' + paragraphs +
+    '<p style="margin:24px 0"><a href="https://nieuwjaar.datuur.be/familie" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#14263b;color:#fff;font-weight:700;text-decoration:none">Naar het familieportaal</a></p>' +
+    '<p>Groeten,<br>De organisatie van ' + escapeHtml(eventTitle) + '</p></div>';
+}
+
+export async function handleAdminEditionState(request, env, url, { json, sameOrigin, adminSession, sendGraphMail }) {
   if (!env.DB) return json({ error: "Database niet geconfigureerd." }, 503);
   if (!await adminSession(request, env)) return json({ error: "Niet aangemeld." }, 401);
   if (request.method !== "GET" && !sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
-  const match = url.pathname.match(/^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next)$/);
+  const match = url.pathname.match(/^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next|message)$/);
   if (!match) return null;
   const [, editionId, action] = match;
   const now = Math.floor(Date.now() / 1000);
@@ -267,6 +304,26 @@ export async function handleAdminEditionState(request, env, url, { json, sameOri
     const result = await saveEditionState(env, editionId, body, now);
     return result.status === 200 ? json({ saved: true, unchanged: Boolean(result.unchanged), state: result.state }) : json({ error: result.error, conflict: Boolean(result.conflict) }, result.status);
   }
+  if (action === "message" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    const subject = validName(body?.subject, 150), message = typeof body?.message === "string" ? body.message.trim() : "";
+    const audience = body?.audience === "no-order" ? "no-order" : "all";
+    if (!subject || !message || message.length > 5000) return json({ error: "Vul een onderwerp en een bericht in (maximaal 5000 tekens)." }, 400);
+    const edition = await env.DB.prepare("SELECT d.label, e.name FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?").bind(editionId).first();
+    if (!edition) return json({ error: "Editie niet gevonden." }, 404);
+    const recipients = await messageRecipients(env, editionId, audience);
+    if (!recipients.length) return json({ error: "Er zijn geen ontvangers: geen enkel gezin met een account voldoet aan je keuze." }, 400);
+    if (recipients.length > 300) return json({ error: "Te veel ontvangers in één keer." }, 400);
+    const eventTitle = edition.name + " " + edition.label;
+    let sent = 0;
+    const failed = [];
+    for (const recipient of recipients) {
+      try { await sendGraphMail(env, recipient.email, subject, messageHtml({ displayName: recipient.display_name, subject, message, eventTitle })); sent++; }
+      catch (error) { console.error("Message to family failed:", recipient.email, error?.message); failed.push(recipient.email); }
+    }
+    return json({ sent, failed }, failed.length && !sent ? 502 : 200);
+  }
+
   if (action === "next" && request.method === "POST") {
     const body = await request.json().catch(() => null);
     const result = await startNextEdition(env, editionId, body, now);

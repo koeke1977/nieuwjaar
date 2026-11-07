@@ -10,7 +10,8 @@ const clone = value => JSON.parse(JSON.stringify(value ?? null));
 const memberPayload = person => ({
   id: person.id, name: person.name, type: person.type, orders: { ...(person.orders || {}) },
   ...((person.diet || []).length ? { diet: [...person.diet] } : {}),
-  ...(person.notes ? { notes: person.notes } : {})
+  ...(person.notes ? { notes: person.notes } : {}),
+  ...(Number(person.drinks) > 0 ? { drinks: Number(person.drinks) } : {})
 });
 const registrationPayload = reg => ({
   id: reg.id, familyId: reg.familyId || null, name: reg.name,
@@ -26,6 +27,7 @@ export function payloadFrom(source) {
     eventName: source.eventName,
     editionLabel: source.editionLabel,
     startsAt: source.startsAt || null,
+    orderDeadline: source.orderDeadline || null,
     catalog: (source.catalog || []).map(productPayload),
     registrations: (source.registrations || []).map(registrationPayload),
     expenses: clone(source.expenses || []),
@@ -44,6 +46,7 @@ export function currentPayload() {
     eventName: state.eventName,
     editionLabel: state.activeEvent?.name,
     startsAt: state.startsAt,
+    orderDeadline: state.orderDeadline,
     catalog: state.catalog,
     registrations: state.registrations,
     expenses: state.expenses,
@@ -72,6 +75,7 @@ export function applyEdition(edition, { keepUi = true } = {}) {
   if (edition.editionStatus) state.editionStatus = edition.editionStatus;
   if (edition.financeStrategy) state.financeStrategy = edition.financeStrategy;
   state.startsAt = edition.startsAt || null;
+  state.orderDeadline = edition.orderDeadline || null;
   state.catalog = clone(edition.catalog || []);
   state.registrations = clone(edition.registrations || []).map(reg => ({
     ...reg,

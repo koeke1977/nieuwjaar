@@ -269,3 +269,8 @@
   .fa-stat small { font-size: 11px; }
 }
 @media (prefers-reduced-motion: reduce) { .fa-stat, .fa-stat em i { transition: none; } .fa-stat:hover { transform: none; } }
+
+/* Order deadline */
+.fa-deadline { margin: 0; padding: 12px 14px; border-radius: 14px; background: #eaf3fb; color: #1d5e8f; font-size: 14px; font-weight: 700; line-height: 1.5; }
+.fa-deadline-soon { background: #fdf1ea; color: #a4421f; }
+.fa-deadline-closed { background: #eef0f4; color: #4c5869; }

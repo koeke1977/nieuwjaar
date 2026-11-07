@@ -1,6 +1,6 @@
 import { startFamilyAuth } from "./pages/family-auth/family-auth.js";
 import { state } from "./data/demo-data.js";
-import { renderBeheer, normalizeSection, setBeheerAccounts, setBeheerFamilies } from "./pages/beheer/beheer-view.js";
+import { renderBeheer, normalizeSection, setBeheerAccounts, setBeheerFamilies, MESSAGE_TEMPLATES } from "./pages/beheer/beheer-view.js";
 import "./pages/beheer/beheer.css";
 import { money } from "./utils/format.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
@@ -186,6 +186,23 @@ function handleClick(event) {
   if (type === "rename-registration") { go({ beheerRenaming: true }); document.querySelector("#rename-registration-form input")?.focus(); return; }
   if (type === "cancel-rename") { go({ beheerRenaming: false }); return; }
 
+  if (type === "admin-drinks") {
+    const registration = state.registrations.find(item => item.id === action.dataset.registration);
+    const person = registration?.members?.find(item => item.id === action.dataset.person);
+    if (!person) return;
+    const next = Math.max(0, Math.min(9999, (Number(person.drinks) || 0) + Number(action.dataset.delta)));
+    if (next) person.drinks = next; else delete person.drinks;
+    renderApp(); return;
+  }
+  if (type === "message-template") {
+    const template = MESSAGE_TEMPLATES[action.dataset.template];
+    const form = document.querySelector("#family-message-form");
+    if (!template) return;
+    state.beheerMessageDraft = { audience: action.dataset.template === "reminder" ? "no-order" : (form?.elements.audience.value || "all"), subject: template.subject(), message: template.message() };
+    renderApp();
+    document.querySelector("#family-message-form textarea")?.focus();
+    return;
+  }
   if (type === "unregister-family") {
     const registration = state.registrations.find(item => item.id === action.dataset.id);
     if (!registration) return;
@@ -318,6 +335,7 @@ async function handleSubmit(event) {
     state.eventName = eventName;
     state.activeEvent = { ...state.activeEvent, name: editionName };
     state.startsAt = (form.elements.startsAt?.value || "").slice(0, 16) || null;
+    state.orderDeadline = (form.elements.orderDeadline?.value || "").slice(0, 16) || null;
     renderApp();
     flushAdminState().then(loadEvents).then(renderApp).catch(error => window.alert(error.message));
     return;
@@ -400,6 +418,23 @@ async function handleSubmit(event) {
     return;
   }
 
+  if (id === "family-message-form") {
+    event.preventDefault();
+    const audience = form.elements.audience.value, subject = form.elements.subject.value.trim(), message = form.elements.message.value.trim();
+    const label = form.elements.audience.selectedOptions[0]?.textContent || "";
+    if (!subject || !message) return;
+    if (!window.confirm("Dit bericht nu versturen naar " + label.toLowerCase() + "?\n\nOnderwerp: " + subject)) return;
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true; button.textContent = "Versturen…";
+    try {
+      const result = await adminApi("/api/admin/editions/" + encodeURIComponent(state.activeEditionId) + "/message", { audience, subject, message });
+      state.beheerMessageDraft = null;
+      renderApp();
+      window.alert("Bericht verstuurd naar " + result.sent + " " + (result.sent === 1 ? "ontvanger" : "ontvangers") + "." + (result.failed?.length ? "\nNiet gelukt voor: " + result.failed.join(", ") : ""));
+    } catch (error) { window.alert(error.message); button.disabled = false; button.textContent = "Bericht versturen"; }
+    return;
+  }
+
   if (id === "register-family-form") {
     event.preventDefault();
     const familyId = form.elements.familyId.value;
@@ -450,12 +485,13 @@ async function handleSubmit(event) {
     const description = form.elements.description.value.trim();
     const amount = Number(form.elements.amount.value), amountCents = Math.round(amount * 100);
     const date = form.elements.date.value, method = form.elements.method.value, advancedBy = form.elements.advancedBy.value;
-    if (!description || !Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amountCents) || !date || !advancedBy || !["general", "adults", "meat"].includes(method) || !(advancedBy === "kas" || state.registrations.some(item => item.id === advancedBy))) {
+    if (!description || !Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amountCents) || !date || !advancedBy || !["general", "adults", "meat", "bar"].includes(method) || !(advancedBy === "kas" || state.registrations.some(item => item.id === advancedBy))) {
       window.alert("Controleer de omschrijving, het bedrag, de datum, de verdeelsleutel en wie voorschoot."); return;
     }
     const existing = id === "edit-expense-form" ? state.expenses.find(item => item.id === state.editingExpenseId) : null;
     const expense = { id: existing?.id || makeId("kost"), description, amountCents, date, method, advancedBy };
-    try { getExpenseShares(expense, state.registrations, { strict: true }); } catch (error) { window.alert(error.message); return; }
+    // Bar costs are divided once the tally marks are in, so they may be entered beforehand.
+    if (method !== "bar") { try { getExpenseShares(expense, state.registrations, { strict: true }); } catch (error) { window.alert(error.message); return; } }
     if (existing) Object.assign(existing, expense); else state.expenses.push(expense);
     state.editingExpenseId = null; markCostsProvisional(); renderApp(); return;
   }
@@ -496,6 +532,20 @@ async function handleSubmit(event) {
   }
 }
 
+function handleDrinksInput(event) {
+  const input = event.target.closest?.("[data-drinks-input]");
+  if (!input) return;
+  const registration = state.registrations.find(item => item.id === input.dataset.registration);
+  const person = registration?.members?.find(item => item.id === input.dataset.person);
+  if (!person) return;
+  const value = Math.max(0, Math.min(9999, Math.floor(Number(input.value) || 0)));
+  if (value) person.drinks = value; else delete person.drinks;
+  renderApp();
+}
+function rememberMessageDraft(event) {
+  const form = event.target.closest?.("#family-message-form");
+  if (form) state.beheerMessageDraft = { audience: form.elements.audience.value, subject: form.elements.subject.value, message: form.elements.message.value };
+}
 async function handleImageUpload(event) {
   const input = event.target; if (!input.matches("[data-upload-image]")) return;
   const file = input.files?.[0]; if (!file) return;
@@ -537,6 +587,8 @@ export async function startApp() {
   document.addEventListener("click", handleClick);
   document.addEventListener("submit", handleSubmit);
   document.addEventListener("change", handleImageUpload);
+  document.addEventListener("change", handleDrinksInput);
+  document.addEventListener("input", rememberMessageDraft);
   document.addEventListener("toggle", event => {
     const details = event.target.closest?.("[data-member-id]"); if (!details) return;
     state.beheerOpenMembers = state.beheerOpenMembers || new Set();
