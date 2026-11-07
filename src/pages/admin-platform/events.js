@@ -1,9 +1,12 @@
 import template from "./events.html?raw";
 import "./events.css";
+import { getFinancialSummary } from "../../utils/finance.js";
+import { money } from "../../utils/format.js";
 
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const eventStatusLabel = status => status === "archived" ? "Afgesloten" : status === "active" ? "Actief" : "Concept";
 let root;
+let financeEditor = null;
 
 async function api(path, options = {}) {
   const response = await fetch(path, { credentials: "same-origin", ...options,
@@ -29,12 +32,19 @@ function renderEvents(events) {
   }
   target.innerHTML = events.map(event => {
     const editions = event.editions.length ? event.editions.map(edition =>
-      '<div class="admin-edition-row"><span><strong>'+escapeHtml(edition.label)+'</strong><br><small>'+escapeHtml(edition.startsAt || "Datum nog niet bepaald")+(edition.endsAt ? " – "+escapeHtml(edition.endsAt) : "")+'</small></span><span class="status neutral">'+escapeHtml(edition.status)+'</span><button type="button" class="button button-small button-outline" data-edit-edition="'+escapeHtml(edition.id)+'" data-parent-event="'+escapeHtml(event.id)+'">Wijzigen</button><button type="button" class="button button-small button-outline" data-edit-catalog="'+escapeHtml(edition.id)+'" data-parent-event="'+escapeHtml(event.id)+'">Catalogus ('+(edition.catalog || []).length+')</button></div>'
+      '<div class="admin-edition-row"><span><strong>'+escapeHtml(edition.label)+'</strong><br><small>'+escapeHtml(edition.startsAt || "Datum nog niet bepaald")+(edition.endsAt ? " – "+escapeHtml(edition.endsAt) : "")+'</small></span><span class="status neutral">'+escapeHtml(edition.status)+'</span><button type="button" class="button button-small button-outline" data-edit-edition="'+escapeHtml(edition.id)+'" data-parent-event="'+escapeHtml(event.id)+'">Wijzigen</button><button type="button" class="button button-small button-outline" data-edit-catalog="'+escapeHtml(edition.id)+'" data-parent-event="'+escapeHtml(event.id)+'">Catalogus ('+(edition.catalog || []).length+')</button><button type="button" class="button button-small button-dark" data-open-finance="'+escapeHtml(edition.id)+'">Financiën</button></div>'
     ).join("") : '<p class="catalog-note">Nog geen edities voor dit evenement.</p>';
     return '<article class="admin-event-card"><div class="admin-event-card-head"><div><h3>'+escapeHtml(event.name)+'</h3><p>'+escapeHtml(event.description || "Geen beschrijving toegevoegd.")+'</p><div class="admin-event-meta">Code: '+escapeHtml(event.slug)+' · Financieel: '+escapeHtml(event.financeStrategy)+'</div></div><span class="status '+(event.status==="active"?"success":"neutral")+'">'+escapeHtml(eventStatusLabel(event.status))+'</span><button type="button" class="button button-small button-outline" data-edit-event="'+escapeHtml(event.id)+'">Evenement wijzigen</button></div><div class="admin-editions">'+editions+'</div><form class="admin-edition-form" data-create-edition="'+escapeHtml(event.id)+'"><input name="label" maxlength="100" placeholder="Naam nieuwe editie" aria-label="Naam nieuwe editie" required><input name="startsAt" type="date" aria-label="Startdatum"><input name="endsAt" type="date" aria-label="Einddatum"><button class="button button-small button-dark" type="submit">+ Editie</button></form></article>';
   }).join("");
 }
 
+async function openFinance(editionId) {
+ const response=await api('/api/admin/editions/'+encodeURIComponent(editionId)+'/finance');
+ financeEditor=response;
+ const rows=getFinancialSummary(response.registrations||[],response.finance.expenses||[],response.finance.payments||[]);
+ const slot=root.querySelector('[data-admin-finance-slot]');
+ slot.innerHTML='<section class="panel"><h2>'+escapeHtml(response.edition.eventName)+' · '+escapeHtml(response.edition.label)+' · Financiën</h2><p>Deze editie heeft '+(response.registrations||[]).length+' inschrijvingen.</p><h3>Kosten</h3>'+(response.finance.expenses||[]).map(x=>'<p>'+escapeHtml(x.description)+' · '+money(x.amountCents/100)+'</p>').join('')+'<h3>Betalingen</h3>'+(response.finance.payments||[]).map(x=>'<p>'+escapeHtml(x.date)+' · '+money(x.amountCents/100)+'</p>').join('')+'<h3>Saldo per gezin</h3>'+rows.map(x=>'<p>'+escapeHtml(x.name)+' · '+money(x.remainingCents/100)+' open</p>').join('')+'</section>';
+}
 function catalogProductRow(product = {}, index = 0) {
   return '<div class="admin-catalog-item" data-catalog-item><div class="admin-catalog-item-fields"><label>Productnaam<input name="name" maxlength="100" required value="'+escapeHtml(product.name || "")+'" placeholder="Bijv. Steak"></label><label>Productcode<input name="id" maxlength="64" pattern="[A-Za-z0-9_-]{1,64}" required value="'+escapeHtml(product.id || "")+'" placeholder="bijv. steak"></label><label class="admin-catalog-image-field">Afbeelding (optioneel)<input name="image" maxlength="1000" value="'+escapeHtml(product.image || "")+'" placeholder="/media/products/… of https://…"></label></div><div class="admin-catalog-item-footer"><label class="admin-catalog-active"><input name="active" type="checkbox" '+(product.active === false ? "" : "checked")+'> Actief in familieportal</label><button type="button" class="button button-small button-outline" data-remove-catalog-item>Verwijderen</button></div></div>';
 }
@@ -123,6 +133,8 @@ export function initAdminEventsSection() {
     finally { button.disabled = false; }
   });
   root.querySelector("[data-admin-events-list]").addEventListener("click", async event => {
+    const financeButton=event.target.closest("[data-open-finance]");
+    if(financeButton){financeButton.disabled=true;try{await openFinance(financeButton.dataset.openFinance);feedback("Financieel dossier geladen.");}catch(error){feedback(error.message,true);}finally{financeButton.disabled=false;}return;}
     const eventButton = event.target.closest("[data-edit-event]");
     const editionButton = event.target.closest("[data-edit-edition]");
     const catalogButton = event.target.closest("[data-edit-catalog]");
