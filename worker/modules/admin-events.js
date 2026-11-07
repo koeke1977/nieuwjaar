@@ -60,6 +60,48 @@ export async function handleAdminEvents(request, env, url, dependencies) {
     }
   }
 
+  const eventMatch = url.pathname.match(/^\/api\/admin\/events\/([0-9a-f-]+)$/i);
+  if (eventMatch && request.method === "PATCH") {
+    const eventId = eventMatch[1];
+    const body = await request.json().catch(() => null);
+    const current = await env.DB.prepare("SELECT id, name, description, finance_strategy, status FROM events WHERE id = ?").bind(eventId).first();
+    if (!current) return json({ error: "Evenement niet gevonden." }, 404);
+    const name = typeof body?.name === "string" ? body.name.trim() : current.name;
+    const description = typeof body?.description === "string" ? body.description.trim() : current.description;
+    const financeStrategy = body?.financeStrategy ?? current.finance_strategy;
+    const status = body?.status ?? current.status;
+    if (!name || name.length > 100 || description.length > 1000 ||
+        !["nieuwjaar", "per_person", "per_adult", "per_order", "none"].includes(financeStrategy) ||
+        !["draft", "active", "archived"].includes(status)) {
+      return json({ error: "Ongeldige evenementgegevens of status." }, 400);
+    }
+    const now = Math.floor(Date.now() / 1000);
+    await env.DB.prepare("UPDATE events SET name = ?, description = ?, finance_strategy = ?, status = ?, updated_at = ? WHERE id = ?")
+      .bind(name, description, financeStrategy, status, now, eventId).run();
+    return json({ updated: true });
+  }
+
+  const editionMatch = url.pathname.match(/^\/api\/admin\/events\/([0-9a-f-]+)\/editions\/([0-9a-f-]+)$/i);
+  if (editionMatch && request.method === "PATCH") {
+    const [, eventId, editionId] = editionMatch;
+    const body = await request.json().catch(() => null);
+    const current = await env.DB.prepare("SELECT id, label, starts_at, ends_at, status FROM event_editions WHERE id = ? AND event_id = ?").bind(editionId, eventId).first();
+    if (!current) return json({ error: "Editie niet gevonden." }, 404);
+    const label = typeof body?.label === "string" ? body.label.trim() : current.label;
+    const startsAt = body?.startsAt === undefined ? current.starts_at : (body.startsAt || null);
+    const endsAt = body?.endsAt === undefined ? current.ends_at : (body.endsAt || null);
+    const status = body?.status ?? current.status;
+    if (!label || label.length > 100 || (startsAt && Number.isNaN(Date.parse(startsAt))) ||
+        (endsAt && Number.isNaN(Date.parse(endsAt))) || (startsAt && endsAt && Date.parse(endsAt) < Date.parse(startsAt)) ||
+        !["draft", "open", "closed", "archived"].includes(status)) {
+      return json({ error: "Ongeldige editiegegevens of status." }, 400);
+    }
+    const now = Math.floor(Date.now() / 1000);
+    await env.DB.prepare("UPDATE event_editions SET label = ?, starts_at = ?, ends_at = ?, status = ?, updated_at = ? WHERE id = ? AND event_id = ?")
+      .bind(label, startsAt, endsAt, status, now, editionId, eventId).run();
+    return json({ updated: true });
+  }
+
   const match = url.pathname.match(/^\/api\/admin\/events\/([0-9a-f-]+)\/editions$/i);
   if (match && request.method === "POST") {
     const eventId = match[1];
