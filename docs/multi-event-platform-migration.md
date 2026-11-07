@@ -78,7 +78,15 @@ Voor elk scenario worden de huidige outputwaarden als golden fixture vastgelegd 
 
 De eerste migratie mag bestaande gegevens nog in `data_json` bewaren. Normalisatie van deelnemers, orders en financiële lijnen gebeurt pas wanneer er een afzonderlijke migratie- en paritytest voor bestaat. Bestaande accounttabellen blijven behouden; een nieuwe membership-laag vervangt de exclusieve registratie-link.
 
-## Reeds toegevoegd aan de branch\n\n- `0007_multi_event_foundation.sql`: uitsluitend nieuwe event-, editie-, familie-, membership-, registratie- en financiële snapshot-tabellen. Bestaande snapshots en accountkoppelingen blijven staan.\n- `0008_shared_family_registration_access.sql`: bouwt de accountkoppeltabel opnieuw op zonder de exclusieve registratiebeperking. Bestaande koppelingen worden één-op-één gekopieerd. Een gebruiker kan dezelfde registratie niet dubbel koppelen; meerdere gebruikers kunnen dat wel.\n- De financiële referentietests staan in `tests/finance-baseline.test.js`. De verwachte bedragen zijn gebaseerd op de huidige `finance.js`-implementatie.\n\nDeze migrations zijn nog niet uitgevoerd op lokaal of remote D1.\n\n## Migratievolgorde
+## Reeds toegevoegd aan de branch
+
+- `0007_multi_event_foundation.sql`: uitsluitend nieuwe event-, editie-, familie-, membership-, registratie- en financiële snapshot-tabellen. Bestaande snapshots en accountkoppelingen blijven staan.
+- `0008_shared_family_registration_access.sql`: bouwt de accountkoppeltabel opnieuw op zonder de exclusieve registratiebeperking. Bestaande koppelingen worden één-op-één gekopieerd. Een gebruiker kan dezelfde registratie niet dubbel koppelen; meerdere gebruikers kunnen dat wel.
+- De financiële referentietests staan in `tests/finance-baseline.test.js`. De verwachte bedragen zijn gebaseerd op de huidige `finance.js`-implementatie.
+
+Deze migrations zijn nog niet uitgevoerd op lokaal of remote D1.
+
+## Migratievolgorde
 
 1. **Baseline** — alle huidige finance tests uitbreiden met de tien scenario's; output bewaren als fixtures.
 2. **Schema toevoegen** — nieuwe tabellen en indexen toevoegen zonder bestaande tabellen/kolommen te verwijderen. Geen live-data wijzigen.
@@ -135,3 +143,12 @@ Deze functionaliteit gebruikt tabellen uit migratie 0007. Zonder die migratie ka
 In het evenementenbeheer staat nu ook een **alleen-lezen migratiecontrole**. Die telt per bestaande omgeving het aantal inschrijvingen, gekoppelde familieaccounts, accountkoppelingen, inschrijvingen zonder account en verweesde koppelingen. De controle geeft geen namen of e-mailadressen terug en voert geen writes uit. Ze is bedoeld om vóór een backfill de omvang en datakwaliteit zichtbaar te maken.
 
 De echte backfill is nog niet vrijgegeven. Eerst moeten de migraties op de juiste database staan, moet de preview gecontroleerd worden en moet een herstelbare snapshot/back-up beschikbaar zijn. De bestaande app_state blijft tijdens deze voorbereidende fase de bron van waarheid.
+
+
+## Veiligheidscontrole backfill — 7 november 2026
+
+De backfill-endpoint voert nu zelf de kritieke preflight uit; de browser-preview is geen beveiligingsgrens. De endpoint blokkeert onder meer ontbrekende tabellen, ontbrekende test/live-snapshots, onverwachte omgevingen, ongeldige JSON/structuur, dubbele of ontbrekende registratie-ID's, verweesde accountkoppelingen en bestaande doelrecords die op een eerdere/gedeeltelijke migratie kunnen wijzen. Daardoor worden doelrecords niet langer stilzwijgend overgeslagen via `INSERT OR IGNORE` bij een collision.
+
+De preview toont dezelfde blokkades vóór de gebruiker de migratie kan starten. Eén backfill wordt begrensd op maximaal 1.000 prepared statements om binnen een beheersbare transactie te blijven. Cloudflare documenteert een limiet van 30 seconden voor de volledige D1-batch; er is geen gedocumenteerde vaste limiet op het aantal statements zelf. Boven de lokale veiligheidsgrens stopt de endpoint zonder writes. Zie de [officiële D1-limieten](https://developers.cloudflare.com/d1/platform/limits/).
+
+**Belangrijk:** dit is codecontrole, geen uitvoering op de echte D1-database. De backfill mag pas worden uitgevoerd na remote backup en nadat de preview op de doelomgeving groen is. De oude snapshots blijven behouden.
