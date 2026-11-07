@@ -134,8 +134,17 @@ export async function handleAdminEvents(request, env, url, dependencies) {
       const missingTables = requiredTables.filter(name => !availableTables.has(name));
       if (missingTables.length) return json({ readOnly: true, canBackfill: false, missingTables, error: "De databasestructuur is nog niet volledig gemigreerd. Er is niets gewijzigd." }, 409);
       const states = await env.DB.prepare("SELECT environment, data_json, updated_at FROM app_state ORDER BY environment").all();
-      const links = await env.DB.prepare("SELECT edition_id, registration_id, COUNT(*) AS account_count FROM family_user_registrations GROUP BY edition_id, registration_id").all();
-      const linkCounts = new Map((links.results || []).map(row => [row.edition_id + ":" + row.registration_id, Number(row.account_count) || 0]));
+      const links = await env.DB.prepare("SELECT user_id, edition_id, registration_id, COUNT(*) AS account_count FROM family_user_registrations GROUP BY user_id, edition_id, registration_id").all();
+      const linkCounts = new Map();
+      const accountIds = new Set();
+      for (const row of links.results || []) {
+        const key = row.edition_id + ":" + row.registration_id;
+        linkCounts.set(key, (linkCounts.get(key) || 0) + 1);
+        accountIds.add(row.user_id);
+      }
+      const knownUsersResult = await env.DB.prepare("SELECT id FROM family_users").all();
+      const knownUsers = new Set((knownUsersResult.results || []).map(row => row.id));
+      const orphanedAccounts = (links.results || []).filter(row => !knownUsers.has(row.user_id)).length;
       const environments = [];
       let totalRegistrations = 0, linkedRegistrations = 0, orphanedLinks = 0, totalAccounts = 0;
       const validationErrors = [];
@@ -170,6 +179,9 @@ export async function handleAdminEvents(request, env, url, dependencies) {
         });
       }
       const users = await env.DB.prepare("SELECT COUNT(*) AS count FROM family_users").first();
+      if (orphanedAccounts) validationErrors.push(orphanedAccounts + " accountkoppelingen verwijzen naar niet-bestaande accounts.");
+      const unsupportedLinks = (links.results || []).filter(row => !["test", "live"].includes(row.edition_id)).length;
+      if (unsupportedLinks) validationErrors.push(unsupportedLinks + " accountkoppelingen verwijzen naar onbekende oude omgevingen.");
       return json({
         readOnly: true,
         environments,
@@ -181,7 +193,9 @@ export async function handleAdminEvents(request, env, url, dependencies) {
           registrationsWithAccounts: linkedRegistrations,
           registrationsWithoutAccounts: totalRegistrations - linkedRegistrations,
           accountLinks: totalAccounts,
-          orphanedRegistrationLinks: orphanedLinks
+          orphanedRegistrationLinks: orphanedLinks,
+          orphanedAccountLinks: orphanedAccounts,
+          unsupportedEnvironmentLinks: unsupportedLinks
         }
       });
     } catch (error) {
