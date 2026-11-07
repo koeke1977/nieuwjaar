@@ -186,8 +186,12 @@ export async function handleAdminEvents(request, env, url, dependencies) {
       for (const row of states.results || []) {
         let data;
         try { data = JSON.parse(row.data_json); } catch { validationErrors.push("Ongeldige JSON in omgeving " + row.environment); continue; }
-        if (!data || typeof data !== "object" || Array.isArray(data)) { validationErrors.push("Ongeldige gegevensstructuur in omgeving " + row.environment); continue; }
-        const registrations = Array.isArray(data.registrations) ? data.registrations : [];
+        if (!data || typeof data !== "object" || Array.isArray(data) ||
+            !Array.isArray(data.registrations) || !Array.isArray(data.expenses || []) || !Array.isArray(data.payments || [])) {
+          validationErrors.push("Ongeldige gegevensstructuur of ontbrekende registraties/kosten/betalingen in omgeving " + row.environment);
+          continue;
+        }
+        const registrations = data.registrations;
         const ids = new Set();
         for (const item of registrations) {
           if (!item || typeof item.id !== "string" || !item.id.trim()) validationErrors.push("Inschrijving zonder geldige ID in " + row.environment);
