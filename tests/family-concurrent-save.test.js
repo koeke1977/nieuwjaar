@@ -228,3 +228,12 @@ test("a personal bar bill is kept when a family saves and cannot be changed by t
   assert.equal(result.status, 200, JSON.stringify(result.body));
   assert.equal(JSON.parse(row(DB, "ra").data_json).members[0].barCents, 2100);
 });
+
+test("a family can add an evening guest; any meat order for them is dropped", async () => {
+  const DB = await setup();
+  const result = await save(DB, "ua", "ra", [member("a1", 1), { id: "late", name: "Tom", type: "Avondgast", orders: { steak: 4 } }]);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  const tom = JSON.parse(row(DB, "ra").data_json).members.find(p => p.id === "late");
+  assert.equal(tom.type, "Avondgast");
+  assert.equal(Number(tom.orders.steak || 0), 0);
+});

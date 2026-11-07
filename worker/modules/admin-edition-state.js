@@ -6,6 +6,7 @@
 // last saw; a guard failure aborts the whole batch (nothing is written) and returns 409.
 
 import { withDiet } from "../../src/utils/diet.js";
+import { isMemberType, EVENING } from "../../src/utils/member-types.js";
 import { parseReceiptKey } from "./receipts.js";
 import { isLocalDateTime } from "../../src/utils/time.js";
 
@@ -74,13 +75,13 @@ function cleanMembers(members) {
   const ids = new Set(), out = [];
   for (const person of members) {
     const name = validName(person?.name, 80);
-    if (!person || typeof person.id !== "string" || !ID.test(person.id) || ids.has(person.id) || !name || !["Volwassene", "Kind"].includes(person.type)) return null;
+    if (!person || typeof person.id !== "string" || !ID.test(person.id) || ids.has(person.id) || !name || !isMemberType(person.type)) return null;
     ids.add(person.id);
     const orders = {};
     for (const [productId, qty] of Object.entries(person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {})) {
       const quantity = Number(qty);
       if (!PRODUCT_ID.test(productId) || !Number.isInteger(quantity) || quantity < 0 || quantity > 99) return null;
-      orders[productId] = quantity;
+      if (person.type !== EVENING) orders[productId] = quantity; // evening guests do not order meat
     }
     // Personal bar bill in cents (entered by the organisation).
     const barCents = person.barCents == null ? 0 : Number(person.barCents);
@@ -266,7 +267,9 @@ export async function messageRecipients(env, editionId, audience) {
     if (audience !== "no-order") return true;
     let data = {};
     try { data = JSON.parse(row.data_json || "{}"); } catch { /* counts as no order */ }
-    return !(data.members || []).some(person => Object.values(person.orders || {}).some(qty => Number(qty) > 0));
+    const members = data.members || [];
+    // Only families that come for dinner can be reminded to order meat.
+    return members.some(person => person.type !== EVENING) && !members.some(person => Object.values(person.orders || {}).some(qty => Number(qty) > 0));
   }).map(row => row.family_id);
   if (!families.length) return [];
   const users = await env.DB.prepare(

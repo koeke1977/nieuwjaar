@@ -162,3 +162,20 @@ test("a personal bar bill is charged to that person only; bar purchases are not 
   assert.equal(breakdown.expenses.length, 0, "family A does not see family B's bar purchase");
   assert.equal(getFamilyFinanceBreakdown(b, [a, b], purchase, []).expenses[0].notShared, true, "the buyer sees it in its own costs");
 });
+
+test("evening guests share in no cost at all; they only pay their own bar bill", async () => {
+  const { getFinancialSummary: summary, getRegistrationCounts } = await import("../src/utils/finance.js");
+  const dinner = { id: "d", members: [{ id: "d1", name: "Jan", type: "Volwassene", orders: { p1: 2 } }, { id: "d2", name: "Kobe", type: "Kind", orders: { p1: 1 } }] };
+  const late = { id: "l", members: [{ id: "l1", name: "Tom", type: "Avondgast", orders: { p1: 5 }, barCents: 1500 }, { id: "l2", name: "Sara", type: "Avondgast", orders: {} }] };
+  const costs = [
+    { id: "g", amountCents: 9000, method: "general", advancedBy: "kas" },
+    { id: "c", amountCents: 6000, method: "adults", advancedBy: "kas" },
+    { id: "m", amountCents: 3000, method: "meat", advancedBy: "kas" }
+  ];
+  assert.deepEqual(getRegistrationCounts(late), { people: 0, adults: 0, children: 0, meat: 0 }, "evening guests are not counted and their orders are ignored");
+  const rows = summary([dinner, late], costs, []);
+  assert.equal(rows.find(r => r.id === "d").shareCents, 18000, "the dinner family carries all shared costs");
+  assert.equal(rows.find(r => r.id === "l").shareCents, 1500, "the evening guests only their bar bill");
+  const breakdown = getFamilyFinanceBreakdown(late, [dinner, late], costs, []);
+  assert.deepEqual(breakdown.members.map(m => m.totalCents), [1500, 0]);
+});

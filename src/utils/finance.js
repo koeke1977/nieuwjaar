@@ -1,4 +1,7 @@
 // Financiële domeinlogica. Alle bedragen worden in gehele eurocenten verwerkt.
+import { ADULT, CHILD, isDinnerGuest } from "./member-types.js";
+
+// Evening guests (Avondgast) come after dinner: they never share in costs and order no meat.
 export function getRegistrationCounts(registration) {
   if (registration.aggregateCounts) {
     return {
@@ -11,11 +14,10 @@ export function getRegistrationCounts(registration) {
   const members = registration.members || [];
   if (members.length) {
     return {
-      people: members.length,
-      adults: members.filter(person => person.type === "Volwassene").length,
-      children: members.filter(person => person.type === "Kind").length,
-      meat: members.reduce((sum, person) =>
-        sum + Object.values(person.orders || {}).reduce((personSum, qty) => personSum + Math.max(0, Number(qty) || 0), 0), 0)
+      people: members.filter(isDinnerGuest).length,
+      adults: members.filter(person => person.type === ADULT).length,
+      children: members.filter(person => person.type === CHILD).length,
+      meat: members.reduce((sum, person) => sum + memberPortions(person), 0)
     };
   }
   return {
@@ -112,12 +114,13 @@ export function getFinancialSummary(registrations, expenses, payments = []) {
 // Verdeel het aandeel van een inschrijving verder over de individuele leden.
 // Eerst per inschrijving verdelen en daarna per lid voorkomt afrondingsverschillen met de afrekening.
 function memberPortions(member) {
+  if (!isDinnerGuest(member)) return 0; // evening guests do not eat
   return Object.values(member?.orders || {}).reduce((sum, qty) => sum + Math.max(0, Number(qty) || 0), 0);
 }
 
 function memberWeight(member, method) {
-  return method === "general" ? 1
-    : method === "adults" ? (member.type === "Volwassene" ? 1 : 0)
+  return method === "general" ? (isDinnerGuest(member) ? 1 : 0)
+    : method === "adults" ? (member.type === ADULT ? 1 : 0)
     : method === "meat" ? memberPortions(member) : 0;
 }
 

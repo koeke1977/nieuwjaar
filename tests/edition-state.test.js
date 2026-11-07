@@ -195,3 +195,28 @@ test("a message goes to the accounts of the chosen families only", async () => {
   assert.ok(!html.includes("<script>"), "message text is escaped");
   assert.match(html, /Naar het familieportaal/);
 });
+
+test("evening guests are accepted and never keep a meat order", async () => {
+  const DB = setup();
+  const base = payload(await loadEditionState({ DB }, "ed1"));
+  const data = clone(base);
+  data.registrations[0].members.push({ id: "late1", name: "Tom", type: "Avondgast", orders: { steak: 3 }, barCents: 1200 });
+  const result = await saveEditionState({ DB }, "ed1", { base, data }, NOW);
+  assert.equal(result.status, 200, result.error);
+  const tom = result.state.registrations[0].members.find(p => p.id === "late1");
+  assert.equal(tom.type, "Avondgast");
+  assert.deepEqual(tom.orders, {});
+  assert.equal(tom.barCents, 1200);
+});
+
+test("the meat reminder skips families that only come after dinner", async () => {
+  const { messageRecipients } = await import("../worker/modules/admin-edition-state.js");
+  const DB = setup();
+  DB.raw.prepare("UPDATE event_registrations SET data_json = ? WHERE id = 'ra'").run(JSON.stringify({ name: "A", members: [{ id: "x", name: "X", type: "Avondgast", orders: {} }] }));
+  DB.raw.prepare("UPDATE event_registrations SET data_json = ? WHERE id = 'rb'").run(JSON.stringify({ name: "B", members: [member("y", 0)] }));
+  for (const [user, fam] of [["u1", "fa"], ["u2", "fb"]]) {
+    DB.raw.prepare("INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'active', 1, 1)").run(user, user + "@x.be", user);
+    DB.raw.prepare("INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, 'owner', 1)").run("m" + user, fam, user);
+  }
+  assert.deepEqual((await messageRecipients({ DB }, "ed1", "no-order")).map(r => r.email), ["u2@x.be"]);
+});

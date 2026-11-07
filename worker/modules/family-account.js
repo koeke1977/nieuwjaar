@@ -1,5 +1,6 @@
 import { getFamilyFinanceBreakdown, getExpenseShares } from "../../src/utils/finance.js";
 import { withDiet } from "../../src/utils/diet.js";
+import { isMemberType, EVENING } from "../../src/utils/member-types.js";
 import { ordersClosed } from "../../src/utils/time.js";
 
 const closedMessage = deadline => "Bestellen is afgesloten" + (deadline ? " sinds " + deadline.replace("T", " om ") : "") + ". Wil je toch nog iets wijzigen? Vraag het aan de organisatie.";
@@ -256,7 +257,7 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
     for (const person of body.members) {
       if (!person || typeof person.id !== "string" || !/^[A-Za-z0-9_-]{1,120}$/.test(person.id) ||
           typeof person.name !== "string" || !person.name.trim() || person.name.trim().length > 80 ||
-          !["Volwassene", "Kind"].includes(person.type)) {
+          !isMemberType(person.type)) {
         return json({ error: "Controleer de namen en categorieën van alle gezinsleden." }, 400);
       }
       if (memberIds.has(person.id)) return json({ error: "Een gezinslid komt meer dan één keer voor." }, 400);
@@ -266,7 +267,8 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
       for (const [productId, qty] of Object.entries(stored.get(person.id)?.orders || {})) if (!activeIds.has(productId)) orders[productId] = qty;
       const sent = person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {};
       for (const productId of activeIds) {
-        const quantity = Number(sent[productId] ?? 0);
+        // Evening guests come after dinner and order no meat.
+        const quantity = person.type === EVENING ? 0 : Number(sent[productId] ?? 0);
         if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) return json({ error: "Ongeldig aantal in de bestelling." }, 400);
         if (closed && quantity !== (Number(stored.get(person.id)?.orders?.[productId]) || 0)) return json({ error: closedMessage(config.orderDeadline), ordersClosed: true }, 409);
         orders[productId] = quantity;

@@ -41,7 +41,7 @@ function countdownChip(item) {
 const dietChips = person => hasDiet(person)
   ? '<div class="fa-diet">' + (person.diet || []).map(item => '<span>' + esc(item) + '</span>').join("") + (person.notes ? '<em>' + esc(person.notes) + '</em>' : "") + '</div>' : "";
 const METHOD_CHOICES = [["general", "Algemeen — iedereen, ook kinderen (zaal, decoratie, frisdrank)"], ["adults", "18+ — alleen volwassenen (alcohol, cava)"], ["meat", "Vlees — volgens bestelde porties"], ["bar", "Aankoop voor de bar — wordt niet verdeeld; de barrekeningen dekken het"]];
-const typeLabel = type => type === "Kind" ? "Kind" : type === "Volwassene" ? "Volwassene (18+)" : "Deelnemer";
+import { typeLabel, typeOptions, countByType, EVENING } from "../../utils/member-types.js";
 
 export const TABS = [
   { id: "overview", label: "Overzicht" },
@@ -80,10 +80,10 @@ function renderOverview(item) {
   const members = item.registration.members || [];
   const finance = item.finance;
   const portions = members.reduce((sum, person) => sum + portionsOf(person), 0);
-  const adults = members.filter(person => person.type === "Volwassene").length;
+  const kinds = countByType(members);
   return settlementHero(finance) + countdownCard(item) +
     '<div class="fa-stats">' +
-      '<button type="button" class="fa-stat" data-tab-target="family" aria-label="Gezin bekijken"><span class="fa-stat-icon" aria-hidden="true">👨‍👩‍👧</span><strong>' + members.length + '</strong><small>' + (members.length === 1 ? "deelnemer" : "deelnemers") + ' · ' + adults + ' volw. · ' + (members.length - adults) + ' kind.</small><em>Gezin <i aria-hidden="true">›</i></em></button>' +
+      '<button type="button" class="fa-stat" data-tab-target="family" aria-label="Gezin bekijken"><span class="fa-stat-icon" aria-hidden="true">👨‍👩‍👧</span><strong>' + members.length + '</strong><small>' + (members.length === 1 ? "deelnemer" : "deelnemers") + ' · ' + kinds.adults + ' volw. · ' + kinds.children + ' kind.' + (kinds.evening ? ' · ' + kinds.evening + ' avondg.' : "") + '</small><em>Gezin <i aria-hidden="true">›</i></em></button>' +
       '<button type="button" class="fa-stat" data-tab-target="order" aria-label="Bestelling aanpassen"><span class="fa-stat-icon" aria-hidden="true">🍖</span><strong>' + portions + '</strong><small>vleesporties</small><em>Bestellen <i aria-hidden="true">›</i></em></button>' +
       '<button type="button" class="fa-stat" data-tab-target="costs" aria-label="Berekening bekijken"><span class="fa-stat-icon" aria-hidden="true">€</span><strong>' + euro(finance?.totals?.shareCents || 0) + '</strong><small>ons aandeel</small><em>Berekening <i aria-hidden="true">›</i></em></button>' +
     '</div>' +
@@ -104,6 +104,7 @@ function memberCostDetail(item, person) {
   if (!cost) return "";
   const parts = item.finance.categories.map(category => {
     if (category.method === "adults" && person.type !== "Volwassene") return "";
+    if (person.type === EVENING && category.method !== "bar") return "";
     return '<span>' + SHORT_LABEL[category.method] + ' <b>' + euro(cost.byMethod[category.method]) + '</b></span>';
   }).filter(Boolean).join("");
   return parts ? '<div class="fa-cost-parts">' + parts + '</div>' : "";
@@ -123,7 +124,7 @@ function renderFamily(item, view) {
     if (!readOnly && view.editingMemberId === person.id) {
       return '<form class="fa-member fa-member-edit" data-edit-member="' + esc(person.id) + '">' +
         '<input name="memberName" aria-label="Naam" value="' + esc(person.name) + '" maxlength="80" required>' +
-        '<select name="memberType" aria-label="Categorie"><option value="Volwassene"' + (person.type === "Volwassene" ? " selected" : "") + '>Volwassene (18+)</option><option value="Kind"' + (person.type === "Kind" ? " selected" : "") + '>Kind</option></select>' +
+        '<select name="memberType" aria-label="Categorie">' + typeOptions(person.type) + '</select>' +
         '<fieldset class="fa-diet-edit"><legend>Allergieën en voorkeuren</legend>' + DIET_OPTIONS.map(option => '<label><input type="checkbox" name="diet" value="' + esc(option) + '"' + ((person.diet || []).includes(option) ? " checked" : "") + '> ' + esc(option) + '</label>').join("") + '</fieldset>' +
         '<input name="notes" aria-label="Opmerking" maxlength="' + NOTE_MAX + '" value="' + esc(person.notes || "") + '" placeholder="Opmerking, bv. geen pikant, notenallergie (ernstig)">' +
         '<div class="fa-row-actions"><button type="submit" class="fa-btn fa-btn-primary">Bewaren</button><button type="button" class="fa-btn" data-action="cancel-edit-member">Annuleren</button></div></form>';
@@ -138,10 +139,10 @@ function renderFamily(item, view) {
   const familyTotal = hasCosts
     ? '<div class="fa-family-total"><span>Totaal voor het gezin' + (item.finance.finalized ? "" : " <small>(voorlopig)</small>") + '</span><strong>' + euro(item.finance.totals.shareCents) + '</strong></div>'
     : "";
-  return '<div class="fa-section-head"><h3>Wie komt er?</h3><p>Per persoon zie je wat die kost: vlees volgens de eigen bestelling, algemene kosten voor iedereen en 18+-kosten alleen voor volwassenen.</p></div>' +
+  return '<div class="fa-section-head"><h3>Wie komt er?</h3><p>Per persoon zie je wat die kost: vlees volgens de eigen bestelling, algemene kosten voor iedereen en 18+-kosten alleen voor volwassenen. Komt iemand pas na het eten? Kies dan <strong>Avondgast</strong>: die betaalt alleen zijn eigen barrekening.</p></div>' +
     '<div class="fa-list">' + (rows || '<p class="fa-empty">Nog geen gezinsleden toegevoegd.</p>') + '</div>' + familyTotal +
     (readOnly ? '<p class="fa-muted">Je hebt leesrechten voor deze inschrijving.</p>'
-      : '<form class="fa-add" data-add-member><label class="fa-label" for="fa-new-name">Persoon toevoegen</label><div class="fa-add-grid"><input id="fa-new-name" name="memberName" placeholder="Voornaam en naam" maxlength="80" required><select name="memberType" aria-label="Categorie"><option value="Volwassene">Volwassene (18+)</option><option value="Kind">Kind</option></select><button type="submit" class="fa-btn fa-btn-primary">+ Toevoegen</button></div></form>');
+      : '<form class="fa-add" data-add-member><label class="fa-label" for="fa-new-name">Persoon toevoegen</label><div class="fa-add-grid"><input id="fa-new-name" name="memberName" placeholder="Voornaam en naam" maxlength="80" required><select name="memberType" aria-label="Categorie">' + typeOptions("Volwassene") + '</select><button type="submit" class="fa-btn fa-btn-primary">+ Toevoegen</button></div></form>');
 }
 
 function renderOrder(item, view) {
@@ -164,6 +165,9 @@ function renderOrder(item, view) {
       '</div><div><strong>' + esc(product.name) + '</strong><small>' + (count ? "✓ " + count + " besteld" : "Nog niet besteld") + '</small></div></article>';
   }).join("");
   const people = members.map(person => {
+    if (person.type === EVENING) {
+      return '<div class="fa-member fa-member-evening"><span class="fa-avatar">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="fa-member-name"><strong>' + esc(person.name) + '</strong><small>🌙 Komt na het eten — geen bestelling</small></span></div>';
+    }
     const controls = catalog.map(product => {
       const quantity = Number(person.orders?.[product.id]) || 0;
       return '<div class="fa-stepper-row' + (quantity ? " fa-stepper-row-active" : "") + '"><span>' + esc(product.name) + '</span>' + (readOnly ? '<b>' + quantity + '</b>'
@@ -237,9 +241,9 @@ function renderCosts(item, view = {}) {
   const members = finance.members.map(member => {
     const parts = methods.map(method => {
       const label = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" }[method];
-      const notApplicable = method === "adults" && member.type !== "Volwassene";
+      const notApplicable = (member.type === EVENING && method !== "bar") || (method === "adults" && member.type !== "Volwassene");
       const extra = method === "meat" ? " · " + plural(member.portions, UNITS.meat) : "";
-      return '<li><span>' + label + extra + '</span><b>' + (notApplicable ? '<span class="fa-muted">n.v.t. (kind)</span>' : euro(member.byMethod[method])) + '</b></li>';
+      return '<li><span>' + label + extra + '</span><b>' + (notApplicable ? '<span class="fa-muted">n.v.t. (' + (member.type === EVENING ? "avondgast" : "kind") + ')</span>' : euro(member.byMethod[method])) + '</b></li>';
     }).join("");
     return '<article class="fa-member-cost"><header><span class="fa-avatar">' + esc((member.name || "?").charAt(0).toUpperCase()) + '</span><div class="fa-member-name"><strong>' + esc(member.name) + '</strong><small>' + esc(typeLabel(member.type)) + '</small></div><strong>' + euro(member.totalCents) + '</strong></header><ul>' + parts + '</ul></article>';
   }).join("");

@@ -2,6 +2,7 @@
 // Pure render functions over the shared admin `state`; event handling lives in app.js.
 import { state } from "../../data/demo-data.js";
 import { DIET_OPTIONS, NOTE_MAX, hasDiet } from "../../utils/diet.js";
+import { typeLabel, typeOptions, countByType, countsText, EVENING } from "../../utils/member-types.js";
 import { ordersClosed, localToDate } from "../../utils/time.js";
 import { getExpenseShares, getFinancialSummary, getFamilyFinanceBreakdown, getRegistrationCounts, COST_METHODS } from "../../utils/finance.js";
 
@@ -96,6 +97,7 @@ function eventTotals() {
     people: counts.reduce((sum, c) => sum + c.people, 0),
     adults: counts.reduce((sum, c) => sum + c.adults, 0),
     children: counts.reduce((sum, c) => sum + c.children, 0),
+    evening: regs.reduce((sum, reg) => sum + countByType(reg.members || []).evening, 0),
     portions: regs.reduce((sum, r) => sum + familyPortions(r), 0),
     costs: (state.expenses || []).reduce((sum, e) => sum + (Number(e.amountCents) || 0), 0),
     received: (state.payments || []).filter(p => p.kind !== "refund").reduce((sum, p) => sum + (Number(p.amountCents) || 0), 0),
@@ -157,7 +159,7 @@ function renderOverview() {
   return pageHead("Overzicht", "De stand van deze editie in één oogopslag.", statusChip()) +
     '<section class="bh-kpis">' +
       kpi(t.families, "gezinnen", "", "families") +
-      kpi(t.people, "deelnemers", t.adults + " volwassenen · " + t.children + " kinderen", "families") +
+      kpi(t.people, "aan tafel", t.adults + " volwassenen · " + t.children + " kinderen" + (t.evening ? " · + " + t.evening + " avondgasten" : ""), "families") +
       kpi(t.portions, "vleesporties", meat.length ? plural(meat.length, "product", "producten") : "nog niets besteld", "order") +
       kpi(euro(t.costs), "kosten", plural((state.expenses || []).length, "uitgave", "uitgaven"), "finance") +
       kpi(euro(t.received), "ontvangen", t.received && t.outstanding ? progress + "% van het verschuldigde" : "", "finance") +
@@ -191,12 +193,12 @@ function renderFamilyList() {
     const row = t.summary.find(item => item.id === reg.id);
     return '<li><button type="button" class="bh-family-row" data-action="open-family" data-id="' + esc(reg.id) + '">' +
       '<span class="bh-avatar">' + esc((reg.name || "?").charAt(0).toUpperCase()) + '</span>' +
-      '<span class="bh-family-name"><strong>' + esc(reg.name) + '</strong><small>' + ((reg.members || []).length ? counts.adults + " volw. · " + counts.children + " kind. · " + plural(familyPortions(reg), "portie", "porties") : "Gezin nog niet ingevuld") + '</small></span>' +
+      '<span class="bh-family-name"><strong>' + esc(reg.name) + '</strong><small>' + ((reg.members || []).length ? countsText(reg.members) + " · " + plural(familyPortions(reg), "portie", "porties") : "Gezin nog niet ingevuld") + '</small></span>' +
       '<span class="bh-family-money"><b>' + euro(row?.shareCents || 0) + '</b><small>aandeel</small></span>' +
       '<span class="bh-family-chips">' + familyBalanceChip(row) + accessChip(reg.familyId) + '</span>' +
       '<i class="bh-chev" aria-hidden="true">›</i></button></li>';
   }).join("");
-  return pageHead("Inschrijvingen", plural(regs.length, "gezin", "gezinnen") + " ingeschreven · " + t.people + " deelnemers (" + t.adults + " volwassenen, " + t.children + " kinderen)") +
+  return pageHead("Inschrijvingen", plural(regs.length, "gezin", "gezinnen") + " ingeschreven · " + t.people + " aan tafel (" + t.adults + " volwassenen, " + t.children + " kinderen)" + (t.evening ? " · " + t.evening + " avondgasten na het eten" : "")) +
     registerExistingFamily() + '<section class="bh-card"><form id="add-registration-form" class="bh-inline-form"><label for="bh-new-family">Nieuw gezin inschrijven</label><div><input id="bh-new-family" name="registrationName" maxlength="80" placeholder="Bijvoorbeeld: Jan & Els" required><button type="submit" class="bh-btn bh-btn-primary">+ Gezin toevoegen</button></div></form></section>' +
     (rows ? '<ul class="bh-family-list">' + rows + '</ul>' : '<p class="bh-empty">Nog geen inschrijvingen voor deze editie.</p>');
 }
@@ -206,13 +208,13 @@ function renderMemberEditor(registration) {
   const products = state.catalog.filter(product => product.active);
   return members.map((person, index) => {
     if (state.editingAdminMemberIndex === index) {
-      return '<form id="edit-admin-member-form" data-index="' + index + '" class="bh-member bh-member-edit"><input name="memberName" maxlength="80" value="' + esc(person.name) + '" aria-label="Naam" required><select name="memberType" aria-label="Categorie"><option value="Volwassene"' + (person.type === "Volwassene" ? " selected" : "") + '>Volwassene (18+)</option><option value="Kind"' + (person.type === "Kind" ? " selected" : "") + '>Kind</option></select>' + dietFields(person) + '<div class="bh-actions"><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-edit-admin-member">Annuleren</button></div></form>';
+      return '<form id="edit-admin-member-form" data-index="' + index + '" class="bh-member bh-member-edit"><input name="memberName" maxlength="80" value="' + esc(person.name) + '" aria-label="Naam" required><select name="memberType" aria-label="Categorie">' + typeOptions(person.type) + '</select>' + dietFields(person) + '<div class="bh-actions"><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-edit-admin-member">Annuleren</button></div></form>';
     }
-    const steppers = products.map(product => {
+    const steppers = person.type === EVENING ? '<p class="bh-note">🌙 Komt na het eten: geen vlees en geen gedeelde kosten, alleen de eigen barrekening.</p>' : products.map(product => {
       const quantity = Number(person.orders?.[product.id]) || 0;
       return '<div class="bh-stepper-row"><span>' + esc(product.name) + '</span><div class="bh-stepper"><button type="button" data-action="admin-quantity" data-registration="' + esc(registration.id) + '" data-person="' + esc(person.id) + '" data-product="' + esc(product.id) + '" data-delta="-1" aria-label="Minder ' + esc(product.name) + '"' + (quantity ? "" : " disabled") + '>−</button><b>' + quantity + '</b><button type="button" data-action="admin-quantity" data-registration="' + esc(registration.id) + '" data-person="' + esc(person.id) + '" data-product="' + esc(product.id) + '" data-delta="1" aria-label="Meer ' + esc(product.name) + '">+</button></div></div>';
     }).join("");
-    return '<details class="bh-member" data-member-id="' + esc(person.id) + '"' + (state.beheerOpenMembers?.has(person.id) ? " open" : "") + '><summary><span class="bh-avatar bh-avatar-sm">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(person.name) + '</strong><small>' + (person.type === "Kind" ? "Kind" : "Volwassene (18+)") + '</small>' + dietChips(person) + '</span><span class="bh-chip">' + plural(portionsOf(person), "portie", "porties") + '</span><i class="bh-chev" aria-hidden="true">›</i></summary>' +
+    return '<details class="bh-member" data-member-id="' + esc(person.id) + '"' + (state.beheerOpenMembers?.has(person.id) ? " open" : "") + '><summary><span class="bh-avatar bh-avatar-sm">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(person.name) + '</strong><small>' + esc(typeLabel(person.type)) + '</small>' + dietChips(person) + '</span><span class="bh-chip">' + plural(portionsOf(person), "portie", "porties") + '</span><i class="bh-chev" aria-hidden="true">›</i></summary>' +
       '<div class="bh-member-body">' + (steppers || '<p class="bh-empty">Geen actieve producten.</p>') + '<div class="bh-actions"><button type="button" class="bh-btn bh-btn-sm" data-action="edit-member" data-index="' + index + '">Naam of categorie wijzigen</button><button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-member" data-index="' + index + '">Verwijderen</button></div></div></details>';
   }).join("");
 }
@@ -255,12 +257,12 @@ function renderFamilyDetail(registration) {
     '<header class="bh-page-head"><div>' +
       (state.beheerRenaming ? '<form id="rename-registration-form" data-id="' + esc(registration.id) + '" class="bh-rename"><input name="registrationName" maxlength="80" value="' + esc(registration.name) + '" aria-label="Naam gezin" required><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-rename">Annuleren</button></form>'
         : '<h1>' + esc(registration.name) + ' <button type="button" class="bh-icon-btn" data-action="rename-registration" aria-label="Naam wijzigen">✎</button></h1>') +
-      '<p>' + counts.adults + ' volwassenen · ' + counts.children + ' kinderen · ' + plural(familyPortions(registration), "portie", "porties") + '</p></div>' +
+      '<p>' + countsText(registration.members) + ' · ' + plural(familyPortions(registration), "portie", "porties") + '</p></div>' +
       '<div class="bh-page-actions">' + accessChip(registration.familyId) + familyBalanceChip(getFinancialSummary(state.registrations, state.expenses, state.payments).find(row => row.id === registration.id)) + '</div></header>' +
     '<div class="bh-grid-2">' +
       '<section class="bh-card"><header class="bh-card-head"><h2>Gezinsleden & bestelling</h2><span class="bh-count">' + (registration.members || []).length + '</span></header>' +
         ((registration.members || []).length ? '<div class="bh-members">' + renderMemberEditor(registration) + '</div>' : '<p class="bh-empty">Nog geen gezinsleden. Het gezin kan ze zelf toevoegen, of je voegt ze hier toe.</p>') +
-        '<form id="add-member-form" class="bh-form-grid bh-form-compact"><label>Naam<input name="memberName" maxlength="80" placeholder="Voornaam en naam" required></label><label>Categorie<select name="memberType"><option value="Volwassene">Volwassene (18+)</option><option value="Kind">Kind</option></select></label><button type="submit" class="bh-btn">+ Persoon toevoegen</button></form>' +
+        '<form id="add-member-form" class="bh-form-grid bh-form-compact"><label>Naam<input name="memberName" maxlength="80" placeholder="Voornaam en naam" required></label><label>Categorie<select name="memberType">' + typeOptions("Volwassene") + '</select></label><button type="submit" class="bh-btn">+ Persoon toevoegen</button></form>' +
       '</section>' +
       '<div class="bh-stack">' +
         '<section class="bh-card"><header class="bh-card-head"><h2>Afrekening</h2>' + statusChip() + '</header>' + settlement + '</section>' +
@@ -307,7 +309,7 @@ function renderBar() {
   const bar = barBalance(regs, state.expenses || []);
   const cards = regs.map(reg => {
     const familyBar = (reg.members || []).reduce((s, p) => s + barOf(p), 0);
-    const rows = (reg.members || []).map(person => '<div class="bh-stepper-row"><span>' + esc(person.name) + (person.type === "Kind" ? ' <small class="bh-muted">(kind)</small>' : "") + '</span><label class="bh-bar-amount"><span aria-hidden="true">€</span><input type="number" min="0" step="0.01" inputmode="decimal" value="' + (barOf(person) ? (barOf(person) / 100).toFixed(2) : "") + '" placeholder="0,00" data-bar-input data-registration="' + esc(reg.id) + '" data-person="' + esc(person.id) + '" aria-label="Barrekening van ' + esc(person.name) + '"></label></div>').join("");
+    const rows = (reg.members || []).map(person => '<div class="bh-stepper-row"><span>' + esc(person.name) + (person.type !== "Volwassene" ? ' <small class="bh-muted">(' + (person.type === EVENING ? "avondgast" : "kind") + ')</small>' : "") + '</span><label class="bh-bar-amount"><span aria-hidden="true">€</span><input type="number" min="0" step="0.01" inputmode="decimal" value="' + (barOf(person) ? (barOf(person) / 100).toFixed(2) : "") + '" placeholder="0,00" data-bar-input data-registration="' + esc(reg.id) + '" data-person="' + esc(person.id) + '" aria-label="Barrekening van ' + esc(person.name) + '"></label></div>').join("");
     return '<details class="bh-member"' + (familyBar ? "" : " open") + '><summary><span class="bh-avatar bh-avatar-sm">' + esc((reg.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(reg.name) + '</strong><small>' + plural((reg.members || []).length, "persoon", "personen") + '</small></span><span class="bh-chip' + (familyBar ? " bh-chip-ok" : "") + '">🍺 ' + euro(familyBar) + '</span><i class="bh-chev" aria-hidden="true">›</i></summary><div class="bh-member-body">' + (rows || '<p class="bh-empty">Nog geen gezinsleden.</p>') + '</div></details>';
   }).join("");
   return pageHead("Bar", "Na het feest: vul per persoon het bedrag van zijn of haar barrekening in. Dat bedrag komt rechtstreeks op de afrekening van dat gezin.") +
@@ -335,7 +337,7 @@ function renderOrder() {
   const body = regs.map(reg => {
     const members = reg.members || [];
     const cells = products.map(product => { const c = countFor(members, product.id); return '<td>' + (c || '<span class="bh-dim">–</span>') + '</td>'; }).join("");
-    const memberRows = members.map(person => '<tr class="bh-sub-row"><td>' + esc(person.name) + (person.type === "Kind" ? ' <small>(kind)</small>' : "") + '</td>' + products.map(product => { const c = Number(person.orders?.[product.id]) || 0; return '<td>' + (c || '<span class="bh-dim">–</span>') + '</td>'; }).join("") + '<td>' + portionsOf(person) + '</td></tr>').join("");
+    const memberRows = members.map(person => '<tr class="bh-sub-row"><td>' + esc(person.name) + (person.type !== "Volwassene" ? ' <small>(' + (person.type === EVENING ? "avondgast" : "kind") + ')</small>' : "") + '</td>' + products.map(product => { const c = Number(person.orders?.[product.id]) || 0; return '<td>' + (c || '<span class="bh-dim">–</span>') + '</td>'; }).join("") + '<td>' + portionsOf(person) + '</td></tr>').join("");
     return '<tbody class="bh-group"><tr class="bh-group-row"><th scope="row"><button type="button" class="bh-link" data-action="open-family" data-id="' + esc(reg.id) + '">' + esc(reg.name) + '</button></th>' + cells + '<td><b>' + familyPortions(reg) + '</b></td></tr>' + memberRows + '</tbody>';
   }).join("");
   const foot = '<tfoot><tr><th>Totaal</th>' + products.map(product => '<th>' + countFor(allMembers, product.id) + '</th>').join("") + '<th>' + total + '</th></tr></tfoot>';
@@ -516,21 +518,21 @@ function renderUserFamily(family) {
   if (registration) state.managingRegistrationId = registration.id; // member handlers act on this
   const members = registration ? registration.members || [] : (latest?.members || []);
   const rows = members.map((person, index) => registration && state.editingAdminMemberIndex === index
-    ? '<li><form id="edit-admin-member-form" data-index="' + index + '" class="bh-member-edit"><input name="memberName" maxlength="80" value="' + esc(person.name) + '" aria-label="Naam" required><select name="memberType" aria-label="Categorie"><option value="Volwassene"' + (person.type === "Volwassene" ? " selected" : "") + '>Volwassene (18+)</option><option value="Kind"' + (person.type === "Kind" ? " selected" : "") + '>Kind</option></select>' + dietFields(person) + '<div class="bh-actions"><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-edit-admin-member">Annuleren</button></div></form></li>'
-    : '<li><span class="bh-person"><span class="bh-avatar bh-avatar-sm">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(person.name) + '</strong><small>' + (person.type === "Kind" ? "Kind" : "Volwassene (18+)") + '</small>' + dietChips(person) + '</span></span>' +
+    ? '<li><form id="edit-admin-member-form" data-index="' + index + '" class="bh-member-edit"><input name="memberName" maxlength="80" value="' + esc(person.name) + '" aria-label="Naam" required><select name="memberType" aria-label="Categorie">' + typeOptions(person.type) + '</select>' + dietFields(person) + '<div class="bh-actions"><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-edit-admin-member">Annuleren</button></div></form></li>'
+    : '<li><span class="bh-person"><span class="bh-avatar bh-avatar-sm">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="bh-family-name"><strong>' + esc(person.name) + '</strong><small>' + esc(typeLabel(person.type)) + '</small>' + dietChips(person) + '</span></span>' +
       (registration ? '<span class="bh-line-end"><button type="button" class="bh-btn bh-btn-sm" data-action="edit-member" data-index="' + index + '">Wijzigen</button><button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="delete-member" data-index="' + index + '">Verwijderen</button></span>' : "") + '</li>').join("");
   const adults = members.filter(p => p.type === "Volwassene").length;
   const name = registration?.name || family.name;
   const membersCard = '<section class="bh-card"><header class="bh-card-head"><h2>Gezinsleden</h2><span class="bh-count">' + members.length + '</span></header>' +
     (registration ? "" : '<p class="bh-note">' + (latest ? "Zoals bij de laatste inschrijving (" + esc(latest.event) + " " + esc(latest.edition) + "). " : "") + 'Niet ingeschreven voor ' + esc(eventTitle()) + '.</p>') +
     (members.length ? '<ul class="bh-lines bh-people">' + rows + '</ul>' : '<p class="bh-empty">Nog geen gezinsleden.</p>') +
-    (registration ? '<form id="add-member-form" class="bh-form-grid bh-form-compact"><label>Naam<input name="memberName" maxlength="80" placeholder="Voornaam en naam" required></label><label>Categorie<select name="memberType"><option value="Volwassene">Volwassene (18+)</option><option value="Kind">Kind</option></select></label><button type="submit" class="bh-btn">+ Persoon toevoegen</button></form>'
+    (registration ? '<form id="add-member-form" class="bh-form-grid bh-form-compact"><label>Naam<input name="memberName" maxlength="80" placeholder="Voornaam en naam" required></label><label>Categorie<select name="memberType">' + typeOptions("Volwassene") + '</select></label><button type="submit" class="bh-btn">+ Persoon toevoegen</button></form>'
       : (state.editionStatus === "archived" ? "" : '<button type="button" class="bh-btn bh-btn-primary" data-action="register-family" data-id="' + esc(family.id) + '">Inschrijven voor ' + esc(eventTitle()) + '</button>')) + '</section>';
   return '<button type="button" class="bh-back" data-action="close-user-family">‹ Alle gezinnen</button>' +
     '<header class="bh-page-head"><div>' +
       (registration && state.beheerRenaming ? '<form id="rename-registration-form" data-id="' + esc(registration.id) + '" class="bh-rename"><input name="registrationName" maxlength="80" value="' + esc(name) + '" aria-label="Naam gezin" required><button type="submit" class="bh-btn bh-btn-primary">Bewaren</button><button type="button" class="bh-btn" data-action="cancel-rename">Annuleren</button></form>'
         : '<h1>' + esc(name) + (registration ? ' <button type="button" class="bh-icon-btn" data-action="rename-registration" aria-label="Naam wijzigen">✎</button>' : "") + '</h1>') +
-      '<p>' + plural(adults, "volwassene", "volwassenen") + ' · ' + plural(members.length - adults, "kind", "kinderen") + '</p></div><div class="bh-page-actions">' + accessChip(family.id) + '</div></header>' +
+      '<p>' + countsText(members) + '</p></div><div class="bh-page-actions">' + accessChip(family.id) + '</div></header>' +
     '<div class="bh-grid-2">' + membersCard +
       '<div class="bh-stack">' +
         '<section class="bh-card"><header class="bh-card-head"><h2>Toegang</h2></header>' + renderAccess(family.id) + '</section>' +
@@ -548,7 +550,7 @@ function renderUserFamilies() {
     const editions = (family.registrations || []).map(reg => '<span class="bh-chip' + (reg.editionId === state.activeEditionId ? " bh-chip-info" : "") + '">' + esc(reg.event + " " + reg.edition) + '</span>').join("");
     return '<li><button type="button" class="bh-family-row bh-family-row-user" data-action="open-user-family" data-id="' + esc(family.id) + '">' +
       '<span class="bh-avatar">' + esc((family.name || "?").charAt(0).toUpperCase()) + '</span>' +
-      '<span class="bh-family-name"><strong>' + esc(registration?.name || family.name) + '</strong><small>' + (members.length ? plural(adults, "volwassene", "volwassenen") + " · " + plural(members.length - adults, "kind", "kinderen") : "Leden nog niet ingevuld") + '</small></span>' +
+      '<span class="bh-family-name"><strong>' + esc(registration?.name || family.name) + '</strong><small>' + (members.length ? countsText(members) : "Leden nog niet ingevuld") + '</small></span>' +
       '<span class="bh-family-chips">' + accessChip(family.id) + (editions || '<span class="bh-chip bh-chip-muted">Niet ingeschreven</span>') + '</span>' +
       '<i class="bh-chev" aria-hidden="true">›</i></button></li>';
   }).join("");

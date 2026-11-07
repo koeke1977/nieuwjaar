@@ -209,7 +209,7 @@ export async function startFamilyAuth() {
     if (action === "quantity") {
       const person = members.find(entry => entry.id === control.dataset.person);
       const product = control.dataset.product;
-      if (!person || !item.catalog.some(entry => entry.id === product)) return;
+      if (!person || person.type === "Avondgast" || !item.catalog.some(entry => entry.id === product)) return;
       person.orders = person.orders || {};
       person.orders[product] = Math.max(0, Math.min(99, (Number(person.orders[product]) || 0) + Number(control.dataset.delta)));
       render();
@@ -282,7 +282,7 @@ export async function startFamilyAuth() {
     if (!item || item.accessRole === "viewer") return;
     const name = event.target.elements.memberName.value.trim();
     const type = event.target.elements.memberType.value;
-    if (!name || !["Volwassene", "Kind"].includes(type)) return;
+    if (!name || !["Volwassene", "Kind", "Avondgast"].includes(type)) return;
     const members = item.registration.members || (item.registration.members = []);
     if (addForm) {
       if (members.length >= 30) { feedback("Een inschrijving kan maximaal 30 personen bevatten."); return; }
@@ -291,6 +291,7 @@ export async function startFamilyAuth() {
       const person = members.find(entry => entry.id === editForm.dataset.editMember);
       if (!person) return;
       person.name = name; person.type = type;
+      if (type === "Avondgast") person.orders = {}; // evening guests order no meat
       const diet = [...editForm.querySelectorAll('input[name="diet"]:checked')].map(input => input.value);
       const notes = (editForm.elements.notes?.value || "").trim();
       if (diet.length) person.diet = diet; else delete person.diet;

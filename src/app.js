@@ -3,6 +3,7 @@ import { state } from "./data/demo-data.js";
 import { renderBeheer, normalizeSection, setBeheerAccounts, setBeheerFamilies, MESSAGE_TEMPLATES, barBalance } from "./pages/beheer/beheer-view.js";
 import "./pages/beheer/beheer.css";
 import { money } from "./utils/format.js";
+import { isMemberType, EVENING } from "./utils/member-types.js";
 import { getExpenseShares, getFinancialSummary } from "./utils/finance.js";
 import { loadAdminState, loadEdition, loadEvents, saveAdminState, refreshAdminStateIfChanged, startNextEdition, createEvent } from "./services/admin-state.js";
 
@@ -216,7 +217,7 @@ function handleClick(event) {
     const registration = state.registrations.find(item => item.id === action.dataset.registration);
     const person = registration?.members?.find(item => item.id === action.dataset.person);
     const product = state.catalog.find(item => item.id === action.dataset.product);
-    if (!person || !product) return;
+    if (!person || !product || person.type === EVENING) return;
     person.orders = person.orders || {};
     person.orders[product.id] = Math.max(0, Math.min(99, (Number(person.orders[product.id]) || 0) + Number(action.dataset.delta)));
     markCostsProvisional(); renderApp(); return;
@@ -454,7 +455,7 @@ async function handleSubmit(event) {
     event.preventDefault();
     const registration = state.registrations.find(item => item.id === state.managingRegistrationId);
     const name = form.elements.memberName.value.trim(), type = form.elements.memberType.value;
-    if (!registration || !name || !["Volwassene", "Kind"].includes(type)) return;
+    if (!registration || !name || !isMemberType(type)) return;
     registration.members = registration.members || [];
     if (registration.members.length >= 30) { window.alert("Een inschrijving kan maximaal 30 personen bevatten."); return; }
     registration.members.push({ id: makeId("lid"), name, type, orders: Object.fromEntries(state.catalog.map(product => [product.id, 0])) });
@@ -466,8 +467,9 @@ async function handleSubmit(event) {
     const registration = state.registrations.find(item => item.id === state.managingRegistrationId);
     const member = registration?.members?.[Number(form.dataset.index)];
     const name = form.elements.memberName.value.trim(), type = form.elements.memberType.value;
-    if (!member || !name || !["Volwassene", "Kind"].includes(type)) { window.alert("Vul een geldige naam in en kies Volwassene of Kind."); return; }
+    if (!member || !name || !isMemberType(type)) { window.alert("Vul een geldige naam in en kies een categorie."); return; }
     member.name = name; member.type = type;
+    if (type === EVENING) member.orders = {}; // evening guests order no meat
     const diet = [...form.querySelectorAll('input[name="diet"]:checked')].map(input => input.value);
     const notes = (form.elements.notes?.value || "").trim();
     if (diet.length) member.diet = diet; else delete member.diet;
