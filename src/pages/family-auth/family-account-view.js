@@ -61,9 +61,35 @@ function renderOverview(item) {
     (members.length ? "" : '<p class="fa-empty">Voeg eerst jullie gezinsleden toe via <button type="button" class="fa-inline-link" data-tab-target="family">Gezin</button>.</p>');
 }
 
+const SHORT_LABEL = { general: "Algemeen", adults: "18+", meat: "Vlees" };
+
+// Per-person cost from the server breakdown; null while a new person is not yet saved.
+function memberCost(item, personId) {
+  const finance = item.finance;
+  if (!finance?.expenses?.length) return null;
+  return finance.members.find(member => member.id === personId) || null;
+}
+
+function memberCostDetail(item, person) {
+  const cost = memberCost(item, person.id);
+  if (!cost) return "";
+  const parts = item.finance.categories.map(category => {
+    if (category.method === "adults" && person.type !== "Volwassene") return "";
+    return '<span>' + SHORT_LABEL[category.method] + ' <b>' + euro(cost.byMethod[category.method]) + '</b></span>';
+  }).filter(Boolean).join("");
+  return parts ? '<div class="fa-cost-parts">' + parts + '</div>' : "";
+}
+
+function memberCostTotal(item, person) {
+  const cost = memberCost(item, person.id);
+  if (!item.finance?.expenses?.length) return "";
+  return '<strong class="fa-member-total">' + (cost ? euro(cost.totalCents) : "…") + '</strong>';
+}
+
 function renderFamily(item, view) {
   const members = item.registration.members || [];
   const readOnly = item.accessRole === "viewer";
+  const hasCosts = Boolean(item.finance?.expenses?.length);
   const rows = members.map((person, index) => {
     if (!readOnly && view.editingMemberId === person.id) {
       return '<form class="fa-member fa-member-edit" data-edit-member="' + esc(person.id) + '">' +
@@ -72,13 +98,17 @@ function renderFamily(item, view) {
         '<div class="fa-row-actions"><button type="submit" class="fa-btn fa-btn-primary">Bewaren</button><button type="button" class="fa-btn" data-action="cancel-edit-member">Annuleren</button></div></form>';
     }
     return '<div class="fa-member"><span class="fa-avatar">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span>' +
-      '<div class="fa-member-name"><strong>' + esc(person.name) + '</strong><small>' + esc(typeLabel(person.type)) + '</small></div>' +
+      '<div class="fa-member-name"><strong>' + esc(person.name) + '</strong><small>' + esc(typeLabel(person.type)) + ' · ' + plural(portionsOf(person), UNITS.meat) + '</small>' + memberCostDetail(item, person) + '</div>' +
+      memberCostTotal(item, person) +
       (readOnly ? "" : '<div class="fa-row-actions"><button type="button" class="fa-btn fa-btn-small" data-action="edit-member" data-person="' + esc(person.id) + '">Wijzigen</button>' +
         (members.length > 1 ? '<button type="button" class="fa-btn fa-btn-small fa-btn-quiet" data-action="remove-member" data-index="' + index + '" aria-label="' + esc(person.name) + ' verwijderen">Verwijderen</button>' : "") + '</div>') +
       '</div>';
   }).join("");
-  return '<div class="fa-section-head"><h3>Wie komt er?</h3><p>Volwassenen (18+) delen ook in de kosten die alleen voor volwassenen zijn. Kinderen betalen die nooit.</p></div>' +
-    '<div class="fa-list">' + (rows || '<p class="fa-empty">Nog geen gezinsleden toegevoegd.</p>') + '</div>' +
+  const familyTotal = hasCosts
+    ? '<div class="fa-family-total"><span>Totaal voor het gezin' + (item.finance.finalized ? "" : " <small>(voorlopig)</small>") + '</span><strong>' + euro(item.finance.totals.shareCents) + '</strong></div>'
+    : "";
+  return '<div class="fa-section-head"><h3>Wie komt er?</h3><p>Per persoon zie je wat die kost: vlees volgens de eigen bestelling, algemene kosten voor iedereen en 18+-kosten alleen voor volwassenen.</p></div>' +
+    '<div class="fa-list">' + (rows || '<p class="fa-empty">Nog geen gezinsleden toegevoegd.</p>') + '</div>' + familyTotal +
     (readOnly ? '<p class="fa-muted">Je hebt leesrechten voor deze inschrijving.</p>'
       : '<form class="fa-add" data-add-member><label class="fa-label" for="fa-new-name">Persoon toevoegen</label><div class="fa-add-grid"><input id="fa-new-name" name="memberName" placeholder="Voornaam en naam" maxlength="80" required><select name="memberType" aria-label="Categorie"><option value="Volwassene">Volwassene (18+)</option><option value="Kind">Kind</option></select><button type="submit" class="fa-btn fa-btn-primary">+ Toevoegen</button></div></form>');
 }
@@ -104,7 +134,7 @@ function renderOrder(item, view) {
     }).join("");
     const portions = portionsOf(person);
     const open = view.openPeople ? view.openPeople.has(person.id) : members.length <= 2;
-    return '<details class="fa-order-person" data-order-person="' + esc(person.id) + '"' + (open ? " open" : "") + '><summary><span class="fa-avatar">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="fa-member-name"><strong>' + esc(person.name) + '</strong><small>' + esc(typeLabel(person.type)) + '</small></span><span class="fa-pill">' + plural(portions, UNITS.meat) + '</span></summary><div class="fa-steppers">' + controls + '</div></details>';
+    return '<details class="fa-order-person" data-order-person="' + esc(person.id) + '"' + (open ? " open" : "") + '><summary><span class="fa-avatar">' + esc((person.name || "?").charAt(0).toUpperCase()) + '</span><span class="fa-member-name"><strong>' + esc(person.name) + '</strong><small>' + esc(typeLabel(person.type)) + '<span class="fa-portions-inline"> · ' + plural(portions, UNITS.meat) + '</span></small></span><span class="fa-pill">' + plural(portions, UNITS.meat) + '</span>' + memberCostTotal(item, person) + '</summary><div class="fa-steppers">' + controls + '</div></details>';
   }).join("");
   return '<div class="fa-section-head"><h3>Jullie vleesbestelling</h3><p>Totaal voor het gezin: <strong>' + plural(familyTotal, UNITS.meat) + '</strong>. Het vlees wordt verrekend volgens het aantal porties.</p></div>' +
     '<div class="fa-products">' + productCards + '</div>' +

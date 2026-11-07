@@ -98,6 +98,16 @@
 .fa-add-grid { display: grid; grid-template-columns: minmax(0, 1fr) 190px auto; gap: 8px; }
 .fa-pill { flex: 0 0 auto; padding: 5px 10px; border-radius: 999px; background: var(--fa-card); border: 1px solid var(--fa-line); color: var(--fa-muted); font-size: 12px; font-weight: 700; }
 
+.fa-member-total { flex: 0 0 auto; font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fa-cost-parts { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; }
+.fa-cost-parts span { padding: 2px 8px; border-radius: 999px; background: var(--fa-card); border: 1px solid var(--fa-line); color: var(--fa-muted); font-size: 12px; }
+.fa-cost-parts b { color: var(--fa-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.fa-portions-inline { display: none; }
+@media (max-width: 480px) { .fa-order-person .fa-pill { display: none; } .fa-portions-inline { display: inline; } }
+.fa-family-total { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; background: var(--fa-gold-soft); font-weight: 700; }
+.fa-family-total small { color: #80622a; font-weight: 600; }
+.fa-family-total strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+
 /* Order */
 .fa-products { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .fa-product { display: grid; min-width: 0; overflow: hidden; border: 1px solid var(--fa-line); border-radius: 14px; background: var(--fa-card); }
