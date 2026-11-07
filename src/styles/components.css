@@ -1,185 +1,178 @@
 /* Algemene layout en herbruikbare componenten */
-.topbar{height:76px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 max(24px,calc((100vw - 1180px)/2));box-shadow:0 2px 12px #0e1b2a18}.brand{display:flex;align-items:center;gap:11px;color:inherit;text-decoration:none}.brand-mark{width:40px;height:40px;border-radius:12px;background:var(--gold);display:grid;place-items:center;color:var(--navy);font-size:25px}.brand strong{display:block;font:800 14px Manrope,sans-serif;letter-spacing:1.4px}.brand small{display:block;color:#bac5d1;font-size:10px;letter-spacing:1px;margin-top:3px}.topbar-right{display:flex;align-items:center;gap:18px}.edition-pill{font-size:12px;color:#dce4ec}.edition-pill i{display:inline-block;width:7px;height:7px;background:#55c58a;border-radius:50%;margin-right:7px}.avatar{width:36px;height:36px;border:1px solid #ffffff45;border-radius:50%;background:#ffffff16;color:white}
-.shell{max-width:1180px;margin:28px auto;padding:0 24px}.console-switch{display:flex;gap:5px;background:#e9edf1;padding:5px;border-radius:12px;width:max-content;margin-bottom:22px}.console-switch button{border:0;background:transparent;color:#657181;padding:10px 18px;border-radius:9px;font-size:13px;font-weight:600}.console-switch button.selected{background:white;color:#172638;box-shadow:0 1px 4px #18263812}.workspace{display:grid;grid-template-columns:205px minmax(0,1fr);gap:26px;align-items:start}.side-nav{display:flex;flex-direction:column;gap:5px;position:sticky;top:18px}.side-nav button{border:0;background:transparent;color:#697586;text-align:left;padding:12px 14px;border-radius:10px;font-size:13px;display:flex;gap:12px;align-items:center}.side-nav button span{font-size:17px;width:20px;text-align:center}.side-nav button.active{background:#fff;color:#172638;font-weight:700;box-shadow:0 2px 8px #1726380b}.content{min-width:0;display:flex;flex-direction:column;gap:18px}
-.welcome{background:var(--navy);color:white;border-radius:18px;padding:28px 30px;display:flex;align-items:center;justify-content:space-between;overflow:hidden;position:relative}.welcome:after{content:"";position:absolute;width:220px;height:220px;border:1px solid #ffffff13;border-radius:50%;right:70px;top:-130px}.welcome h1,.page-heading h1{font:800 27px Manrope,sans-serif;margin:5px 0 7px;letter-spacing:-.5px}.welcome p:not(.eyebrow){margin:0;color:#c7d0da;font-size:13px}.eyebrow{font-size:10px;font-weight:700;letter-spacing:1.5px;color:#d4ad62;margin:0}.welcome-icon{font-size:42px;z-index:1;margin-right:20px}
-.stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.stat-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;min-width:0}.stat-card strong{display:block;font:800 23px Manrope,sans-serif;margin:10px 0 2px;overflow-wrap:anywhere}.stat-card small{font-size:11px;color:var(--muted)}.stat-icon{display:grid;place-items:center;width:31px;height:31px;border-radius:9px;background:#f4f0e7;color:#94702c;font-weight:700}
-.panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 24px;box-shadow:0 3px 12px #17263805}.section-heading{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:15px}.section-heading h2,.panel h2{font:700 16px Manrope,sans-serif;margin:0}.section-heading h3{font:700 13px Manrope,sans-serif;margin:0}.section-heading p,.page-heading p:not(.eyebrow){font-size:12px;color:var(--muted);margin:5px 0 0}
-.status{font-size:10px;font-weight:700;padding:5px 9px;border-radius:30px;white-space:nowrap}.success{color:#137a4b;background:#e4f5ec}.warning{color:#9a6814;background:#fff2d8}.neutral{color:#687384;background:#eef1f4}
-.member-list,.order-list,.payment-list{display:flex;flex-direction:column}.member-row{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid #f0f1f3}.person-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#f0f2f4;color:#667282;font-size:13px;font-weight:700}.member-name{display:flex;flex-direction:column;gap:2px;flex:1}.member-name strong,.order-row strong{font-size:12px}.member-name small{font-size:10px;color:var(--muted)}.check{color:var(--green);font-weight:700}
-.button{border-radius:9px;padding:10px 14px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:10px;border:1px solid transparent}.button-outline{background:#fff;border-color:#dfe4e9;color:#536071}.button-dark{background:#111;color:#fff}.button-small{padding:7px 11px;font-size:11px}.full{width:100%;margin-top:14px}.order-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:9px 2px}.order-row>span{font-size:11px;color:#657181}
-.family-meat{background:#f7f8fa;border-radius:12px;padding:15px;margin:12px 0}.family-meat .section-heading{margin-bottom:10px}.total-number{font-size:12px;color:#172638}.meat-chips{display:flex;flex-wrap:wrap;gap:7px}.meat-chips span{font-size:10px;background:#fff;border:1px solid #e9edf0;padding:7px 9px;border-radius:8px;color:#586474}.meat-chips b{margin-left:9px;color:#172638}
-.balance-lines{display:flex;flex-direction:column;gap:12px}.balance-lines>div,.payment-summary>div{display:flex;justify-content:space-between;gap:10px;font-size:12px}.balance-lines span,.payment-summary span{color:var(--muted)}.balance-total{border-top:1px solid var(--line);margin-top:15px;padding-top:14px;display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:700}.positive{color:var(--green)}.bring-card{margin-top:17px;padding:16px;border-radius:12px;background:#f8f3e8;display:flex;align-items:center;justify-content:space-between}.bring-card small{font-size:9px;font-weight:700;letter-spacing:1px;color:#886b32}.bring-card strong{display:block;font:800 25px Manrope,sans-serif;margin:4px 0}.bring-card p{margin:0;font-size:10px;color:#8a7b5d}.bring-icon{font-size:27px}
-.page-heading{padding:5px 2px 2px}.page-heading h1{color:#172638}.page-heading p:not(.eyebrow){margin-top:4px}.admin-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}.data-table{margin:8px 0 17px}.data-table>div{display:flex;justify-content:space-between;padding:10px 3px;border-bottom:1px solid #eff1f3;font-size:12px}.data-table strong{font-variant-numeric:tabular-nums}.data-table .table-total{font-weight:800;border-bottom:0;padding-top:13px}
-.payment-summary{display:flex;flex-direction:column;gap:13px;margin:20px 0}.payment-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid #eff1f3}.payment-person{display:flex;flex-direction:column;gap:4px}.payment-person strong{font-size:12px}.payment-person small{font-size:10px;color:var(--muted)}.payment-right{display:flex;align-items:center;gap:9px}
-.settlement-zero{border-radius:12px;background:#eaf6ef;padding:17px;display:grid;grid-template-columns:1fr auto;align-items:center}.settlement-zero span{font-size:12px;font-weight:700}.settlement-zero strong{font:800 23px Manrope,sans-serif;color:var(--green)}.settlement-zero small{grid-column:1/-1;color:#58806a;font-size:10px;margin-top:5px}.rule-list{display:flex;flex-direction:column;gap:12px;margin-top:16px}.rule-list div{display:flex;flex-direction:column;gap:3px;padding:12px;background:#f7f8fa;border-radius:9px}.rule-list b{font-size:12px}.rule-list span,.muted{font-size:11px;color:var(--muted)}.text-button{border:0;background:transparent;color:#8a6b32;font-size:11px}
+
+.content{min-width:0;display:flex;flex-direction:column;gap:18px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:1.5px;color:#d4ad62;margin:0}
+
+.panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 24px;box-shadow:0 3px 12px #17263805}.panel h2{font:700 16px Manrope,sans-serif;margin:0}
+.status{font-size:10px;font-weight:700;padding:5px 9px;border-radius:30px;white-space:nowrap}.success{color:#137a4b;background:#e4f5ec}
+
+.button{border-radius:9px;padding:10px 14px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:10px;border:1px solid transparent}.button-dark{background:#111;color:#fff}.full{width:100%;margin-top:14px}
+
+
+
+
+
 footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{padding:0 5px}
 
 
 /* Visuele vleescatalogus */
-.meat-catalog{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin:18px 0}
-.meat-card{min-width:0;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#fff}
-.meat-card-image{height:132px;background:#f1f3f5;overflow:hidden}
-.meat-card-image img,.catalog-admin-thumb img{width:100%;height:100%;object-fit:contain;display:block;box-sizing:border-box;padding:7px}
-.meat-card-image{background:#f8f9fa}
-.meat-placeholder{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#9aa3ad;background:linear-gradient(135deg,#f5f6f7,#e9edf0)}
-.meat-placeholder span{font-size:30px;color:#aeb6bf}
-.meat-placeholder small{font-size:10px}
-.meat-card-info{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:10px 10px 5px}
-.meat-card-info strong{font-size:12px}.meat-card-info>span{font-size:10px;color:var(--muted);white-space:nowrap}
-.quantity-control{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:5px 10px 10px}
-.quantity-control button{width:25px;height:25px;border:1px solid var(--line);border-radius:7px;background:#f7f8fa;color:#9aa3ad}
-.quantity-control strong{font-size:12px;min-width:12px;text-align:center}
-.catalog-admin-list{display:flex;flex-direction:column}
-.catalog-admin-row{display:flex;align-items:center;gap:13px;padding:12px 0;border-bottom:1px solid #eff1f3}
-.catalog-admin-thumb{width:64px;height:54px;flex:0 0 64px;border-radius:9px;overflow:hidden;background:#f0f2f4;display:grid;place-items:center;color:#aab2bc;font-size:22px}
-.catalog-admin-name{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}
-.catalog-admin-name strong{font-size:12px}.catalog-admin-name small{font-size:10px;color:var(--muted)}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 .catalog-admin-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.catalog-add-form{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
-.catalog-add-form>label{display:block;font-size:12px;font-weight:700;margin-bottom:8px}
-.catalog-add-form>div{display:flex;gap:9px}
-.catalog-add-form input{flex:1;min-width:0;border:1px solid #dfe4e9;border-radius:9px;padding:10px 12px;font:inherit;font-size:12px}
-.catalog-note{margin:15px 0 0;padding:11px 12px;border-radius:9px;background:#f7f8fa;color:var(--muted);font-size:10px;line-height:1.5}
+
+
+
+
+
 @media(max-width:650px){
-  .meat-catalog{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
-  .meat-card-image{height:112px}
-  .catalog-admin-row{align-items:flex-start;flex-wrap:wrap}
-  .catalog-admin-name{padding-top:5px}
+  
+  
+  
+  
   .catalog-admin-actions{width:100%;justify-content:flex-start;padding-left:77px}
-  .catalog-add-form>div{flex-direction:column}
+  
 }
 
 
 /* Individuele vleesbestelling */
-.person-order-editor{margin:0 0 12px 42px;padding:13px;background:#f7f8fa;border:1px solid var(--line);border-radius:11px}.person-order-editor>p{margin:0 0 10px;font-size:11px;color:var(--muted)}.person-order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 14px;margin-bottom:12px}.person-order-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #e9edf0}.person-order-item>span{font-size:11px;font-weight:600}.person-order-item .quantity-control{padding:0;gap:8px}.person-order-item .quantity-control button{width:27px;height:27px;cursor:pointer}.person-order-item .quantity-control button:disabled{opacity:.35;cursor:not-allowed}.quantity-summary{justify-content:flex-start;padding-top:3px}.quantity-summary strong{font-size:10px;color:var(--muted);font-weight:500}.person-order-block{border-bottom:1px solid #eff1f3}.person-order-block .order-row{border:0}.person-order-editor .button{margin-top:2px}
-@media(max-width:650px){.person-order-grid{grid-template-columns:1fr}.person-order-editor{margin-left:0}}
+
+
 
 /* Deelnemersbeheer */
-.registration-list{display:flex;flex-direction:column}.registration-row{display:flex;align-items:center;gap:14px;padding:12px 2px;border-bottom:1px solid #eff1f3}.registration-name{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.registration-name strong{font-size:12px}.registration-name small{font-size:10px;color:var(--muted)}.registration-total{min-width:25px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}.registration-form-grid{display:grid;grid-template-columns:minmax(180px,1fr) 95px 95px auto;gap:9px}.registration-form-grid input{min-width:0;border:1px solid #dfe4e9;border-radius:9px;padding:10px 12px;font:inherit;font-size:12px}
-@media(max-width:650px){.registration-form-grid{grid-template-columns:1fr 1fr}.registration-form-grid input:first-child{grid-column:1/-1}.registration-form-grid button{grid-column:1/-1}.registration-row{gap:8px}.registration-row .button{padding:7px 8px}}
+
+
 
 
 /* Admin: bestellingen uitgesplitst per gezin en persoon */
-.order-family-block{padding:16px 0;border-top:1px solid var(--line)}
-.order-family-block:first-child{border-top:0}
-.order-family-block .section-heading{margin-bottom:10px}
-.order-detail-table-wrap{overflow-x:auto}
-.order-detail-table{width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap}
-.order-detail-table th,.order-detail-table td{padding:9px 10px;border-bottom:1px solid #eff1f3;text-align:center}
-.order-detail-table th:first-child,.order-detail-table td:first-child{text-align:left;position:sticky;left:0;background:#fff}
-.order-detail-table th:nth-child(2),.order-detail-table td:nth-child(2){text-align:left}
-.order-detail-table th{font-size:10px;color:var(--muted);font-weight:700;background:#f8f9fa}
-.order-detail-table td strong{font-size:11px}
-@media print{
-  .order-details-panel{break-before:page;box-shadow:none;border:0;padding:0}
-  .order-family-block{break-inside:avoid}
-  .order-detail-table-wrap{overflow:visible}
-  .order-detail-table{font-size:9pt;white-space:normal}
-  .order-detail-table th,.order-detail-table td{padding:6px 4px}
-  .order-detail-table th:first-child,.order-detail-table td:first-child{position:static}
-}
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* Gemeenschappelijke kosten en verdeelde voorschotten */
-.expense-form-grid{display:grid;grid-template-columns:1.3fr .7fr .8fr 1.2fr 1.2fr auto;gap:9px}
-.expense-form-grid input,.expense-form-grid select{min-width:0;border:1px solid #dfe4e9;border-radius:9px;padding:10px 9px;font:inherit;font-size:11px;background:#fff}
-.expense-list,.financial-summary-list{display:flex;flex-direction:column}
-.expense-row,.financial-summary-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:13px 0;border-bottom:1px solid #eff1f3;align-items:center}
-.expense-main,.financial-summary-row>div{display:flex;flex-direction:column;gap:4px;min-width:0}
-.expense-main strong,.financial-summary-row strong{font-size:12px}
-.expense-main small,.financial-summary-row small{font-size:10px;color:var(--muted)}
-.expense-shares{grid-column:1/-1;font-size:10px;color:var(--muted)}
-.expense-shares summary{cursor:pointer;width:max-content}
-.expense-shares>div{display:flex;flex-direction:column;gap:6px;padding:9px;background:#f7f8fa;border-radius:8px;margin-top:7px}
-.expense-shares span{display:flex;justify-content:space-between;gap:12px}
-.negative{color:#b44b45}
-@media(max-width:900px){.expense-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.expense-form-grid button{grid-column:1/-1}}
-@media(max-width:520px){.expense-form-grid{grid-template-columns:1fr}}
 
-.expense-actions{display:flex;align-items:center;gap:10px;margin-top:5px}.danger-text{color:#b44b45}
 
-.expense-edit-row{display:block;background:#faf9f6;border:1px solid #e8e5df;border-radius:12px;padding:14px;margin:12px 0}
-.expense-edit-row .expense-form-grid{grid-template-columns:1.3fr .7fr .8fr 1.2fr 1.2fr;}
-.expense-edit-actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
-@media(max-width:900px){.expense-edit-row .expense-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:520px){.expense-edit-row .expense-form-grid{grid-template-columns:1fr}.expense-edit-actions{flex-direction:column}}
 
-.payment-history{margin-top:8px;font-size:12px;color:#68717b}.payment-history summary{cursor:pointer}.payment-history>div{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #edf0f2}.payment-history>div span{flex:1}.payment-settlement-row{align-items:start}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* Inline bewerken van deelnemers, zonder promptvensters */
-.member-inline-edit{display:grid;grid-template-columns:minmax(120px,1fr) minmax(130px,.8fr) auto auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #eff1f3}
-.member-inline-edit input,.member-inline-edit select{width:100%;min-width:0;border:1px solid #dfe4e9;border-radius:9px;padding:9px 10px;font:inherit;font-size:12px;background:#fff;color:var(--ink,#172638)}
-.member-price{font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
-@media(max-width:650px){.member-inline-edit{grid-template-columns:1fr 1fr}.member-inline-edit input{grid-column:1/-1}.member-inline-edit button{width:100%}}
+
+
+
+
 
 
 /* Status van de voorlopige of definitieve kostenafrekening */
-.cost-finalization{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 16px;border:1px solid var(--line);border-radius:12px;margin:4px 0 18px}
-.cost-finalization>div{min-width:0}
-.cost-finalization strong{display:block;font:700 13px Manrope,sans-serif}
-.cost-finalization p{font-size:11px;color:var(--muted);margin:4px 0 0;line-height:1.5}
-.cost-finalization.is-provisional{background:#fffaf0;border-color:#f0dfb9}
-.cost-finalization.is-final{background:#f1f8f4;border-color:#cfe8d8}
-@media(max-width:600px){.cost-finalization{align-items:stretch;flex-direction:column}.cost-finalization button{width:100%}}
+
+
+
+
+
+
+
 
 
 /* Transparante uitsplitsing van gezins- en individuele afrekening */
-.settlement-family{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0;background:#fff}
-.settlement-family .financial-summary-row{border-bottom:1px solid #edf0f2;padding:4px 0 12px}
-.settlement-members{padding:10px 0 4px}
-.settlement-members-heading,.settlement-member-row,.settlement-family-footer{display:flex;align-items:center;justify-content:space-between;gap:14px}
-.settlement-members-heading{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:4px 0 7px}
-.settlement-member-row{font-size:12px;padding:7px 0;border-bottom:1px solid #f0f1f3}
-.settlement-member-row strong,.settlement-family-footer strong{font-variant-numeric:tabular-nums}
-.settlement-family-footer{padding-top:11px;margin-top:4px;font-size:12px;font-weight:700}
-.member-cost-breakdown{margin:18px 0;padding:14px;background:#f8f9fa;border-radius:12px}
-.member-cost-breakdown .section-heading{margin-bottom:8px}
-.member-cost-line{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #e9edf0;font-size:12px}
-.member-cost-line:last-child{border-bottom:0}
-.member-cost-line strong{font-variant-numeric:tabular-nums}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* Gescheiden test- en productieomgeving */
-.environment-panel{border-color:#e5d8bd;background:#fffdf8}
-.environment-switch{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.environment-switch button:disabled{opacity:.65;cursor:default}
-.environment-panel .catalog-note{margin-bottom:0}
-@media(max-width:600px){.environment-switch{align-items:stretch;flex-direction:column}.environment-switch button{width:100%}}
+
+
+
+
+
 
 
 /* Altijd zichtbare waarschuwing wanneer met testgegevens wordt gewerkt */
-.environment-notice{margin:0 0 16px;padding:10px 14px;border:1px solid #e8d6ac;border-radius:10px;background:#fff6df;color:#805d1f;font-size:11px;font-weight:700;letter-spacing:.15px}
+
 
 
 /* Jaarlijks editiebeheer en alleen-lezen archief */
-.edition-current-panel{border-color:#d8e8dc;background:#fbfefb}
-.edition-current-name{display:block;font:700 22px Manrope,sans-serif;color:var(--ink,#172638);margin:4px 0}
-.edition-create-form{display:grid;gap:10px;max-width:620px}
-.edition-create-form>label:not(.edition-copy-option){font-size:11px;font-weight:700;color:var(--muted)}
-.edition-create-form>input{width:100%;border:1px solid #dfe4e9;border-radius:9px;padding:11px 12px;font:inherit;font-size:13px;background:#fff;color:var(--ink,#172638)}
-.edition-copy-option{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;cursor:pointer}
-.edition-copy-option input{margin:3px 0 0;accent-color:#243b53}
-.edition-copy-option span{display:grid;gap:3px}
-.edition-copy-option strong{font-size:12px}
-.edition-copy-option small{font-size:10px;line-height:1.5;color:var(--muted)}
-.edition-create-form .catalog-note{margin:0 0 4px}
-.edition-create-form button{justify-self:start}
-.edition-archive-card{border:1px solid var(--line);border-radius:11px;padding:13px 15px;margin:10px 0;background:#fff}
-.edition-archive-card>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none}
-.edition-archive-card>summary::-webkit-details-marker{display:none}
-.edition-archive-card>summary>span:first-child{display:grid;gap:4px}
-.edition-archive-card>summary strong{font-size:13px}
-.edition-archive-card>summary small{font-size:10px;color:var(--muted)}
-.edition-archive-card h3{font:700 11px Manrope,sans-serif;margin:18px 0 7px}
-.edition-archive-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
-.edition-archive-stats>div{display:grid;gap:3px;padding:10px;background:#f7f8fa;border-radius:8px}
-.edition-archive-stats b{font-size:14px;font-variant-numeric:tabular-nums}
-.edition-archive-stats small{font-size:9px;color:var(--muted)}
-.edition-archive-lines>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #edf0f2;font-size:11px}
-.edition-archive-lines b{white-space:nowrap}
-@media(max-width:560px){.edition-create-form button{width:100%}.edition-archive-card>summary{align-items:flex-start;flex-direction:column}.edition-archive-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* Admin authentication */
@@ -191,67 +184,67 @@ footer{text-align:center;padding:28px;color:#98a1ad;font-size:10px}footer span{p
 .admin-login-card input{width:100%;min-height:46px;padding:10px 12px;border:1px solid #d9dde2;border-radius:10px;font:inherit}
 .admin-login-card input:focus{outline:2px solid #9db8e8;outline-offset:1px}
 .admin-login-card .admin-login-error{margin:0;color:#b42318;font-size:13px}
-.admin-login-back{display:block;margin-top:20px;text-align:center;color:var(--muted);font-size:13px}
-.admin-session-bar{display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:8px 0;color:var(--muted);font-size:12px}
+
+
 
 
 /* Persoonlijk gezinsportaal en uitnodigingslinks */
-.family-portal-shell{max-width:900px;margin:0 auto;padding:24px 18px}
-.family-portal-header{padding:20px 2px 12px}
-.family-portal-header h1{font:800 30px Manrope,sans-serif;color:var(--ink,#172638);margin:7px 0}
-.family-portal-header p:not(.eyebrow){color:var(--muted);font-size:13px}
-.family-add-grid{display:grid;grid-template-columns:minmax(0,1fr) 160px auto;gap:9px}
-.family-add-grid input,.family-add-grid select{min-width:0;border:1px solid #dfe4e9;border-radius:9px;padding:10px 12px;font:inherit;font-size:12px;background:#fff}
-.family-order-person{padding:14px 0;border-bottom:1px solid #eff1f3}
-.family-order-person h3{font:700 13px Manrope,sans-serif;margin:0 0 10px}
-.family-order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 16px}
-.family-order-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #edf0f2}
-.family-order-item>span{font-size:12px;font-weight:600}
-.family-order-item .quantity-control{padding:0;gap:9px}
-.family-order-item .quantity-control button{width:29px;height:29px;cursor:pointer}
-.family-save-status{position:sticky;bottom:12px;padding:12px 15px;background:#f1f6f2;border:1px solid #d8e9dc;border-radius:10px;color:#315d40;font-size:12px;font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,.06)}
-.family-invite-result{display:flex;gap:8px;align-items:center;padding:8px 12px 12px 42px}
-.family-invite-result input{flex:1;min-width:0;border:1px solid #dfe4e9;border-radius:8px;padding:8px 10px;font:inherit;font-size:11px;background:#f8f9fa}
-@media(max-width:650px){.family-add-grid{grid-template-columns:1fr}.family-order-grid{grid-template-columns:1fr}.family-invite-result{padding-left:0;flex-direction:column;align-items:stretch}.family-invite-result button{width:100%}.family-portal-header h1{font-size:25px}}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* Gezinsportaal: navigatie en compacte bestellingsbediening */
-.family-nav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 18px;padding:5px;background:#e9edf1;border-radius:12px}
-.family-nav button{display:flex;align-items:center;gap:8px;border:0;background:transparent;color:#657181;padding:10px 15px;border-radius:9px;font:600 12px Manrope,sans-serif;cursor:pointer}
-.family-nav button span{font-size:16px}.family-nav button.active{background:#fff;color:#172638;box-shadow:0 1px 4px #18263812}
-.family-portal-shell .content{gap:16px}.family-edit-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%}.family-edit-form input{flex:1;min-width:130px}
-.family-meat-catalog{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0 18px}
-.family-meat-catalog .meat-card-image{height:120px}
-.family-order-item{padding:8px 0}
-.family-quantity{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:3px;border:1px solid #e3e8ed;border-radius:10px;background:#f8fafb;flex:0 0 auto}
-.family-quantity button{display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:7px;background:#fff;color:#18324b;font-size:19px;line-height:1;box-shadow:0 1px 3px #17263818;cursor:pointer}
-.family-quantity button:last-child{background:#1d344d;color:#fff}
-.family-quantity button:disabled{opacity:.3;cursor:not-allowed}
-.family-quantity strong{min-width:24px;text-align:center;font:700 13px Manrope,sans-serif;font-variant-numeric:tabular-nums}
-.family-order-item>span{flex:1;min-width:0}
-.family-order-total{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:14px 16px;background:#f6f8fa;border-radius:11px;font-size:13px}
-.family-order-total b{font:800 20px Manrope,sans-serif;color:#1d344d}
-@media(max-width:650px){.family-meat-catalog{grid-template-columns:repeat(2,minmax(0,1fr))}.family-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.family-nav button{justify-content:center}.family-edit-form{align-items:stretch}.family-edit-form input{flex-basis:100%}}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* Vleeskeuze per gezinslid: product, foto en bediening blijven bij elkaar */
-.family-meat-panel{padding:22px}
-.family-person-order{margin:16px 0 0;padding:15px;border:1px solid #e8edf1;border-radius:14px;background:#fbfcfd}
-.family-person-heading{display:flex;align-items:center;gap:10px;padding:0 0 12px;border-bottom:1px solid #e9edf1}
-.family-person-heading .person-avatar{flex:0 0 36px;background:#f2eee5;color:#94702c}
-.family-person-heading>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}
-.family-person-heading h3{margin:0;font:700 14px Manrope,sans-serif;color:#172638}
-.family-person-heading small{font-size:11px;color:#7b8794}
-.family-person-count{padding:5px 9px;border-radius:20px;background:#edf3f7;color:#38536b;font-size:11px;font-weight:700;white-space:nowrap}
-.family-product-list{display:flex;flex-direction:column}
-.family-product-row{display:flex;align-items:center;gap:11px;min-height:62px;padding:8px 0;border-bottom:1px solid #edf0f2}
-.family-product-row:last-child{border-bottom:0}
-.family-product-thumb{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;overflow:hidden;border-radius:9px;background:#f0f2f4;color:#a3acb5;font-size:19px}
-.family-product-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.family-product-name{flex:1;min-width:0;font-size:12px;font-weight:650;color:#26384a;line-height:1.3}
-.family-quantity{display:inline-flex;align-items:center;gap:4px;padding:3px;border:1px solid #e2e7ec;border-radius:10px;background:#f4f6f8;flex:0 0 auto}
-.family-quantity button{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:7px;background:#fff;color:#18324b;font-size:20px;line-height:1;box-shadow:0 1px 3px #17263818;cursor:pointer;touch-action:manipulation}
-.family-quantity button:last-child{background:#1d344d;color:#fff}
-.family-quantity button:disabled{opacity:.28;cursor:not-allowed}
-.family-quantity strong{min-width:25px;text-align:center;font:700 13px Manrope,sans-serif;font-variant-numeric:tabular-nums}
-@media(max-width:650px){.family-meat-panel{padding:15px}.family-person-order{margin-top:12px;padding:12px;border-radius:12px}.family-product-row{gap:8px;min-height:58px}.family-product-thumb{width:40px;height:40px;flex-basis:40px}.family-product-name{font-size:12px}.family-quantity{gap:3px;padding:2px}.family-quantity button{width:30px;height:32px}.family-person-heading h3{font-size:13px}}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
