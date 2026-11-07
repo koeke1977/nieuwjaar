@@ -6,6 +6,10 @@ function escapeHtml(value) {
   })[char]);
 }
 
+function changedRows(result) {
+  return Number(result?.meta?.changes ?? result?.changes ?? 0);
+}
+
 function validEmail(value) {
   return typeof value === "string" && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -63,7 +67,10 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     if (row.status === "deleted") {
       return json({ error: "Een verwijderde inschrijving kan niet worden aangepast." }, 409);
     }
-    if (Number(row.updated_at) !== body.revision) {
+    const isLegacy = Boolean(row.legacy_environment && row.legacy_registration_id);
+    // Legacy registrations are locked on the app_state revision (that is what the
+    // admin overview hands out); normalized registrations on their own revision.
+    if (!isLegacy && Number(row.updated_at) !== body.revision) {
       return json({ error: "De inschrijving is intussen gewijzigd. Herlaad de gegevens en probeer opnieuw." }, 409);
     }
     let registration, config;
@@ -73,9 +80,28 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     } catch {
       return json({ error: "De opgeslagen inschrijvingsgegevens zijn ongeldig. Er is niets gewijzigd." }, 500);
     }
-    const catalog = (Array.isArray(config.catalog) ? config.catalog : Array.isArray(registration.catalog) ? registration.catalog : [])
-      .filter(product => product && typeof product.id === "string" && product.active !== false);
+    let legacyState = null, legacyData = null, legacyRegistration = null;
+    if (isLegacy) {
+      legacyState = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(row.legacy_environment).first();
+      if (!legacyState || Number(legacyState.updated_at) !== body.revision) {
+        return json({ error: "De speelgegevens zijn intussen gewijzigd. Herlaad het overzicht en probeer opnieuw." }, 409);
+      }
+      try { legacyData = JSON.parse(legacyState.data_json || "{}"); }
+      catch { return json({ error: "De speelgegevens zijn ongeldig. Er is niets gewijzigd." }, 500); }
+      legacyRegistration = (Array.isArray(legacyData.registrations) ? legacyData.registrations : []).find(item => item?.id === row.legacy_registration_id);
+      if (!legacyRegistration) return json({ error: "De oorspronkelijke inschrijving bestaat niet meer." }, 404);
+    }
+    // Same catalog precedence as the admin overview: edition config first, then
+    // the legacy app_state catalog (legacy editions have no config catalog).
+    const sourceCatalog = Array.isArray(config.catalog) ? config.catalog
+      : Array.isArray(legacyData?.catalog) ? legacyData.catalog
+      : Array.isArray(registration.catalog) ? registration.catalog : [];
+    const catalog = sourceCatalog.filter(product => product && typeof product.id === "string" && product.active !== false);
     const catalogIds = new Set(catalog.map(product => product.id));
+    // Quantities for products that are not editable here (inactive or no longer
+    // in the catalog) are carried over untouched, so a save never erases orders.
+    const storedMembers = new Map((Array.isArray((legacyRegistration || registration).members) ? (legacyRegistration || registration).members : [])
+      .filter(person => person && typeof person.id === "string").map(person => [person.id, person]));
     const seen = new Set(), members = [];
     for (const person of body.members) {
       if (!person || typeof person.id !== "string" || !person.id || person.id.length > 100 ||
@@ -85,7 +111,13 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       }
       seen.add(person.id);
       const sourceOrders = person.orders && typeof person.orders === "object" && !Array.isArray(person.orders) ? person.orders : {};
+      const storedOrders = storedMembers.get(person.id)?.orders;
       const orders = {};
+      if (storedOrders && typeof storedOrders === "object" && !Array.isArray(storedOrders)) {
+        for (const [productId, quantity] of Object.entries(storedOrders)) {
+          if (!catalogIds.has(productId)) orders[productId] = quantity;
+        }
+      }
       for (const [productId, rawQuantity] of Object.entries(sourceOrders)) {
         if (!catalogIds.has(productId)) continue;
         const quantity = Number(rawQuantity);
@@ -101,16 +133,11 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     registration.members = members;
     registration.adults = members.filter(person => person.type === "Volwassene").length;
     registration.children = members.filter(person => person.type === "Kind").length;
-    if (row.legacy_environment && row.legacy_registration_id) {
-      const legacyState = await env.DB.prepare("SELECT data_json, updated_at FROM app_state WHERE environment = ?").bind(row.legacy_environment).first();
-      if (!legacyState || Number(legacyState.updated_at) !== body.revision) {
-        return json({ error: "De speelgegevens zijn intussen gewijzigd. Herlaad het overzicht en probeer opnieuw." }, 409);
-      }
-      let legacyData;
-      try { legacyData = JSON.parse(legacyState.data_json || "{}"); }
-      catch { return json({ error: "De speelgegevens zijn ongeldig. Er is niets gewijzigd." }, 500); }
-      const legacyRegistration = (legacyData.registrations || []).find(item => item.id === row.legacy_registration_id);
-      if (!legacyRegistration) return json({ error: "De oorspronkelijke inschrijving bestaat niet meer." }, 404);
+    // Both write paths run as a single D1 batch (one transaction). Follow-up
+    // statements are guarded by EXISTS on the exact row the first statement
+    // writes, so they only apply when the optimistic lock succeeded.
+    const nextRevision = Math.max(body.revision + 1, now);
+    if (isLegacy) {
       legacyRegistration.name = body.name.trim();
       legacyRegistration.members = members;
       legacyRegistration.adults = registration.adults;
@@ -118,23 +145,30 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       legacyData.costsFinalized = false;
       legacyData.costsFinalizedAt = null;
       const serialized = JSON.stringify(legacyData);
-      const stateUpdated = await env.DB.prepare(
-        "UPDATE app_state SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE environment = ? AND updated_at = ? RETURNING updated_at"
-      ).bind(serialized, now, row.legacy_environment, body.revision).first();
-      if (!stateUpdated) return json({ error: "De speelgegevens zijn intussen gewijzigd. Herlaad het overzicht en probeer opnieuw." }, 409);
-      await env.DB.prepare(
-        "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ?"
-      ).bind(JSON.stringify(legacyRegistration), now, registrationId).run();
-      return json({ saved: true, revision: stateUpdated.updated_at, registration: {
+      const results = await env.DB.batch([
+        env.DB.prepare(
+          "UPDATE app_state SET data_json = ?, updated_at = ? WHERE environment = ? AND updated_at = ?"
+        ).bind(serialized, nextRevision, row.legacy_environment, body.revision),
+        env.DB.prepare(
+          "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND EXISTS (SELECT 1 FROM app_state WHERE environment = ? AND updated_at = ? AND data_json = ?)"
+        ).bind(JSON.stringify(legacyRegistration), now, registrationId, row.legacy_environment, nextRevision, serialized)
+      ]);
+      if (!changedRows(results[0])) return json({ error: "De speelgegevens zijn intussen gewijzigd. Herlaad het overzicht en probeer opnieuw." }, 409);
+      return json({ saved: true, revision: nextRevision, registration: {
         id: registrationId, name: legacyRegistration.name, adults: legacyRegistration.adults, children: legacyRegistration.children, members: legacyRegistration.members
       } });
     }
-    const updated = await env.DB.prepare(
-      "UPDATE event_registrations SET data_json = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ? AND updated_at = ? AND legacy_environment IS NULL AND legacy_registration_id IS NULL RETURNING updated_at"
-    ).bind(JSON.stringify(registration), now, registrationId, body.revision).first();
-    if (!updated) return json({ error: "De inschrijving is intussen gewijzigd. Herlaad de gegevens en probeer opnieuw." }, 409);
-    await env.DB.prepare("UPDATE edition_finance_snapshots SET costs_finalized = 0, costs_finalized_at = NULL, updated_at = MAX(updated_at + 1, ?) WHERE edition_id = ? AND costs_finalized = 1").bind(now, row.edition_id).run();
-    return json({ saved: true, revision: updated.updated_at, registration: {
+    const serializedRegistration = JSON.stringify(registration);
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE event_registrations SET data_json = ?, updated_at = ? WHERE id = ? AND updated_at = ? AND legacy_environment IS NULL AND legacy_registration_id IS NULL"
+      ).bind(serializedRegistration, nextRevision, registrationId, body.revision),
+      env.DB.prepare(
+        "UPDATE edition_finance_snapshots SET costs_finalized = 0, costs_finalized_at = NULL, updated_at = MAX(updated_at + 1, ?) WHERE edition_id = ? AND costs_finalized = 1 AND EXISTS (SELECT 1 FROM event_registrations WHERE id = ? AND updated_at = ? AND data_json = ?)"
+      ).bind(now, row.edition_id, registrationId, nextRevision, serializedRegistration)
+    ]);
+    if (!changedRows(results[0])) return json({ error: "De inschrijving is intussen gewijzigd. Herlaad de gegevens en probeer opnieuw." }, 409);
+    return json({ saved: true, revision: nextRevision, registration: {
       id: registrationId, name: registration.name, adults: registration.adults, children: registration.children, members: registration.members
     } });
   }
