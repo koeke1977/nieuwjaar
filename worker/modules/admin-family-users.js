@@ -46,6 +46,45 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     return json({ users: [...users.values()], environment });
   }
 
+  if (path === "/api/admin/families" && request.method === "GET") {
+    try {
+      const rows = await env.DB.prepare(
+        "SELECT f.id AS family_id, f.display_name AS family_name, f.contact_email, f.created_at AS family_created_at, er.id AS registration_id, er.status AS registration_status, er.data_json, er.updated_at AS registration_updated_at, d.id AS edition_id, d.label AS edition_label, d.status AS edition_status, e.id AS event_id, e.name AS event_name, e.finance_strategy, fm.user_id, fm.role, u.email, u.display_name AS user_name, u.status AS user_status FROM families f LEFT JOIN event_registrations er ON er.family_id = f.id LEFT JOIN event_editions d ON d.id = er.edition_id LEFT JOIN events e ON e.id = d.event_id LEFT JOIN family_memberships fm ON fm.family_id = f.id LEFT JOIN family_users u ON u.id = fm.user_id ORDER BY f.display_name COLLATE NOCASE, e.name, d.label, u.email COLLATE NOCASE"
+      ).all();
+      const families = new Map();
+      for (const row of rows.results || []) {
+        if (!families.has(row.family_id)) families.set(row.family_id, {
+          id: row.family_id, name: row.family_name, contactEmail: row.contact_email,
+          createdAt: row.family_created_at, registrations: [], accounts: []
+        });
+        const family = families.get(row.family_id);
+        if (row.registration_id && !family.registrations.some(item => item.id === row.registration_id)) {
+          let data = {};
+          try { data = JSON.parse(row.data_json || "{}"); } catch { /* Ongeldige payload blijft zichtbaar als waarschuwing. */ }
+          family.registrations.push({
+            id: row.registration_id, name: data.name || family.name, status: row.registration_status,
+            editionId: row.edition_id, edition: row.edition_label, editionStatus: row.edition_status,
+            eventId: row.event_id, event: row.event_name, financeStrategy: row.finance_strategy,
+            updatedAt: row.registration_updated_at, invalidData: !row.data_json || !Object.keys(data).length
+          });
+        }
+        if (row.user_id && !family.accounts.some(item => item.id === row.user_id)) {
+          family.accounts.push({
+            id: row.user_id, email: row.email, displayName: row.user_name,
+            status: row.user_status, role: row.role
+          });
+        }
+      }
+      return json({ families: [...families.values()] });
+    } catch (error) {
+      if (String(error?.message || "").toLowerCase().includes("no such table")) {
+        return json({ error: "De relationele familiestructuur is nog niet gemigreerd." }, 503);
+      }
+      console.error("Normalized family overview failed:", error);
+      return json({ error: "Het familieoverzicht kon niet worden geladen." }, 500);
+    }
+  }
+
   if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
 
   if (path === base && request.method === "POST") {
