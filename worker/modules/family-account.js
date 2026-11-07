@@ -119,9 +119,24 @@ export async function handleFamilyAccountApi(request, env, url, dependencies) {
   if (path === "/api/family-account/session" && request.method === "GET") {
     const session = await familyAccountSession(request, env, cookieValue, sha256);
     if (!session) return json({ authenticated: false }, 200, { "Set-Cookie": familyAccountCookie("", 0) });
-    const links = await env.DB.prepare(
+    const legacyLinks = await env.DB.prepare(
       "SELECT edition_id, registration_id FROM family_user_registrations WHERE user_id = ? ORDER BY edition_id"
     ).bind(session.user_id).all();
+    const linksByKey = new Map((legacyLinks.results || []).map(link => [link.edition_id + ":" + link.registration_id, link]));
+    // After the audited backfill, resolve access through family -> registration memberships.
+    // Keep the legacy links as a fallback until all environments have been migrated.
+    try {
+      const relationalLinks = await env.DB.prepare(
+        "SELECT er.legacy_environment AS edition_id, er.legacy_registration_id AS registration_id FROM family_memberships fm JOIN event_registrations er ON er.family_id = fm.family_id WHERE fm.user_id = ? AND er.legacy_environment IS NOT NULL AND er.legacy_registration_id IS NOT NULL"
+      ).bind(session.user_id).all();
+      for (const link of relationalLinks.results || []) {
+        linksByKey.set(link.edition_id + ":" + link.registration_id, link);
+      }
+    } catch (error) {
+      // The relational schema may not yet be installed; legacy account links remain authoritative.
+      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+    }
+    const links = [...linksByKey.values()].sort((a,b) => a.edition_id.localeCompare(b.edition_id));
     const registrations = [];
     const catalogByEdition = {};
     for (const link of links.results || []) {
