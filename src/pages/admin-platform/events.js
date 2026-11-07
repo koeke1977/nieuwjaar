@@ -117,6 +117,45 @@ export function initAdminEventsSection() {
     } catch (error) { feedback(error.message, true); }
     finally { button.disabled = false; }
   });
+  root.querySelector("[data-admin-events-list]").addEventListener("click", async event => {
+    const eventButton = event.target.closest("[data-edit-event]");
+    const editionButton = event.target.closest("[data-edit-edition]");
+    if (eventButton) {
+      const events = await api("/api/admin/events");
+      const item = (events.events || []).find(row => row.id === eventButton.dataset.editEvent);
+      if (!item) return;
+      const name = window.prompt("Naam evenement:", item.name);
+      if (name === null) return;
+      const description = window.prompt("Beschrijving:", item.description || "");
+      if (description === null) return;
+      const financeStrategy = window.prompt("Financiële strategie (nieuwjaar, per_person, per_adult, per_order, none):", item.financeStrategy);
+      if (financeStrategy === null) return;
+      const status = window.prompt("Status (draft, active, archived):", item.status);
+      if (status === null) return;
+      try {
+        await api("/api/admin/events/"+encodeURIComponent(item.id), {method:"PATCH",body:JSON.stringify({name,description,financeStrategy,status})});
+        feedback("Evenement bijgewerkt."); await loadEvents();
+      } catch (error) { feedback(error.message,true); }
+    }
+    if (editionButton) {
+      const events = await api("/api/admin/events");
+      const item = (events.events || []).find(row => row.id === editionButton.dataset.editEvent);
+      const edition = item?.editions.find(row => row.id === editionButton.dataset.editionId);
+      if (!edition) return;
+      const label = window.prompt("Naam editie:", edition.label);
+      if (label === null) return;
+      const startsAt = window.prompt("Startdatum (YYYY-MM-DD, leeg = geen datum):", edition.startsAt || "");
+      if (startsAt === null) return;
+      const endsAt = window.prompt("Einddatum (YYYY-MM-DD, leeg = geen datum):", edition.endsAt || "");
+      if (endsAt === null) return;
+      const status = window.prompt("Status (draft, open, closed, archived):", edition.status);
+      if (status === null) return;
+      try {
+        await api("/api/admin/events/"+encodeURIComponent(item.id)+"/editions/"+encodeURIComponent(edition.id), {method:"PATCH",body:JSON.stringify({label,startsAt,endsAt,status})});
+        feedback("Editie bijgewerkt."); await loadEvents();
+      } catch (error) { feedback(error.message,true); }
+    }
+  });
   root.querySelector("[data-admin-events-list]").addEventListener("submit", async event => {
     const form = event.target.closest("[data-create-edition]");
     if (!form) return;
