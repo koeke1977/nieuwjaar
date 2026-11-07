@@ -128,3 +128,10 @@ De eerste echte platformfunctie is toegevoegd, achter de bestaande adminsectie *
 - De UI meldt expliciet wanneer de nieuwe databasetabellen nog ontbreken.
 
 Deze functionaliteit gebruikt tabellen uit migratie 0007. Zonder die migratie kan de pagina geladen worden, maar kunnen evenementen niet worden opgehaald of aangemaakt. De bestaande Nieuwjaar-registraties worden door deze stap niet aangepast. Er is geen lokale build uitgevoerd: de uitvoeromgeving kan GitHub niet clonen door ontbrekende netwerktoegang. De code is wel nagelezen op de relevante API-/UI-koppelingen.
+
+
+## Migratievoorbereiding in beheer
+
+In het evenementenbeheer staat nu ook een **alleen-lezen migratiecontrole**. Die telt per bestaande omgeving het aantal inschrijvingen, gekoppelde familieaccounts, accountkoppelingen, inschrijvingen zonder account en verweesde koppelingen. De controle geeft geen namen of e-mailadressen terug en voert geen writes uit. Ze is bedoeld om vóór een backfill de omvang en datakwaliteit zichtbaar te maken.
+
+De echte backfill is nog niet vrijgegeven. Eerst moeten de migraties op de juiste database staan, moet de preview gecontroleerd worden en moet een herstelbare snapshot/back-up beschikbaar zijn. De bestaande app_state blijft tijdens deze voorbereidende fase de bron van waarheid.
