@@ -66,20 +66,25 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       await env.DB.prepare("UPDATE family_users SET display_name = ?, updated_at = ? WHERE id = ?").bind(displayName, now, user.id).run();
     }
     try {
-      await env.DB.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES (?, ?, ?, ?)")
-        .bind(user.id, environment, registrationId, now).run();
-    } catch {
-      return json({ error: "Deze inschrijving is al aan dit account gekoppeld." }, 409);
-    }
-    // Keep the normalized family membership in sync once the registration has been backfilled.
-    try {
-      const relational = await env.DB.prepare("SELECT family_id FROM event_registrations WHERE legacy_environment = ? AND legacy_registration_id = ?").bind(environment, registrationId).first();
-      if (relational?.family_id) {
-        await env.DB.prepare("INSERT OR IGNORE INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, 'editor', ?)")
-          .bind("legacy-membership-" + environment + "-" + registrationId + "-" + user.id, relational.family_id, user.id, now).run();
+      let relational = null;
+      try {
+        relational = await env.DB.prepare("SELECT family_id FROM event_registrations WHERE legacy_environment = ? AND legacy_registration_id = ?").bind(environment, registrationId).first();
+      } catch (error) {
+        if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
       }
+      const statements = [
+        env.DB.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES (?, ?, ?, ?)")
+          .bind(user.id, environment, registrationId, now)
+      ];
+      if (relational?.family_id) {
+        statements.push(env.DB.prepare("INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, 'editor', ?) ON CONFLICT(family_id, user_id) DO NOTHING")
+          .bind("legacy-membership-" + environment + "-" + registrationId + "-" + user.id, relational.family_id, user.id, now));
+      }
+      await env.DB.batch(statements);
     } catch (error) {
-      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+      if (/UNIQUE|constraint/i.test(String(error?.message || ""))) return json({ error: "Deze inschrijving is al aan dit account gekoppeld." }, 409);
+      console.error("Family account link failed:", error);
+      return json({ error: "De accountkoppeling kon niet veilig worden opgeslagen." }, 503);
     }
     if (user.status === "active") return json({ created: true, invited: false, userId: user.id });
     const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
