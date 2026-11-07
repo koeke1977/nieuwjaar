@@ -6,7 +6,6 @@ import { money } from "../../utils/format.js";
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const eventStatusLabel = status => status === "archived" ? "Afgesloten" : status === "active" ? "Actief" : "Concept";
 let root;
-let financeEditor = null;
 
 async function api(path, options = {}) {
   const response = await fetch(path, { credentials: "same-origin", ...options,
@@ -41,9 +40,10 @@ function renderEvents(events) {
 async function openFinance(editionId) {
  const response=await api('/api/admin/editions/'+encodeURIComponent(editionId)+'/finance');
  financeEditor=response;
- const rows=getFinancialSummary(response.registrations||[],response.finance.expenses||[],response.finance.payments||[]);
+ const rows=response.edition.financeStrategy==="nieuwjaar"?getFinancialSummary(response.registrations||[],response.finance.expenses||[],response.finance.payments||[]):[];
+ const strategyNote=response.edition.financeStrategy==="nieuwjaar"?"De bestaande Nieuwjaar-verdeelsleutels worden gebruikt.": "Deze editie gebruikt verdeelmethode "+response.edition.financeStrategy+". De bijbehorende rekenregels worden in een volgende stap aangesloten; er wordt daarom nog geen saldo berekend.";
  const slot=root.querySelector('[data-admin-finance-slot]');
- slot.innerHTML='<section class="panel"><h2>'+escapeHtml(response.edition.eventName)+' · '+escapeHtml(response.edition.label)+' · Financiën</h2><p>Deze editie heeft '+(response.registrations||[]).length+' inschrijvingen.</p><h3>Kosten</h3>'+(response.finance.expenses||[]).map(x=>'<p>'+escapeHtml(x.description)+' · '+money(x.amountCents/100)+'</p>').join('')+'<h3>Betalingen</h3>'+(response.finance.payments||[]).map(x=>'<p>'+escapeHtml(x.date)+' · '+money(x.amountCents/100)+'</p>').join('')+'<h3>Saldo per gezin</h3>'+rows.map(x=>'<p>'+escapeHtml(x.name)+' · '+money(x.remainingCents/100)+' open</p>').join('')+'</section>';
+ slot.innerHTML='<section class="panel admin-finance-editor"><h2>'+escapeHtml(response.edition.eventName)+' · '+escapeHtml(response.edition.label)+' · Financiën</h2><p>'+strategyNote+'</p><p>Inschrijvingen: '+(response.registrations||[]).length+' · Kosten: '+(response.finance.expenses||[]).length+' · Betalingen: '+(response.finance.payments||[]).length+'</p><h3>Kosten</h3>'+(response.finance.expenses||[]).map(x=>'<div class="admin-finance-line"><span>'+escapeHtml(x.description)+' · '+escapeHtml(x.date)+'</span><b>'+money(x.amountCents/100)+'</b></div>').join('')+'<h3>Betalingen</h3>'+(response.finance.payments||[]).map(x=>'<div class="admin-finance-line"><span>'+escapeHtml(x.date)+' · '+escapeHtml(x.method)+'</span><b>'+money(x.amountCents/100)+'</b></div>').join('')+(response.edition.financeStrategy==="nieuwjaar"?'<h3>Saldo per gezin</h3>'+rows.map(x=>'<div class="admin-finance-line"><span>'+escapeHtml(x.name)+'</span><b>'+money(x.remainingCents/100)+' open</b></div>').join(''):'')+'</section>';
 }
 function catalogProductRow(product = {}, index = 0) {
   return '<div class="admin-catalog-item" data-catalog-item><div class="admin-catalog-item-fields"><label>Productnaam<input name="name" maxlength="100" required value="'+escapeHtml(product.name || "")+'" placeholder="Bijv. Steak"></label><label>Productcode<input name="id" maxlength="64" pattern="[A-Za-z0-9_-]{1,64}" required value="'+escapeHtml(product.id || "")+'" placeholder="bijv. steak"></label><label class="admin-catalog-image-field">Afbeelding (optioneel)<input name="image" maxlength="1000" value="'+escapeHtml(product.image || "")+'" placeholder="/media/products/… of https://…"></label></div><div class="admin-catalog-item-footer"><label class="admin-catalog-active"><input name="active" type="checkbox" '+(product.active === false ? "" : "checked")+'> Actief in familieportal</label><button type="button" class="button button-small button-outline" data-remove-catalog-item>Verwijderen</button></div></div>';
