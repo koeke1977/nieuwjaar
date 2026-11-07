@@ -124,12 +124,13 @@ function renderOrder(item, view) {
     const count = members.reduce((sum, person) => sum + (Number(person.orders?.[product.id]) || 0), 0);
     return '<article class="fa-product' + (count ? " fa-product-active" : "") + '"><div class="fa-product-image">' +
       (product.image ? '<img src="' + esc(product.image) + '" alt="" loading="lazy">' : '<span aria-hidden="true">🍖</span>') +
-      '</div><div><strong>' + esc(product.name) + '</strong><small>' + (count ? count + " besteld" : "Nog niet besteld") + '</small></div></article>';
+      (count ? '<span class="fa-product-badge" aria-hidden="true">✓ ' + count + '</span>' : "") +
+      '</div><div><strong>' + esc(product.name) + '</strong><small>' + (count ? "✓ " + count + " besteld" : "Nog niet besteld") + '</small></div></article>';
   }).join("");
   const people = members.map(person => {
     const controls = catalog.map(product => {
       const quantity = Number(person.orders?.[product.id]) || 0;
-      return '<div class="fa-stepper-row"><span>' + esc(product.name) + '</span>' + (readOnly ? '<b>' + quantity + '</b>'
+      return '<div class="fa-stepper-row' + (quantity ? " fa-stepper-row-active" : "") + '"><span>' + esc(product.name) + '</span>' + (readOnly ? '<b>' + quantity + '</b>'
         : '<div class="fa-stepper"><button type="button" data-action="quantity" data-person="' + esc(person.id) + '" data-product="' + esc(product.id) + '" data-delta="-1" aria-label="Eén ' + esc(product.name) + ' minder voor ' + esc(person.name) + '"' + (quantity === 0 ? " disabled" : "") + '>−</button><b aria-live="polite">' + quantity + '</b><button type="button" data-action="quantity" data-person="' + esc(person.id) + '" data-product="' + esc(product.id) + '" data-delta="1" aria-label="Eén ' + esc(product.name) + ' meer voor ' + esc(person.name) + '">+</button></div>') + '</div>';
     }).join("");
     const portions = portionsOf(person);

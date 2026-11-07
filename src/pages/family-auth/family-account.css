@@ -197,3 +197,16 @@
 .fa-open p:not(.fa-eyebrow) { margin: 4px 0 0; color: #5b4a2c; font-size: 14px; line-height: 1.5; }
 .fa-open .fa-btn { flex: 0 0 auto; }
 @media (max-width: 520px) { .fa-open { flex-direction: column; align-items: stretch; } }
+
+/* Ordered products light up green */
+.fa-app { --fa-green: #1f7a4d; --fa-green-soft: #ebf6f0; --fa-green-line: #9fd3b5; }
+.fa-product { position: relative; transition: border-color .2s, box-shadow .2s, background-color .2s; }
+.fa-product-active { border-color: var(--fa-green-line); background: var(--fa-green-soft); box-shadow: 0 0 0 2px rgba(31, 122, 77, .14); }
+.fa-product-active small { color: var(--fa-green); font-weight: 800; }
+.fa-product-image { position: relative; }
+.fa-product-badge { position: absolute; top: 8px; right: 8px; padding: 3px 9px; border-radius: 999px; background: var(--fa-green); color: #fff; font-size: 12px; font-weight: 800; box-shadow: 0 2px 6px rgba(0, 0, 0, .18); }
+.fa-stepper-row { transition: border-color .2s, background-color .2s; }
+.fa-stepper-row-active { border-color: var(--fa-green-line); background: var(--fa-green-soft); }
+.fa-stepper-row-active > span { color: var(--fa-green); font-weight: 700; }
+.fa-stepper-row-active .fa-stepper b { color: var(--fa-green); }
+@media (prefers-reduced-motion: reduce) { .fa-product, .fa-stepper-row { transition: none; } }
