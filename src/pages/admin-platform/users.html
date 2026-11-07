@@ -25,7 +25,9 @@
     <label>Contact e-mail<input name="contactEmail" type="email" maxlength="254"></label>
     <label>Evenementeditie<select name="editionId" data-normalized-editions required><option value="">Edities laden…</option></select></label>
     <label>Naam op inschrijving<input name="registrationName" maxlength="160" required></label>
-    <button class="button button-dark" type="submit">Familie en inschrijving aanmaken</button>
+    <label>Naam eerste beheerder<input name="ownerDisplayName" maxlength="100" autocomplete="name" required></label>
+    <label>E-mailadres eerste beheerder<input name="ownerEmail" type="email" maxlength="254" autocomplete="email" required></label>
+    <button class="button button-dark" type="submit">Familie, inschrijving en beheerder aanmaken</button>
   </form>
   <form data-add-normalized-member class="family-user-form">
     <label>Familie<select name="familyId" data-normalized-family-options required><option value="">Families laden…</option></select></label>
