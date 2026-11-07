@@ -180,18 +180,25 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     try { data = JSON.parse(stateRow.data_json); } catch { return json({ error: "De editiegegevens zijn ongeldig." }, 500); }
     if (!(data.registrations || []).some(item => item.id === registrationId)) return json({ error: "De inschrijving bestaat niet in deze editie." }, 404);
     try {
-      await env.DB.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES (?, ?, ?, ?)")
-        .bind(userId, environment, registrationId, now).run();
-    } catch { return json({ error: "Deze inschrijving is al aan dit account gekoppeld." }, 409); }
-    // Dual-write the relational family membership when the migration/backfill is active.
-    try {
-      const relational = await env.DB.prepare("SELECT family_id FROM event_registrations WHERE legacy_environment = ? AND legacy_registration_id = ?").bind(environment, registrationId).first();
-      if (relational?.family_id) {
-        await env.DB.prepare("INSERT OR IGNORE INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, 'editor', ?)")
-          .bind("legacy-membership-" + environment + "-" + registrationId + "-" + userId, relational.family_id, userId, now).run();
+      let relational = null;
+      try {
+        relational = await env.DB.prepare("SELECT family_id FROM event_registrations WHERE legacy_environment = ? AND legacy_registration_id = ?").bind(environment, registrationId).first();
+      } catch (error) {
+        if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
       }
+      const statements = [
+        env.DB.prepare("INSERT INTO family_user_registrations (user_id, edition_id, registration_id, created_at) VALUES (?, ?, ?, ?)")
+          .bind(userId, environment, registrationId, now)
+      ];
+      if (relational?.family_id) {
+        statements.push(env.DB.prepare("INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, 'editor', ?) ON CONFLICT(family_id, user_id) DO NOTHING")
+          .bind("legacy-membership-" + environment + "-" + registrationId + "-" + userId, relational.family_id, userId, now));
+      }
+      await env.DB.batch(statements);
     } catch (error) {
-      if (!String(error?.message || "").toLowerCase().includes("no such table")) throw error;
+      if (/UNIQUE|constraint/i.test(String(error?.message || ""))) return json({ error: "Deze inschrijving is al aan dit account gekoppeld." }, 409);
+      console.error("Family registration link failed:", error);
+      return json({ error: "De accountkoppeling kon niet veilig worden opgeslagen. Er is niets gedeeltelijk gewijzigd." }, 503);
     }
     return json({ linked: true });
   }
