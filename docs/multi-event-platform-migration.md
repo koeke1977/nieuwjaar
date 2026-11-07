@@ -198,9 +198,19 @@ Het familiebeheer bevat nu ook schrijfacties voor het nieuwe model:
 
 - Een beheerder kan een familie met een nieuwe event-native inschrijving aanmaken binnen een bestaande, niet-gearchiveerde editie.
 - Een bestaand actief account kan aan een extra familie worden gekoppeld; een nieuw of nog uitgenodigd account krijgt een activatielink.
-- De uitnodiging gebruikt dezelfde `/familie/<token>`-route als de bestaande accountuitnodigingen. Bij het versturen van een nieuwe uitnodiging worden eerdere ongebruikte uitnodigingstokens voor dat account ingetrokken.
+- De genormaliseerde accountuitnodiging gebruikt `/familie/activeren/<token>` en de activatiepagina roept `/api/family-account/activate` aan. De oudere eenmalige legacy-uitnodiging via `/familie/<token>` blijft een afzonderlijke compatibiliteitsflow. Bij een nieuwe of opnieuw verstuurde genormaliseerde uitnodiging worden eerdere ongebruikte tokens atomair ingetrokken en vervangen.
 - Rollen owner/editor/viewer kunnen per familie worden aangepast. Een account kan dus in verschillende families een andere rol hebben.
 - Een membership kan worden losgekoppeld zonder het account, de familie of de evenementinschrijving te verwijderen.
 - De laatste owner kan niet worden gedegradeerd of losgekoppeld; eerst moet een tweede owner worden toegevoegd.
 
 De nieuwe beheeracties zijn alleen beschikbaar via een geldige admin-sessie en same-origin schrijfacties. Dit is nog geen volledige beheer- of financiële afwerking: eventcatalogus/configuratie, registratiebeheer na aanmaak en financiële instellingen per editie moeten nog worden uitgewerkt en getest. De code is niet op de echte D1-database uitgevoerd en er zijn geen migraties gestart.
+
+
+## Laatste preview- en herstelvoorbereiding — 7 november 2026
+
+- De alleen-lezen preview controleert nu dezelfde basisstructuur voor registraties, kosten en betalingen als de uitvoerende backfill. Een preview mag dus geen groen resultaat geven op een snapshot die de backfill vervolgens op die structuur afkeurt.
+- De preview is geen back-up en bewijst niet dat een remote migratie uitvoerbaar is. De productie-D1 blijft onaangeroerd totdat de eigenaar vóór de migratie een remote export heeft opgeslagen buiten de projectomgeving.
+- Voor de migratiedag zijn minimaal nodig: een D1-export van vóór de eerste migratie, bevestiging dat het exportbestand leesbaar is, een vastgelegde branch/commit-SHA, de uitkomst van de preview, en een herstelbeslissing waarbij de oude `app_state` en accountkoppelingen intact blijven.
+- Na schema-installatie wordt de preview opnieuw uitgevoerd op remote D1. Alleen een foutloze preview, een bewaarde back-up en een expliciet akkoord mogen voorafgaan aan de backfill.
+- Herstel gebeurt niet door tabellen blind te droppen. Bij afwijkingen wordt de backfill gestopt; de oude `app_state` blijft de bron van waarheid en herstel gebeurt vanuit de bewaarde D1-export volgens een afzonderlijk gecontroleerd herstelplan.
+- De preview en backfill zijn codegewijs voorbereid, maar de echte remote preview, export, migratie en hersteltest zijn nog niet uitgevoerd.
