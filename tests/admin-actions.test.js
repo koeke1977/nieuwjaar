@@ -133,6 +133,7 @@ test("admin actions change the state and every edition tab still renders", async
   assert.equal(state.registrations[0].members[0].barCents, 1250);
   step("delete-member", () => reg.clicks["delete-member"](button({ index: "1" })));
   assert.equal(state.registrations[0].members.length, 1);
+  delete state.registrations[0].members[0].barCents; // the bar bill has its own check (test below)
   step("unregister-family blocked by linked costs", () => {
     reg.clicks["unregister-family"](button({ id: "ra" }));
     core.renderApp();
@@ -246,4 +247,52 @@ test("Kassa: pay in cash (full or other amount), give money back, everything end
   assert.equal(state.payments.length, 3, "nothing open any more: no extra payment");
   fin.clicks["delete-payment"]({ dataset: { id: state.payments[2].id } });
   assert.equal(balance("rz").creditCents, 5000, "undo brings the refund back");
+});
+
+test("the admin cannot lose a bar bill by deleting a person or unregistering the family", async () => {
+  const reg = await import(root + "pages/beheer/actions/registrations.js");
+  state.registrations = [
+    {
+      id: "ra",
+      familyId: "fa",
+      name: "Jan",
+      revision: 1,
+      members: [
+        { id: "j", name: "Jan", type: "Volwassene", orders: {}, barCents: 1250 },
+        { id: "l", name: "Lies", type: "Kind", orders: {} }
+      ]
+    }
+  ];
+  Object.assign(state, { expenses: [], payments: [], managingRegistrationId: "ra" });
+  reg.clicks["delete-member"]({ dataset: { index: "0" } });
+  assert.equal(state.registrations[0].members.length, 2, "person with a bar bill stays");
+  assert.match(alerts.at(-1), /Jan heeft nog een barrekening/);
+  reg.clicks["unregister-family"]({ dataset: { id: "ra" } });
+  assert.equal(state.registrations.length, 1, "family with a bar bill stays");
+  assert.match(alerts.at(-1), /Zet die eerst op € 0 bij Bar/);
+  reg.clicks["delete-member"]({ dataset: { index: "1" } });
+  assert.equal(state.registrations[0].members.length, 1, "someone without a bar bill can go");
+  delete state.registrations[0].members[0].barCents;
+  reg.clicks["unregister-family"]({ dataset: { id: "ra" } });
+  assert.equal(state.registrations.length, 0, "after clearing the bill the family can be unregistered");
+});
+
+test("Accounts: a locked account shows a chip, the filter and an unlock button", async () => {
+  const view = await import(root + "pages/beheer/beheer-view.js");
+  view.setBeheerAccounts([
+    { id: "a1", email: "jan@x.be", status: "active", resetLocked: true, loginLocked: false, families: [] },
+    { id: "a2", email: "piet@x.be", status: "active", resetLocked: false, loginLocked: false, families: [] }
+  ]);
+  Object.assign(state, {
+    activeSection: "users",
+    beheerUsersTab: "accounts",
+    beheerUserFamilyId: null,
+    beheerTableSort: {},
+    beheerTableFilter: {}
+  });
+  core.renderApp();
+  assert.match(rendered, /🔒 Wachtwoordherstel/);
+  assert.equal(rendered.match(/data-action="account-unlock"/g).length, 1, "only for the locked account");
+  nav.clicks["table-filter"]({ dataset: { table: "accounts", filter: "locked" } });
+  assert.ok(rendered.includes("jan@x.be") && !rendered.includes("piet@x.be"));
 });

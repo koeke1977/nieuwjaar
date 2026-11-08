@@ -6,7 +6,9 @@ import {
   verifyFamilyPassword,
   familyAccountCookie,
   createFamilyAccountSession,
-  familyLoginLimit
+  familyLoginLimit,
+  familyResetLimit,
+  unlockFamilyEmail
 } from "./session.js";
 
 export async function login({ request, env, now, json, sameOrigin, sha256, base64Url, fromBase64Url }) {
@@ -90,6 +92,17 @@ export async function forgotPassword({ request, env, now, json, sameOrigin, sha2
   const body = await request.json().catch(() => null);
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254) {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const limit = await familyResetLimit(env, email, ip, sha256, now);
+    if (limit.blocked)
+      return json(
+        {
+          error:
+            "Er werden te veel herstelmails aangevraagd. Probeer het over een uur opnieuw of vraag de organisatie om je account te ontgrendelen."
+        },
+        429
+      );
+    await limit.record();
     const user = await env.DB.prepare("SELECT id, status FROM family_users WHERE email = ?").bind(email).first();
     if (user?.status === "active") {
       const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
@@ -146,9 +159,6 @@ export async function resetPassword({ request, env, now, json, sameOrigin, sha25
     .bind(now, reset.user_id)
     .run();
   const resetUser = await env.DB.prepare("SELECT email FROM family_users WHERE id = ?").bind(reset.user_id).first();
-  if (resetUser?.email) {
-    const emailKey = await sha256("family-email:" + resetUser.email.trim().toLowerCase());
-    await env.DB.prepare("DELETE FROM family_login_limits WHERE scope_hash = ?").bind(emailKey).run();
-  }
+  if (resetUser?.email) await unlockFamilyEmail(env, resetUser.email, sha256);
   return json({ reset: true }, 200, { "Set-Cookie": familyAccountCookie("", 0) });
 }

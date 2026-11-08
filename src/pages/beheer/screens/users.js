@@ -267,8 +267,21 @@ const ACCOUNT_FILTERS = [
   { id: "all", label: "Alle", test: () => true },
   { id: "active", label: "Actief", test: user => user.status === "active" },
   { id: "invited", label: "Uitgenodigd", test: user => user.status === "invited" },
-  { id: "disabled", label: "Geblokkeerd", test: user => user.status === "disabled" }
+  { id: "disabled", label: "Geblokkeerd", test: user => user.status === "disabled" },
+  { id: "locked", label: "Vergrendeld", test: user => user.loginLocked || user.resetLocked }
 ];
+
+// Locked by the limits on wrong passwords or reset mails (not the same as blocked by the admin).
+const lockChips = user =>
+  html`${
+    user.loginLocked
+      ? html` <span class="bh-chip bh-chip-due" title="Te veel foute wachtwoorden">🔒 Aanmelden</span>`
+      : ""
+  }${
+    user.resetLocked
+      ? html` <span class="bh-chip bh-chip-due" title="Te veel herstelmails aangevraagd">🔒 Wachtwoordherstel</span>`
+      : ""
+  }`;
 const ACCOUNT_SORT = {
   name: user => user.displayName || user.email,
   email: user => user.email,
@@ -279,6 +292,11 @@ const ACCOUNT_SORT = {
 
 function accountActions(user) {
   return html`${
+    user.loginLocked || user.resetLocked
+      ? html`<button type="button" class="bh-btn bh-btn-sm bh-btn-primary" data-action="account-unlock"
+          data-user="${user.id}">Ontgrendelen</button>`
+      : ""
+  }${
     user.status === "invited"
       ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite"
           data-user="${user.id}">Opnieuw sturen</button>`
@@ -310,7 +328,7 @@ function renderAccounts() {
           <td>
             <span class="bh-chip ${STATUS_CHIP[user.status] || "bh-chip-muted"}">${
               STATUS_LABEL[user.status] || user.status
-            }</span>
+            }</span>${lockChips(user)}
           </td>
           <td>${
             joinHtml(

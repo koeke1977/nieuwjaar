@@ -285,6 +285,14 @@ export async function saveRegistration({ request, env, now, json, sameOrigin, co
     if (!member) return json({ error: "Controleer de allergieën en opmerkingen (maximaal 200 tekens)." }, 400);
     members.push(member);
   }
+  // A bar bill is money owed: a person who has one stays, also before the order deadline.
+  for (const [id, person] of stored) {
+    if (!memberIds.has(id) && Number(person.barCents) > 0)
+      return json(
+        { error: person.name + " heeft een barrekening en kan niet worden verwijderd. Vraag het aan de organisatie." },
+        409
+      );
+  }
   if (closed) {
     for (const [id, person] of stored) {
       const ordered = Object.values(person.orders || {}).some(qty => Number(qty) > 0);

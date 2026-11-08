@@ -89,3 +89,20 @@ test("portal: order, add and edit people, viewer cannot change anything", async 
   assert.equal(save?.body.revision, 4);
   assert.equal(save?.body.registrationId, "ra");
 });
+
+test("portal: a person with a bar bill has no remove button and cannot be removed", () => {
+  const item = account.items[0];
+  item.accessRole = "owner";
+  item.registration.members = [
+    { id: "a", name: "An", type: "Volwassene", orders: {}, barCents: 900 },
+    { id: "b", name: "Bo", type: "Kind", orders: {} }
+  ];
+  account.view.tab = "family";
+  render();
+  const page = String(target.innerHTML);
+  assert.match(page, /Heeft een barrekening/);
+  assert.equal(page.match(/data-action="remove-member"/g).length, 1, "only for Bo");
+  family.editorClicks["remove-member"]({ dataset: { index: "0" } }, item, item.registration.members);
+  assert.equal(item.registration.members.length, 2);
+  assert.match(feedbackNode.textContent, /An heeft een barrekening/);
+});

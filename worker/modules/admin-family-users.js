@@ -6,10 +6,12 @@
 //   GET    /api/admin/family-users                      all accounts with their families
 //   POST   /api/admin/family-users/:id/resend           new activation mail
 //   POST   /api/admin/family-users/:id/sessions         revoke sessions
+//   POST   /api/admin/family-users/:id/unlock           clear the login and password-reset limits
 //   PATCH  /api/admin/family-users/:id                  block / unblock
 //   DELETE /api/admin/family-users/:id                  delete account (family data is kept)
 
 import { esc } from "../../src/utils/html.js";
+import { familyAccountLocks, unlockFamilyEmail } from "./family/session.js";
 
 const INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
@@ -131,7 +133,18 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       if (row.family_id)
         users.get(row.id).families.push({ familyId: row.family_id, familyName: row.family_name, role: row.role });
     }
-    return json({ users: [...users.values()] });
+    const list = [...users.values()];
+    const locks = await familyAccountLocks(
+      env,
+      list.map(user => user.email),
+      sha256,
+      now
+    );
+    for (const user of list) {
+      user.loginLocked = locks.get(user.email).login;
+      user.resetLocked = locks.get(user.email).reset;
+    }
+    return json({ users: list });
   }
 
   if (path === "/api/admin/families/memberships" && request.method === "POST") {
@@ -240,7 +253,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     return json({ unlinked: true });
   }
 
-  const match = path.match(/^\/api\/admin\/family-users\/([0-9a-f-]+)(?:\/(resend|sessions))?$/i);
+  const match = path.match(/^\/api\/admin\/family-users\/([0-9a-f-]+)(?:\/(resend|sessions|unlock))?$/i);
   if (!match) return json({ error: "Niet gevonden." }, 404);
   const [, userId, action] = match;
   const user = await env.DB.prepare("SELECT id, email, display_name, status FROM family_users WHERE id = ?")
@@ -269,6 +282,11 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       return json({ error: "De uitnodigingsmail kon niet worden verzonden." }, 502);
     }
     return json({ sent: true });
+  }
+
+  if (action === "unlock" && request.method === "POST") {
+    await unlockFamilyEmail(env, user.email, sha256);
+    return json({ unlocked: true });
   }
 
   if (action === "sessions" && request.method === "POST") {

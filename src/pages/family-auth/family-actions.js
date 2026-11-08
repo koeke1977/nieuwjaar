@@ -54,6 +54,10 @@ export const editorClicks = {
     const index = Number(control.dataset.index);
     const person = members[index];
     if (!person || members.length <= 1) return;
+    if (Number(person.barCents) > 0) {
+      feedback(person.name + " heeft een barrekening en kan niet worden verwijderd. Vraag het aan de organisatie.");
+      return;
+    }
     const portions = Object.values(person.orders || {}).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
     if (
       !window.confirm(

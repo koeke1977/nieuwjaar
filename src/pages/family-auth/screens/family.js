@@ -73,10 +73,13 @@ export function renderFamily(item, view) {
                   : html`<div class="fa-row-actions">
               <button type="button" class="fa-btn fa-btn-small" data-action="edit-member"
                   data-person="${person.id}">Wijzigen</button>${
-                    members.length > 1
-                      ? html`<button type="button" class="fa-btn fa-btn-small fa-btn-quiet" data-action="remove-member"
-                      data-index="${index}" aria-label="${person.name} verwijderen">Verwijderen</button>`
-                      : ""
+                    Number(person.barCents) > 0
+                      ? html`<small class="fa-muted">Heeft een barrekening: verwijderen kan alleen via de
+                          organisatie.</small>`
+                      : members.length > 1
+                        ? html`<button type="button" class="fa-btn fa-btn-small fa-btn-quiet" data-action="remove-member"
+                        data-index="${index}" aria-label="${person.name} verwijderen">Verwijderen</button>`
+                        : ""
                   }</div>`
               }</div>`;
     }),

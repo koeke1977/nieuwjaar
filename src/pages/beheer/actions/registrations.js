@@ -1,5 +1,6 @@
 // Registrations and their members: register, unregister, rename, add/edit/delete people, order.
 import { state } from "../../../data/admin-store.js";
+import { euro } from "../../../utils/html.js";
 import { isMemberType, EVENING } from "../../../utils/member-types.js";
 import { go, renderApp, makeId, recount, markCostsProvisional } from "../admin-core.js";
 
@@ -10,6 +11,16 @@ export const clicks = {
     const linked =
       state.expenses.filter(item => item.advancedBy === registration.id).length +
       state.payments.filter(item => item.registrationId === registration.id).length;
+    const barPeople = (registration.members || []).filter(person => Number(person.barCents) > 0);
+    if (barPeople.length) {
+      window.alert(
+        registration.name +
+          " heeft nog een barrekening (" +
+          barPeople.map(person => person.name + " " + euro(person.barCents)).join(", ") +
+          "). Zet die eerst op € 0 bij Bar, en schrijf het gezin daarna uit."
+      );
+      return;
+    }
     if (linked) {
       window.alert(
         registration.name +
@@ -66,6 +77,16 @@ export const clicks = {
   "delete-member": action => {
     const registration = state.registrations.find(item => item.id === state.managingRegistrationId);
     const index = Number(action.dataset.index);
+    const barCents = Number(registration?.members?.[index]?.barCents) || 0;
+    if (barCents) {
+      window.alert(
+        registration.members[index].name +
+          " heeft nog een barrekening van " +
+          euro(barCents) +
+          ". Zet die eerst op € 0 bij Bar, en verwijder de persoon daarna."
+      );
+      return;
+    }
     if (
       !registration?.members?.[index] ||
       !window.confirm(`Verwijder ${registration.members[index].name} uit deze inschrijving?`)

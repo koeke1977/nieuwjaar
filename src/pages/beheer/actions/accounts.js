@@ -45,6 +45,16 @@ export const clicks = {
     );
     return;
   },
+  "account-unlock": action => {
+    accountCall(
+      action,
+      "/api/admin/family-users/" + encodeURIComponent(action.dataset.user) + "/unlock",
+      undefined,
+      "POST",
+      "Het account is ontgrendeld: aanmelden en wachtwoordherstel werken weer."
+    );
+    return;
+  },
   "account-sessions": action => {
     accountCall(
       action,
