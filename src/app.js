@@ -105,6 +105,7 @@ export async function startApp() {
     event.returnValue = "";
   });
   document.addEventListener("submit", handleSubmit);
+  document.addEventListener("change", accounts.handleAccountMenu);
   document.addEventListener("change", edition.handleImageUpload);
   document.addEventListener("change", registrations.handleBarInput);
   document.addEventListener("input", edition.rememberMessageDraft);

@@ -114,6 +114,24 @@ export const clicks = {
   }
 };
 
+// The dropdown in Gebruikers > Accounts runs the same actions as a button would. A dropdown can change
+// by accident (arrow keys), so each choice is confirmed; Verwijderen has its own, stricter question.
+export function handleAccountMenu(event) {
+  const menu = event.target.closest?.("[data-account-menu]");
+  if (!menu?.value) return;
+  const [type, status] = menu.value.split(":");
+  const label = menu.selectedOptions[0]?.textContent || "";
+  const { user, email } = menu.dataset;
+  menu.value = "";
+  if (type !== "account-delete" && !window.confirm(label + " voor " + email + "?")) return;
+  clicks[type]({
+    dataset: { user, email, status },
+    set disabled(value) {
+      menu.disabled = value;
+    }
+  });
+}
+
 export const forms = {
   "admin-login-form": async (form, event) => {
     event.preventDefault();

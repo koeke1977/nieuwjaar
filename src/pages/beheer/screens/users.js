@@ -290,31 +290,26 @@ const ACCOUNT_SORT = {
   login: user => user.lastLoginAt || 0
 };
 
-function accountActions(user) {
-  return html`${
-    user.loginLocked || user.resetLocked
-      ? html`<button type="button" class="bh-btn bh-btn-sm bh-btn-primary" data-action="account-unlock"
-          data-user="${user.id}">Ontgrendelen</button>`
-      : ""
-  }${
-    user.status === "invited"
-      ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="resend-account-invite"
-          data-user="${user.id}">Opnieuw sturen</button>`
-      : ""
-  }${
-    user.status === "active"
-      ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="${user.id}"
-          data-status="disabled">Blokkeren</button>
-        <button type="button" class="bh-btn bh-btn-sm" data-action="account-sessions" data-user="${user.id}">Afmelden
-            op alle toestellen</button>`
-      : ""
-  }${
-    user.status === "disabled"
-      ? html`<button type="button" class="bh-btn bh-btn-sm" data-action="account-status" data-user="${user.id}"
-          data-status="active">Deblokkeren</button>`
-      : ""
-  }<button type="button" class="bh-btn bh-btn-sm bh-btn-danger" data-action="account-delete" data-user="${user.id}"
-      data-email="${user.email}">Verwijderen</button>`;
+// The actions that make sense for this account; handled by handleAccountMenu (actions/accounts.js).
+function accountMenu(user) {
+  const options = [
+    ...(user.loginLocked || user.resetLocked ? [["account-unlock", "Ontgrendelen"]] : []),
+    ...(user.status === "invited" ? [["resend-account-invite", "Uitnodiging opnieuw sturen"]] : []),
+    ...(user.status === "active"
+      ? [
+          ["account-status:disabled", "Blokkeren"],
+          ["account-sessions", "Afmelden op alle toestellen"]
+        ]
+      : []),
+    ...(user.status === "disabled" ? [["account-status:active", "Deblokkeren"]] : []),
+    ["account-delete", "Verwijderen"]
+  ];
+  return html`<select class="bh-action-menu" data-account-menu data-user="${user.id}" data-email="${user.email}"
+      aria-label="Actie voor ${user.email}">
+      <option value="" selected>Actie kiezen…</option>${joinHtml(
+        options.map(([value, label]) => html`<option value="${value}">${label}</option>`),
+        ""
+      )}</select>`;
 }
 
 function renderAccounts() {
@@ -340,9 +335,7 @@ function renderAccounts() {
             ) || html`<span class="bh-chip bh-chip-muted">Geen gezin</span>`
           }</td>
           <td>${shortDate(user.lastLoginAt) || dash}</td>
-          <td>
-            <div class="bh-cell-actions">${accountActions(user)}</div>
-          </td>
+          <td>${accountMenu(user)}</td>
         </tr>`
     ),
     ""

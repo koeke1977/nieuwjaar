@@ -292,7 +292,7 @@ test("Accounts: a locked account shows a chip, the filter and an unlock button",
   });
   core.renderApp();
   assert.match(rendered, /🔒 Wachtwoordherstel/);
-  assert.equal(rendered.match(/data-action="account-unlock"/g).length, 1, "only for the locked account");
+  assert.equal(rendered.match(/value="account-unlock"/g).length, 1, "only for the locked account");
   nav.clicks["table-filter"]({ dataset: { table: "accounts", filter: "locked" } });
   assert.ok(rendered.includes("jan@x.be") && !rendered.includes("piet@x.be"));
 });
@@ -343,4 +343,70 @@ test("a family's request to cancel is visible to the admin and can be closed", a
   reg.clicks["unregister-family"]({ dataset: { id: "rb" } });
   assert.equal(calls.at(-1).body.registrationId, "rb");
   assert.equal(state.registrations.length, 1);
+});
+
+test("Accounts: the dropdown lists what fits the account and runs it after confirmation", async () => {
+  const accountsActions = await import(root + "pages/beheer/actions/accounts.js");
+  const view = await import(root + "pages/beheer/beheer-view.js");
+  view.setBeheerAccounts([
+    { id: "a1", email: "actief@x.be", status: "active", families: [] },
+    { id: "a2", email: "uitgenodigd@x.be", status: "invited", families: [] },
+    { id: "a3", email: "geblokkeerd@x.be", status: "disabled", loginLocked: true, families: [] }
+  ]);
+  Object.assign(state, {
+    activeSection: "users",
+    beheerUsersTab: "accounts",
+    beheerUserFamilyId: null,
+    beheerTableSort: {},
+    beheerTableFilter: {}
+  });
+  core.renderApp();
+  const menuOf = email => rendered.slice(rendered.indexOf('data-email="' + email + '"')).split("</select>")[0];
+  assert.match(menuOf("actief@x.be"), /Blokkeren/);
+  assert.match(menuOf("actief@x.be"), /Afmelden op alle toestellen/);
+  assert.ok(!/Deblokkeren|opnieuw sturen|Ontgrendelen/.test(menuOf("actief@x.be")));
+  assert.match(menuOf("uitgenodigd@x.be"), /Uitnodiging opnieuw sturen/);
+  assert.ok(!/Blokkeren/.test(menuOf("uitgenodigd@x.be")));
+  assert.match(menuOf("geblokkeerd@x.be"), /Deblokkeren/);
+  assert.match(menuOf("geblokkeerd@x.be"), /Ontgrendelen/);
+  for (const email of ["actief@x.be", "uitgenodigd@x.be", "geblokkeerd@x.be"])
+    assert.match(menuOf(email), /Verwijderen/);
+
+  const calls = [];
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, method: options.method, body: options.body && JSON.parse(options.body) });
+    return { ok: true, json: async () => ({}) };
+  };
+  const choose = async (value, user = "a1", email = "actief@x.be") => {
+    const menu = {
+      value,
+      selectedOptions: [{ textContent: "Blokkeren" }],
+      dataset: { user, email },
+      disabled: false,
+      closest: () => menu
+    };
+    accountsActions.handleAccountMenu({ target: menu });
+    assert.equal(menu.value, "", "the dropdown goes back to Actie kiezen");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    return menu;
+  };
+
+  const confirmed = window.confirm;
+  window.confirm = () => false;
+  await choose("account-status:disabled");
+  assert.equal(calls.filter(call => call.method === "PATCH").length, 0, "no answer, no action");
+  window.confirm = confirmed;
+
+  await choose("account-status:disabled");
+  const patch = calls.find(call => call.method === "PATCH");
+  assert.equal(patch.path, "/api/admin/family-users/a1");
+  assert.deepEqual(patch.body, { status: "disabled" });
+
+  await choose("account-unlock", "a3", "geblokkeerd@x.be");
+  assert.ok(calls.some(call => call.path === "/api/admin/family-users/a3/unlock"));
+
+  const before = calls.length;
+  window.prompt = () => "iets anders";
+  await choose("account-delete");
+  assert.equal(calls.length, before, "deleting still needs the exact e-mail address");
 });

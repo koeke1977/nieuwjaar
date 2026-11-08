@@ -1467,9 +1467,18 @@ button.bh-kpi:hover {
   color: var(--bh-muted);
   font-weight: 500;
 }
-.bh-cell-actions {
-  display: flex;
-  gap: 6px;
+.bh-action-menu {
+  min-height: 36px;
+  max-width: 220px;
+  padding: 0 8px;
+  border: 1px solid var(--bh-line);
+  border-radius: 10px;
+  background: var(--bh-card);
+  color: var(--bh-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
 }
 .bh-butcher {
   margin-top: 16px;
