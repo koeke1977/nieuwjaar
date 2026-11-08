@@ -106,3 +106,75 @@ test("portal: a person with a bar bill has no remove button and cannot be remove
   assert.equal(item.registration.members.length, 2);
   assert.match(feedbackNode.textContent, /An heeft een barrekening/);
 });
+
+test("portal: Mijn account shows who has access; only the owner can invite and remove", async () => {
+  const actions = await import("../src/pages/family-auth/account-actions.js");
+  account.user = { email: "jan@x.be", displayName: "Jan" };
+  account.view.settingsOpen = true;
+  account.settings = {
+    families: [
+      {
+        id: "fa",
+        name: "Gezin <Jan>",
+        role: "owner",
+        people: [
+          { id: "a1", name: "Jan", email: "jan@x.be", status: "active", role: "owner", me: true },
+          { id: "b2", name: "Els", email: "els@x.be", status: "invited", role: "editor", me: false }
+        ]
+      }
+    ]
+  };
+  render();
+  let page = String(target.innerHTML);
+  assert.match(page, /Toegang tot Gezin &lt;Jan&gt;/);
+  assert.match(page, /Jan \(jij\)/);
+  assert.match(page, /nog niet geactiveerd/);
+  assert.equal(page.match(/data-action="remove-family-user"/g).length, 1, "only for Els, not for the owner");
+  assert.match(page, /data-account-form="invite"/);
+  assert.match(page, /data-account-form="password"/);
+  assert.match(page, /data-account-form="email"/);
+
+  account.settings.families[0].role = "editor";
+  render();
+  page = String(target.innerHTML);
+  assert.ok(!page.includes('data-account-form="invite"'), "an editor cannot invite");
+  assert.ok(!page.includes('data-action="remove-family-user"'), "an editor cannot remove");
+
+  // Two different new passwords never reach the server.
+  const before = sent.length;
+  const form = {
+    dataset: { accountForm: "password" },
+    elements: {
+      currentPassword: { value: "oud-wachtwoord-123" },
+      newPassword: { value: "nieuw-wachtwoord-1" },
+      confirmPassword: { value: "nieuw-wachtwoord-2" }
+    },
+    querySelector: () => ({}),
+    closest: () => form,
+    reset() {}
+  };
+  await actions.handleAccountSubmit({ target: form, preventDefault() {} });
+  assert.equal(sent.length, before);
+  assert.match(feedbackNode.textContent, /komen niet overeen/);
+
+  actions.clicks["close-settings"]();
+  assert.ok(!String(target.innerHTML).includes('data-account-form="password"'));
+});
+
+test("portal: wij komen niet, or that the request was passed on; not for viewers", () => {
+  const item = account.items[0];
+  account.view.tab = "family";
+  item.accessRole = "owner";
+  item.cancelRequestedAt = null;
+  render();
+  assert.match(String(target.innerHTML), /data-action="cancel-registration"/);
+  item.cancelRequestedAt = 1800000000;
+  render();
+  assert.ok(!String(target.innerHTML).includes('data-action="cancel-registration"'));
+  assert.match(String(target.innerHTML), /is doorgegeven aan de organisatie/);
+  item.accessRole = "viewer";
+  item.cancelRequestedAt = null;
+  render();
+  assert.ok(!String(target.innerHTML).includes('data-action="cancel-registration"'));
+  item.accessRole = "owner";
+});

@@ -2,12 +2,13 @@
 import template from "./family-auth.html?raw";
 import "./family-auth.css";
 import "./family-account.css";
-import { portal, account, activeItem, show, render, loadAccount, startTimers } from "./portal-core.js";
+import { portal, account, activeItem, show, feedback, render, loadAccount, startTimers } from "./portal-core.js";
 import * as signIn from "./sign-in.js";
 import * as family from "./family-actions.js";
 import * as costs from "./cost-actions.js";
+import * as accountActions from "./account-actions.js";
 
-const CLICKS = { ...costs.clicks, ...family.clicks, ...signIn.clicks };
+const CLICKS = { ...costs.clicks, ...family.clicks, ...signIn.clicks, ...accountActions.clicks };
 
 function handleClick(event) {
   const view = portal.view;
@@ -42,6 +43,7 @@ export async function startFamilyAuth() {
   const path = location.pathname;
   const activation = path.match(/^\/familie\/activeren\/([^/]+)\/?$/);
   const reset = path.match(/^\/familie\/wachtwoord-reset\/([^/]+)\/?$/);
+  const emailLink = path.match(/^\/familie\/email-bevestigen\/([^/]+)\/?$/);
   portal.token = activation?.[1] || reset?.[1] || "";
   portal.panel = activation
     ? "activate"
@@ -56,9 +58,18 @@ export async function startFamilyAuth() {
   view.addEventListener("toggle", family.rememberOpenPeople, true);
   view.addEventListener("submit", costs.handleExpenseSubmit);
   view.addEventListener("submit", family.handleMemberSubmit);
+  view.addEventListener("submit", accountActions.handleAccountSubmit);
   view.addEventListener("input", signIn.handlePasswordInput);
   view.addEventListener("submit", signIn.handleSignInSubmit);
 
+  if (emailLink) {
+    const outcome = await accountActions.confirmEmailLink(emailLink[1]);
+    history.replaceState(null, "", "/familie");
+    await loadAccount().catch(() => show("login"));
+    if (portal.panel !== "account") show("login");
+    feedback(outcome.message, outcome.kind);
+    return;
+  }
   if (!activation && !reset && portal.panel !== "forgot") {
     try {
       await loadAccount();

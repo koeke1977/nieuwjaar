@@ -20,7 +20,7 @@ import {
   statusChip,
   eventTitle
 } from "./shared.js";
-import { dash, activeFilter, sortRows, sortHeader, filterBar } from "./table.js";
+import { dash, shortDate, activeFilter, sortRows, sortHeader, filterBar } from "./table.js";
 
 // ---------------- Gezinnen ----------------
 function registerExistingFamily() {
@@ -53,7 +53,8 @@ const REG_FILTERS = [
   { id: "no-order", label: "Nog niets besteld", test: row => row.dinner && !row.portions },
   { id: "due", label: "Nog te betalen", test: row => row.remaining > 0 },
   { id: "credit", label: "Terug te geven", test: row => row.credit > 0 },
-  { id: "no-account", label: "Zonder account", test: row => row.access === 0 }
+  { id: "no-account", label: "Zonder account", test: row => row.access === 0 },
+  { id: "cancel", label: "Wil zich afmelden", test: row => row.cancelRequested }
 ];
 const REG_SORT = {
   name: row => row.name,
@@ -79,6 +80,7 @@ function renderFamilyList() {
       people: members.length,
       dinner: members.some(person => person.type !== EVENING),
       portions: familyPortions(reg),
+      cancelRequested: Boolean(state.cancelRequests?.[reg.id]),
       share: summary?.shareCents || 0,
       remaining: summary?.remainingCents || 0,
       credit: summary?.creditCents || 0,
@@ -92,7 +94,9 @@ function renderFamilyList() {
           <th scope="row">
             <button type="button" class="bh-link bh-row-link" data-action="open-family" data-id="${row.reg.id}">
               <strong>${row.name}</strong>
-              <small>${row.members.length ? countsText(row.members) : "Gezin nog niet ingevuld"}</small>
+              <small>${row.members.length ? countsText(row.members) : "Gezin nog niet ingevuld"}</small>${
+                row.cancelRequested ? html`<span class="bh-chip bh-chip-due">📨 Wil zich afmelden</span>` : ""
+              }
             </button>
           </th>
           <td>${row.people || dash}</td>
@@ -356,7 +360,7 @@ function renderFamilyDetail(registration) {
         ? refundForm(registration.id, t.creditCents)
         : "";
 
-  return html`<button type="button" class="bh-back" data-action="close-family">‹ Alle inschrijvingen</button>
+  return html`<button type="button" class="bh-back" data-action="close-family">‹ Alle inschrijvingen</button>${cancelRequestAlert(registration)}
       <header class="bh-page-head">
         <div>${
           state.beheerRenaming
@@ -427,6 +431,19 @@ function renderFamilyDetail(registration) {
           </section>
         </div>
       </div>`;
+}
+
+// A family asked to cancel and the organisation has to decide (worker/modules/family/cancel-route.js).
+function cancelRequestAlert(registration) {
+  const request = state.cancelRequests?.[registration.id];
+  if (!request) return "";
+  return html`<div class="bh-alert">
+      <p>📨 <strong>${registration.name}</strong> vroeg op ${shortDate(request.at)} om zich af te melden. Je beslist zelf
+        wat er gebeurt met de bestelling en de kosten. Schrijf het gezin uit onderaan deze pagina, of bewaar de
+        inschrijving.</p>
+      <button type="button" class="bh-btn bh-btn-sm" data-action="dismiss-cancel-request"
+          data-id="${registration.id}">Aanvraag sluiten, gezin blijft ingeschreven</button>
+    </div>`;
 }
 
 export function renderFamilies() {

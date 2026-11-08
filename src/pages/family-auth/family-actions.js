@@ -29,6 +29,39 @@ export const clicks = {
 
 // Only for owners and editors (not viewers): (control, item, members) of the active registration.
 export const editorClicks = {
+  "cancel-registration": async (control, item) => {
+    if (item.dirty || item.saving) {
+      feedback("Even geduld: jullie laatste wijziging wordt nog bewaard.");
+      return;
+    }
+    if (
+      !window.confirm(
+        "Jullie afmelden voor " +
+          (item.event || "dit evenement") +
+          " " +
+          (item.editionLabel || "") +
+          "?\n\nIs de bestelling al doorgegeven, of zijn er kosten, betalingen of een barrekening? Dan beslist de organisatie."
+      )
+    )
+      return;
+    try {
+      const result = await request("/api/family-account/cancel-registration", {
+        edition: item.edition,
+        registrationId: item.registration.id
+      });
+      if (result.cancelled) account.view = { tab: "overview", editingMemberId: null, openPeople: null };
+      account.signature = null;
+      await refreshAccount();
+      feedback(
+        result.cancelled
+          ? "Jullie zijn afgemeld. De organisatie is verwittigd. Je kan je later altijd opnieuw inschrijven."
+          : "Jullie vraag is doorgegeven aan de organisatie.",
+        "success"
+      );
+    } catch (error) {
+      feedback(error.message);
+    }
+  },
   quantity: (control, item, members) => {
     const person = members.find(entry => entry.id === control.dataset.person);
     const product = control.dataset.product;

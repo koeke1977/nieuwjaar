@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { createD1 } from "./helpers/d1.js";
 import { handleFamilyAccountApi } from "../worker/modules/family-account.js";
 import { handleAdminFamilyUsers } from "../worker/modules/admin-family-users.js";
+import { handleAdminEditionState, loadEditionState } from "../worker/modules/admin-edition-state.js";
 
 const encoder = new TextEncoder();
 const base64Url = bytes =>
@@ -269,4 +270,230 @@ test("a family cannot remove a person with a bar bill, also before the order dea
   const tampered = await save([jan, { ...tom, barCents: 0 }], withoutLies.body.revision);
   assert.equal(tampered.status, 200);
   assert.equal(stored().members.find(person => person.id === "tom").barCents, 1250, "a family cannot change the bill");
+});
+
+async function activated() {
+  const { DB, token } = await setup();
+  const device = client(DB);
+  await device.call("activate", { token, password: PASSWORD, displayName: "Jan" });
+  return { DB, device };
+}
+
+test("change password: needs the current one, signs out other devices, keeps this one", async () => {
+  const { DB, device } = await activated();
+  const other = client(DB);
+  await other.call("login", { email: "jan@x.be", password: PASSWORD });
+  assert.equal((await other.call("session")).body.authenticated, true);
+
+  const change = body => device.call("change-password", body);
+  assert.equal((await change({ currentPassword: PASSWORD, newPassword: "kort" })).status, 400);
+  assert.equal((await change({ currentPassword: "fout-wachtwoord", newPassword: NEW_PASSWORD })).status, 403);
+  assert.equal((await change({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD })).status, 200);
+
+  assert.equal((await device.call("session")).body.authenticated, true, "this device stays signed in");
+  assert.equal((await other.call("session")).body.authenticated, false, "the other device is signed out");
+  assert.equal((await other.call("login", { email: "jan@x.be", password: PASSWORD })).status, 401);
+  assert.equal((await other.call("login", { email: "jan@x.be", password: NEW_PASSWORD })).status, 200);
+  assert.match(device.mails.at(-1).subject, /wachtwoord is gewijzigd/);
+  assert.equal(
+    (await client(DB).call("change-password", { currentPassword: "x", newPassword: NEW_PASSWORD })).status,
+    401
+  );
+});
+
+test("change e-mail: confirmed through a link to the new address, which works once", async () => {
+  const { DB, device } = await activated();
+  DB.raw
+    .prepare(
+      "INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES ('b2', 'bezet@x.be', 'B', 'active', 1, 1)"
+    )
+    .run();
+  const change = body => device.call("change-email", body);
+  assert.equal((await change({ password: PASSWORD, newEmail: "geen-adres" })).status, 400);
+  assert.equal((await change({ password: PASSWORD, newEmail: "JAN@x.be" })).status, 400, "same address");
+  assert.equal((await change({ password: "fout-wachtwoord", newEmail: "nieuw@x.be" })).status, 403);
+  assert.equal((await change({ password: PASSWORD, newEmail: "bezet@x.be" })).status, 409);
+  assert.equal(device.mails.length, 0);
+
+  assert.equal((await change({ password: PASSWORD, newEmail: "Nieuw@X.be" })).status, 200);
+  const mail = device.mails.at(-1);
+  assert.equal(mail.to, "nieuw@x.be");
+  assert.equal((await device.call("session")).body.user.email, "jan@x.be", "nothing changes before confirmation");
+  const token = mail.html.match(/email-bevestigen\/([A-Za-z0-9_.-]+)/)[1];
+
+  const stranger = client(DB);
+  const [payload, signature] = token.split(".");
+  const claim = JSON.parse(new TextDecoder().decode(fromBase64Url(payload)));
+  const forged = base64Url(encoder.encode(JSON.stringify({ ...claim, n: "aanvaller@x.be" })));
+  assert.equal((await stranger.call("confirm-email", { token: forged + "." + signature })).status, 400, "forged");
+  assert.equal((await stranger.call("confirm-email", { token: "onzin" })).status, 400);
+
+  const confirmed = await stranger.call("confirm-email", { token });
+  assert.equal(confirmed.status, 200, "works without being signed in");
+  assert.equal(confirmed.body.email, "nieuw@x.be");
+  assert.equal((await stranger.call("confirm-email", { token })).status, 400, "a link works once");
+  assert.equal(stranger.mails.at(-1).to, "jan@x.be", "the old address is told");
+
+  assert.equal((await device.call("session")).body.user.email, "nieuw@x.be");
+  assert.equal((await client(DB).call("login", { email: "jan@x.be", password: PASSWORD })).status, 401);
+  assert.equal((await client(DB).call("login", { email: "nieuw@x.be", password: PASSWORD })).status, 200);
+});
+
+test("a password change makes an open e-mail link invalid", async () => {
+  const { DB, device } = await activated();
+  await device.call("change-email", { password: PASSWORD, newEmail: "nieuw@x.be" });
+  const token = device.mails.at(-1).html.match(/email-bevestigen\/([A-Za-z0-9_.-]+)/)[1];
+  await device.call("change-password", { currentPassword: PASSWORD, newPassword: NEW_PASSWORD });
+  assert.equal((await client(DB).call("confirm-email", { token })).status, 400);
+});
+
+test("the owner invites a partner, who can edit but not manage access; a mistaken invite can be removed", async () => {
+  const { DB, device } = await activated();
+  const invite = (body, who = device) => who.call("family-invite", { familyId: "fa", ...body });
+  assert.equal((await invite({ displayName: "", email: "els@x.be" })).status, 400);
+  assert.equal((await invite({ displayName: "Els", email: "els@x.be" })).status, 201);
+  const mail = device.mails.at(-1);
+  assert.equal(mail.to, "els@x.be");
+  assert.match(mail.html, /Gezin Jan/);
+  assert.equal((await invite({ displayName: "Els", email: "ELS@x.be" })).status, 409, "already has access");
+
+  const people = async () => (await device.call("account")).body.families[0].people;
+  const els = (await people()).find(person => person.email === "els@x.be");
+  assert.equal(els.role, "editor");
+  assert.equal(els.status, "invited");
+  assert.equal((await people()).find(person => person.me).role, "owner");
+
+  // The partner activates: they cannot invite or remove anyone, and nobody removes the owner here.
+  const partner = client(DB);
+  const token = mail.html.match(/activeren\/([A-Za-z0-9_-]+)/)[1];
+  assert.equal((await partner.call("activate", { token, password: PASSWORD, displayName: "Els" })).status, 200);
+  assert.equal((await invite({ displayName: "X", email: "x@x.be" }, partner)).status, 403);
+  const remove = (userId, who = device) => who.call("family-invite", { familyId: "fa", userId }, { method: "DELETE" });
+  assert.equal((await remove("a1", partner)).status, 403);
+  assert.equal((await remove("a1")).status, 403, "the owner cannot be removed here");
+
+  // An active account keeps existing after removal; a mistaken invitation disappears completely.
+  assert.equal((await remove(els.id)).status, 200);
+  assert.ok(DB.raw.prepare("SELECT 1 FROM family_users WHERE email = 'els@x.be'").get());
+  await invite({ displayName: "Fout", email: "fout@x.be" });
+  const typo = (await people()).find(person => person.email === "fout@x.be");
+  const typoToken = device.mails.at(-1).html.match(/activeren\/([A-Za-z0-9_-]+)/)[1];
+  assert.equal((await remove(typo.id)).status, 200);
+  assert.equal(DB.raw.prepare("SELECT 1 FROM family_users WHERE email = 'fout@x.be'").get(), undefined);
+  assert.equal(
+    (await client(DB).call("activate", { token: typoToken, password: PASSWORD, displayName: "F" })).status,
+    400
+  );
+
+  // Someone with an account gets a notice instead of an activation link; there is a maximum.
+  assert.equal((await invite({ displayName: "Els", email: "els@x.be" })).status, 201);
+  assert.match(device.mails.at(-1).html, /Naar het familieportaal/);
+  for (const name of ["c", "d", "e", "f"])
+    assert.equal((await invite({ displayName: name, email: name + "@x.be" })).status, 201);
+  assert.equal((await invite({ displayName: "g", email: "g@x.be" })).status, 409, "maximum six accounts");
+});
+
+function seedRegistration(
+  DB,
+  config = {},
+  members = [{ id: "jan", name: "Jan", type: "Volwassene", orders: { steak: 2 } }]
+) {
+  const db = DB.raw;
+  db.prepare(
+    "INSERT INTO events (id, slug, name, finance_strategy, created_at, updated_at) VALUES ('ev', 'feest', 'Zomerfeest', 'nieuwjaar', 1, 1)"
+  ).run();
+  db.prepare(
+    "INSERT INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES ('ed', 'ev', '2027', 'open', ?, 1, 1)"
+  ).run(JSON.stringify({ catalog: [{ id: "steak", name: "Steak", active: true }], ...config }));
+  db.prepare("INSERT INTO edition_finance_snapshots (edition_id, created_at, updated_at) VALUES ('ed', 1, 1)").run();
+  db.prepare(
+    "INSERT INTO event_registrations (id, edition_id, family_id, data_json, created_at, updated_at) VALUES ('ra', 'ed', 'fa', ?, 1, 5)"
+  ).run(JSON.stringify({ name: "Gezin Jan", members }));
+}
+const statusOf = DB => DB.raw.prepare("SELECT status FROM event_registrations WHERE id = 'ra'").get().status;
+const cancelBody = { edition: "ed", registrationId: "ra" };
+
+test("wij komen niet: cancels at once while no money is involved, and the family can register again", async () => {
+  const { DB, device } = await activated();
+  seedRegistration(DB, { orderDeadline: "2099-01-01T00:00" });
+  const before = (await loadEditionState({ DB }, "ed")).version;
+  const result = await device.call("cancel-registration", cancelBody);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.cancelled, true);
+  assert.equal(statusOf(DB), "cancelled");
+  const mail = device.mails.at(-1);
+  assert.equal(mail.to, "registratie@datuur.be");
+  assert.match(mail.subject, /Gezin Jan heeft zich afgemeld voor Zomerfeest 2027/);
+  assert.match(mail.html, /2 porties/);
+  assert.notEqual((await loadEditionState({ DB }, "ed")).version, before, "the admin sees it through live refresh");
+
+  const session = (await device.call("session")).body;
+  assert.equal(session.registrations.length, 0);
+  assert.equal(session.openEditions[0].edition, "ed", "can register again");
+  assert.equal((await device.call("register", { edition: "ed", familyId: "fa" })).status, 201);
+  assert.equal(statusOf(DB), "active");
+});
+
+test("wij komen niet: becomes a request once money is involved, and nothing is lost", async () => {
+  const cases = [
+    ["deadline passed", { orderDeadline: "2020-01-01T00:00" }, undefined, /einddatum/],
+    ["order mailed", { butcherSentAt: 123 }, undefined, /slager/],
+    ["bar bill", {}, [{ id: "jan", name: "Jan", type: "Volwassene", orders: {}, barCents: 500 }], /barrekening/]
+  ];
+  for (const [label, config, members, reason] of cases) {
+    const { DB, device } = await activated();
+    seedRegistration(DB, config, members);
+    const result = await device.call("cancel-registration", cancelBody);
+    assert.equal(result.body.requested, true, label);
+    assert.equal(statusOf(DB), "active", label + ": still registered");
+    assert.match(device.mails.at(-1).subject, /wil zich afmelden/);
+    assert.match(device.mails.at(-1).html, reason);
+  }
+
+  const { DB, device } = await activated();
+  seedRegistration(DB);
+  DB.raw
+    .prepare("UPDATE edition_finance_snapshots SET payments_json = ? WHERE edition_id = 'ed'")
+    .run(JSON.stringify([{ id: "p", registrationId: "ra", amountCents: 100, date: "2027-01-01", method: "cash" }]));
+  const revision = (await loadEditionState({ DB }, "ed")).configRevision;
+  assert.equal((await device.call("cancel-registration", cancelBody)).body.requested, true);
+  const count = device.mails.length;
+  assert.equal((await device.call("cancel-registration", cancelBody)).body.requested, true);
+  assert.equal(device.mails.length, count, "asking twice sends one mail");
+  assert.ok((await device.call("session")).body.registrations[0].cancelRequestedAt, "the family sees it is requested");
+
+  const state = await loadEditionState({ DB }, "ed");
+  assert.ok(state.cancelRequests.ra.at, "the admin sees the request");
+  assert.equal(state.configRevision, revision, "no change to the edition revision");
+
+  const url = new URL("https://nieuwjaar.datuur.be/api/admin/editions/ed/cancel-request");
+  const response = await handleAdminEditionState(
+    new Request(url, { method: "POST", body: JSON.stringify({ registrationId: "ra" }) }),
+    { DB },
+    url,
+    {
+      json: (data, status = 200) => Response.json(data, { status }),
+      sameOrigin: () => true,
+      adminSession: async () => true
+    }
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual((await loadEditionState({ DB }, "ed")).cancelRequests, {});
+});
+
+test("wij komen niet: a viewer or someone from another family cannot cancel", async () => {
+  const { DB, device } = await activated();
+  seedRegistration(DB);
+  DB.raw.prepare("UPDATE family_memberships SET role = 'viewer' WHERE user_id = 'a1'").run();
+  assert.equal((await device.call("cancel-registration", cancelBody)).status, 403);
+  DB.raw.prepare("DELETE FROM family_memberships WHERE user_id = 'a1'").run();
+  assert.equal((await device.call("cancel-registration", cancelBody)).status, 403);
+  assert.equal(statusOf(DB), "active");
+});
+
+test("no event name in the password reset mail", async () => {
+  const { device } = await activated();
+  await device.call("forgot-password", { email: "jan@x.be" });
+  const mail = device.mails.at(-1);
+  assert.ok(!/Nieuwjaar/.test(mail.subject + mail.html));
 });

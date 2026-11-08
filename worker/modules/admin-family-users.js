@@ -10,42 +10,11 @@
 //   PATCH  /api/admin/family-users/:id                  block / unblock
 //   DELETE /api/admin/family-users/:id                  delete account (family data is kept)
 
-import { esc } from "../../src/utils/html.js";
 import { familyAccountLocks, unlockFamilyEmail } from "./family/session.js";
-
-const INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
+import { inviteMail, issueInvite, inviteToFamily } from "./family/invite.js";
 
 function validEmail(value) {
   return typeof value === "string" && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function inviteMail(displayName, familyName, inviteUrl) {
-  return (
-    '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Welkom in het familieportaal</h2><p>Dag ' +
-    esc(displayName) +
-    ",</p>" +
-    (familyName
-      ? "<p>Je bent uitgenodigd voor het gezin <strong>" +
-        esc(familyName) +
-        "</strong>. Daar kan je jullie gezinsleden en bestellingen beheren en de afrekening volgen.</p>"
-      : "") +
-    '<p><a href="' +
-    inviteUrl +
-    '">Activeer je account</a> en kies zelf een wachtwoord.</p><p>Deze link is 7 dagen geldig.</p></div>'
-  );
-}
-
-async function issueInvite(env, userId, now, sha256, base64Url) {
-  const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
-  await env.DB.batch([
-    env.DB.prepare(
-      "UPDATE family_user_invites SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL"
-    ).bind(now, userId),
-    env.DB.prepare(
-      "INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"
-    ).bind(crypto.randomUUID(), userId, await sha256(token), now, now + INVITE_TTL_SECONDS)
-  ]);
-  return "https://nieuwjaar.datuur.be/familie/activeren/" + token;
 }
 
 export async function handleAdminFamilyUsers(request, env, url, dependencies) {
@@ -169,54 +138,26 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
       .bind(familyId)
       .first();
     const role = requestedRole || (Number(owners?.total || 0) ? "editor" : "owner");
-    let user = await env.DB.prepare("SELECT id, status FROM family_users WHERE email = ?").bind(email).first();
-    if (user?.status === "disabled")
-      return json({ error: "Dit account is geblokkeerd. Deblokkeer het eerst bij Gebruikers → Accounts." }, 409);
-    const statements = [];
-    const userId = user?.id || crypto.randomUUID();
-    if (!user)
-      statements.push(
-        env.DB.prepare(
-          "INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'invited', ?, ?)"
-        ).bind(userId, email, displayName, now, now)
-      );
-    statements.push(
-      env.DB.prepare(
-        "INSERT INTO family_memberships (id, family_id, user_id, role, created_at) VALUES (?, ?, ?, ?, ?)"
-      ).bind(crypto.randomUUID(), familyId, userId, role, now)
+    const result = await inviteToFamily(
+      env,
+      { familyId, familyName: family.display_name, email, displayName, role },
+      { now, sha256, base64Url, sendGraphMail }
     );
-    try {
-      await env.DB.batch(statements);
-    } catch (error) {
-      if (/UNIQUE|constraint/i.test(String(error?.message || "")))
-        return json({ error: "Dit account is al aan dit gezin gekoppeld." }, 409);
-      throw error;
-    }
-    const invited = !user || user.status === "invited";
-    if (invited) {
-      try {
-        const inviteUrl = await issueInvite(env, userId, now, sha256, base64Url);
-        await sendGraphMail(
-          env,
-          email,
-          "Uitnodiging familieportaal",
-          inviteMail(displayName, family.display_name, inviteUrl)
-        );
-      } catch (error) {
-        console.error("Family invitation mail failed:", error);
-        return json(
-          {
-            linked: true,
-            invited: true,
-            mailFailed: true,
-            error:
-              "Het account is gekoppeld, maar de uitnodigingsmail kon niet worden verzonden. Probeer 'Opnieuw sturen'."
-          },
-          502
-        );
-      }
-    }
-    return json({ linked: true, userId, role, invited }, 201);
+    if (result.status === "disabled")
+      return json({ error: "Dit account is geblokkeerd. Deblokkeer het eerst bij Gebruikers → Accounts." }, 409);
+    if (result.status === "exists") return json({ error: "Dit account is al aan dit gezin gekoppeld." }, 409);
+    if (result.status === "mailFailed")
+      return json(
+        {
+          linked: true,
+          invited: true,
+          mailFailed: true,
+          error:
+            "Het account is gekoppeld, maar de uitnodigingsmail kon niet worden verzonden. Probeer 'Opnieuw sturen'."
+        },
+        502
+      );
+    return json({ linked: true, userId: result.userId, role, invited: result.invited }, 201);
   }
 
   const membershipMatch = path.match(/^\/api\/admin\/families\/([^/]+)\/memberships\/([^/]+)$/);

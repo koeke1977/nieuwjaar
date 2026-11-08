@@ -296,3 +296,51 @@ test("Accounts: a locked account shows a chip, the filter and an unlock button",
   nav.clicks["table-filter"]({ dataset: { table: "accounts", filter: "locked" } });
   assert.ok(rendered.includes("jan@x.be") && !rendered.includes("piet@x.be"));
 });
+
+test("a family's request to cancel is visible to the admin and can be closed", async () => {
+  const reg = await import(root + "pages/beheer/actions/registrations.js");
+  const calls = [];
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, body: JSON.parse(options.body) });
+    return { ok: true, json: async () => ({ removed: true }) };
+  };
+  state.registrations = [
+    { id: "ra", familyId: "fa", name: "Jan", revision: 1, members: [] },
+    { id: "rb", familyId: "fb", name: "Piet", revision: 1, members: [] }
+  ];
+  Object.assign(state, {
+    expenses: [],
+    payments: [],
+    cancelRequests: { ra: { at: 1800000000 } },
+    activeEditionId: "ed",
+    activeSection: "events",
+    beheerEventView: "edition",
+    beheerEditionTab: "overview",
+    beheerFamilyId: null,
+    beheerTableFilter: {},
+    beheerTableSort: {}
+  });
+  core.renderApp();
+  assert.match(rendered, /📨 wil zich afmelden/);
+
+  nav.clicks["edition-tab"]({ dataset: { tab: "registrations" } });
+  nav.clicks["table-filter"]({ dataset: { table: "registrations", filter: "cancel" } });
+  assert.deepEqual(
+    [...rendered.matchAll(/data-action="open-family" data-id="([^"]+)"/g)].map(m => m[1]),
+    ["ra"]
+  );
+
+  nav.clicks["open-family"]({ dataset: { id: "ra" } });
+  assert.match(rendered, /vroeg op .* om zich af te melden/);
+  await reg.clicks["dismiss-cancel-request"]({ dataset: { id: "ra" } });
+  assert.equal(calls.at(-1).path, "/api/admin/editions/ed/cancel-request");
+  assert.deepEqual(calls.at(-1).body, { registrationId: "ra" });
+  assert.deepEqual(state.cancelRequests, {});
+  assert.ok(!rendered.includes("om zich af te melden"));
+
+  // Unregistering the family also closes its request.
+  state.cancelRequests = { rb: { at: 1800000000 } };
+  reg.clicks["unregister-family"]({ dataset: { id: "rb" } });
+  assert.equal(calls.at(-1).body.registrationId, "rb");
+  assert.equal(state.registrations.length, 1);
+});

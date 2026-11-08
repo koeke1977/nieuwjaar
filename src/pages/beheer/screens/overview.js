@@ -12,6 +12,7 @@ export function renderOverview() {
   for (const reg of regs) {
     const row = t.summary.find(item => item.id === reg.id);
     const reasons = [];
+    if (state.cancelRequests?.[reg.id]) reasons.push("📨 wil zich afmelden");
     if (!(reg.members || []).length) reasons.push("nog geen gezinsleden");
     else if (!familyPortions(reg)) reasons.push("nog geen vleesbestelling");
     if (!accountsForFamily(reg.familyId).length) reasons.push("geen account");

@@ -2,6 +2,8 @@
 import * as auth from "./family/auth-routes.js";
 import * as portal from "./family/portal-routes.js";
 import * as cost from "./family/cost-routes.js";
+import * as account from "./family/account-routes.js";
+import { cancelRegistration } from "./family/cancel-route.js";
 
 // "METHOD path below /api/family-account/" → handler
 const ROUTES = {
@@ -16,7 +18,14 @@ const ROUTES = {
   "POST receipts": cost.uploadReceipt,
   "GET receipts": cost.readReceipt,
   "POST expenses": cost.saveOrDeleteExpense,
-  "DELETE expenses": cost.saveOrDeleteExpense
+  "DELETE expenses": cost.saveOrDeleteExpense,
+  "GET account": account.accountInfo,
+  "POST change-password": account.changePassword,
+  "POST change-email": account.changeEmail,
+  "POST confirm-email": account.confirmEmail,
+  "POST family-invite": account.inviteFamilyAccount,
+  "DELETE family-invite": account.removeFamilyAccount,
+  "POST cancel-registration": cancelRegistration
 };
 
 export async function handleFamilyAccountApi(request, env, url, dependencies) {

@@ -53,6 +53,7 @@ export async function loadEditionState(env, editionId) {
     butcherEmail: typeof config.butcherEmail === "string" ? config.butcherEmail : "",
     butcherSentAt: Number(config.butcherSentAt) || null,
     settlementSentAt: Number(config.settlementSentAt) || null,
+    cancelRequests: config.cancelRequests && typeof config.cancelRequests === "object" ? config.cancelRequests : {},
     registrations,
     expenses: parse(snapshot?.expenses_json, []) || [],
     payments: parse(snapshot?.payments_json, []) || [],
@@ -67,11 +68,11 @@ export async function loadEditionState(env, editionId) {
 // Cheap change marker for live refresh: changes whenever anything in the edition changes.
 export async function editionVersion(env, editionId) {
   const row = await env.DB.prepare(
-    "SELECT d.updated_at AS d, e.updated_at AS e, (SELECT COUNT(*) FROM event_registrations WHERE edition_id = d.id) AS n, (SELECT MAX(updated_at) FROM event_registrations WHERE edition_id = d.id) AS r, (SELECT updated_at FROM edition_finance_snapshots WHERE edition_id = d.id) AS f FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?"
+    "SELECT d.updated_at AS d, e.updated_at AS e, LENGTH(d.config_json) AS c, (SELECT COUNT(*) FROM event_registrations WHERE edition_id = d.id) AS n, (SELECT MAX(updated_at) FROM event_registrations WHERE edition_id = d.id) AS r, (SELECT updated_at FROM edition_finance_snapshots WHERE edition_id = d.id) AS f FROM event_editions d JOIN events e ON e.id = d.event_id WHERE d.id = ?"
   )
     .bind(editionId)
     .first();
-  return row ? [row.d, row.e, row.n, row.r || 0, row.f || 0].join(".") : null;
+  return row ? [row.d, row.e, row.n, row.r || 0, row.f || 0, row.c || 0].join(".") : null;
 }
 
 // Archive the current edition and open the next one. Families and their accounts stay;

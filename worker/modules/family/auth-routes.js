@@ -116,11 +116,11 @@ export async function forgotPassword({ request, env, now, json, sameOrigin, sha2
         .run();
       const resetUrl = "https://nieuwjaar.datuur.be/familie/wachtwoord-reset/" + token;
       const html =
-        '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Wachtwoord opnieuw instellen</h2><p>Je vroeg een nieuw wachtwoord aan voor het Nieuwjaar-familieportaal.</p><p><a href="' +
+        '<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Wachtwoord opnieuw instellen</h2><p>Je vroeg een nieuw wachtwoord aan voor het familieportaal.</p><p><a href="' +
         resetUrl +
         '">Wachtwoord opnieuw instellen</a></p><p>Deze link is 30 minuten geldig en kan maar één keer gebruikt worden. Heb je dit niet aangevraagd? Dan mag je deze e-mail negeren.</p></div>';
       try {
-        await sendGraphMail(env, email, "Nieuwjaar – wachtwoord opnieuw instellen", html);
+        await sendGraphMail(env, email, "Wachtwoord opnieuw instellen", html);
       } catch (error) {
         console.error("Family password reset mail failed:", error.message);
       }

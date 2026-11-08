@@ -6,6 +6,7 @@ import { renderFamily } from "./screens/family.js";
 import { renderOrder } from "./screens/order.js";
 import { renderCosts } from "./screens/costs.js";
 import { renderOverview } from "./screens/overview.js";
+import { renderSettings } from "./screens/account.js";
 export { TABS } from "./screens/shared.js";
 
 export function renderEvent(item, view) {
@@ -57,14 +58,18 @@ function renderOpenEditions(openEditions = []) {
   );
 }
 
-export function renderAccount({ user, items, activeId, view, openEditions = [] }) {
+export function renderAccount({ user, items, activeId, view, openEditions = [], settings = null }) {
   const name = user?.displayName || "";
   const top = html`<header class="fa-top">
         <div>
           <p class="fa-eyebrow">Familieportaal</p>
           <h1>${name ? "Hallo, " + name : "Welkom"}</h1>${user?.email ? html`<small>${user.email}</small>` : ""}</div>
-        <button type="button" class="fa-btn fa-btn-quiet" data-action="logout">Afmelden</button>
+        <div class="fa-top-actions">
+          <button type="button" class="fa-btn fa-btn-quiet" data-action="open-settings">Mijn account</button>
+          <button type="button" class="fa-btn fa-btn-quiet" data-action="logout">Afmelden</button>
+        </div>
       </header>`;
+  if (view?.settingsOpen) return html`${top}${renderSettings(user, settings)}`;
   if (!items.length)
     return html`${top}${
       renderOpenEditions(openEditions) ||

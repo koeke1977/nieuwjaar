@@ -9,6 +9,8 @@ export const clicks = {
       await request("/api/family-account/logout", {});
       portal.token = "";
       account.items = [];
+      account.view.settingsOpen = false;
+      account.settings = null;
       show("login");
     } catch (error) {
       feedback(error.message);

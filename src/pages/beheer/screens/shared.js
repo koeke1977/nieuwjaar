@@ -10,7 +10,7 @@ export const portionsOf = person =>
 export const familyPortions = registration =>
   (registration.members || []).reduce((sum, person) => sum + portionsOf(person), 0);
 export const today = () => new Date().toISOString().slice(0, 10);
-export const eventName = () => state.eventName || "Nieuwjaar";
+export const eventName = () => state.eventName || "Evenement";
 export const editionName = () => state.activeEvent?.name || "";
 export const eventTitle = () => eventName() + (editionName() ? " " + editionName() : "");
 export function barBalance(registrations = state.registrations || [], expenses = state.expenses || []) {

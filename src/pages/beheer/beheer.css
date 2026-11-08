@@ -1549,3 +1549,7 @@ button.bh-kpi:hover {
     flex: 1 1 100%;
   }
 }
+
+.bh-row-link .bh-chip {
+  margin-top: 4px;
+}

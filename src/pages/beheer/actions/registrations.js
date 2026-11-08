@@ -2,9 +2,25 @@
 import { state } from "../../../data/admin-store.js";
 import { euro } from "../../../utils/html.js";
 import { isMemberType, EVENING } from "../../../utils/member-types.js";
-import { go, renderApp, makeId, recount, markCostsProvisional } from "../admin-core.js";
+import { go, renderApp, makeId, recount, markCostsProvisional, adminApi } from "../admin-core.js";
+
+const closeCancelRequest = async id => {
+  await adminApi("/api/admin/editions/" + encodeURIComponent(state.activeEditionId) + "/cancel-request", {
+    registrationId: id
+  });
+  delete state.cancelRequests[id];
+};
 
 export const clicks = {
+  "dismiss-cancel-request": async action => {
+    if (!window.confirm("Deze aanvraag sluiten? Het gezin blijft ingeschreven.")) return;
+    try {
+      await closeCancelRequest(action.dataset.id);
+      renderApp();
+    } catch (error) {
+      window.alert(error.message);
+    }
+  },
   "unregister-family": action => {
     const registration = state.registrations.find(item => item.id === action.dataset.id);
     if (!registration) return;
@@ -43,6 +59,7 @@ export const clicks = {
       return;
     state.registrations = state.registrations.filter(item => item.id !== registration.id);
     markCostsProvisional();
+    if (state.cancelRequests?.[registration.id]) closeCancelRequest(registration.id).catch(() => {});
     go({ beheerFamilyId: null, editingAdminMemberIndex: null });
     return;
   },

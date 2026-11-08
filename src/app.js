@@ -78,7 +78,8 @@ export async function startApp() {
     path === "/familie/portaal" ||
     path === "/familie/wachtwoord-vergeten" ||
     /^\/familie\/activeren\/[^/]+$/.test(path) ||
-    /^\/familie\/wachtwoord-reset\/[^/]+$/.test(path)
+    /^\/familie\/wachtwoord-reset\/[^/]+$/.test(path) ||
+    /^\/familie\/email-bevestigen\/[^/]+$/.test(path)
   ) {
     startFamilyAuth();
     return;

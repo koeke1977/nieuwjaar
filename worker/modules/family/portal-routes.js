@@ -113,6 +113,7 @@ export async function portalData({ request, env, json, cookieValue, sha256 }) {
       startsAt: row.starts_at || null,
       orderDeadline: typeof config.orderDeadline === "string" ? config.orderDeadline : null,
       ordersClosed: ordersClosed(config.orderDeadline),
+      cancelRequestedAt: Number(config.cancelRequests?.[row.registration_id]?.at) || null,
       event: row.event_name || "Evenement",
       accessRole: row.membership_role || "viewer",
       registration: own,

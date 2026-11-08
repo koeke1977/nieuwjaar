@@ -7,6 +7,7 @@ organisatie beheert alles in `/beheer`.
 - Productie: <https://nieuwjaar.datuur.be> — familieportaal op `/familie`, beheer op `/beheer`
 - Eén omgeving: productie (geen aparte testomgeving)
 - E-mail (uitnodigingen, wachtwoordherstel, berichten) gaat uitsluitend via `registratie@datuur.be` (Microsoft 365)
+- Afmeldingen van gezinnen worden gemeld aan `registratie@datuur.be` (of aan de Worker-variabele `ORGANIZER_EMAIL`)
 
 ## Begrippen
 
@@ -64,7 +65,7 @@ worker/
   modules/admin-events.js          evenementen en edities aanmaken
   modules/admin-family-users.js    gezinnen, accounts en uitnodigingen
   modules/family-account.js        routes van het familieportaal; het werk zit in modules/family/ (session,
-                                   auth-routes, portal-routes, cost-routes)
+                                   auth-routes, portal-routes, cost-routes, account-routes, cancel-route, invite)
   modules/receipts.js              privé-opslag van kastickets
   modules/backup.js                nachtelijke back-up naar R2
 migrations/                 databaseschema (Cloudflare D1)

@@ -1,5 +1,6 @@
 // Admin API for one event edition: routes only. The work is in ./edition/.
 import { handleSettlementMail } from "./settlement-mail.js";
+import { setCancelRequest } from "./edition/cancel-requests.js";
 import { loadEditionState, editionVersion, startNextEdition } from "./edition/load.js";
 import { saveEditionState } from "./edition/save.js";
 import { validName } from "./edition/clean.js";
@@ -13,7 +14,7 @@ export async function handleAdminEditionState(request, env, url, { json, sameOri
   if (!(await adminSession(request, env))) return json({ error: "Niet aangemeld." }, 401);
   if (request.method !== "GET" && !sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
   const match = url.pathname.match(
-    /^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next|message|butcher|settlement)$/
+    /^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next|message|butcher|settlement|cancel-request)$/
   );
   if (!match) return null;
   const [, editionId, action] = match;
@@ -70,6 +71,13 @@ export async function handleAdminEditionState(request, env, url, { json, sameOri
     return json({ sent, failed }, failed.length && !sent ? 502 : 200);
   }
 
+  // The organisation has decided on a family's request to cancel: the request is removed.
+  if (action === "cancel-request" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    if (typeof body?.registrationId !== "string") return json({ error: "Ongeldige aanvraag." }, 400);
+    await setCancelRequest(env, editionId, body.registrationId, null);
+    return json({ removed: true });
+  }
   if (action === "settlement" && request.method === "POST")
     return handleSettlementMail(request, env, editionId, { json, sendGraphMail, now });
   if (action === "butcher" && request.method === "POST") {

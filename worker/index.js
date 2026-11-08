@@ -196,9 +196,9 @@ async function handleAdminApi(request, env, url) {
       /[&<>"']/g,
       char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]
     );
-    const html = `<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Nieuwjaar – mailtest geslaagd</h2><p>Deze test bevestigt dat de Nieuwjaar-app e-mail kan versturen via Microsoft 365.</p><p>Verzonden vanuit <strong>registratie@datuur.be</strong>.</p><p>Ontvanger: ${safeRecipient}</p></div>`;
+    const html = `<div style="font-family:Arial,sans-serif;color:#242424;line-height:1.6"><h2>Mailtest geslaagd</h2><p>Deze test bevestigt dat de app e-mail kan versturen via Microsoft 365.</p><p>Verzonden vanuit <strong>registratie@datuur.be</strong>.</p><p>Ontvanger: ${safeRecipient}</p></div>`;
     try {
-      await sendGraphMail(env, recipient, "[Nieuwjaar] Test e-mailverbinding", html);
+      await sendGraphMail(env, recipient, "Test e-mailverbinding", html);
       return json({ sent: true });
     } catch (error) {
       console.error("Microsoft Graph mail test failed:", error.message);
@@ -356,7 +356,7 @@ export default {
 
       return env.ASSETS.fetch(request);
     } catch (error) {
-      console.error("Nieuwjaar Worker exception:", error);
+      console.error("Worker exception:", error);
       return json({ error: "Interne serverfout." }, 500);
     }
   }

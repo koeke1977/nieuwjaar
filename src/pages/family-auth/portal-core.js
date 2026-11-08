@@ -147,6 +147,7 @@ const busy = () => {
   const view = portal.view;
   if (portal.panel !== "account" || document.hidden) return true;
   if (account.items.some(item => item.dirty || item.saving) || account.view.editingMemberId) return true;
+  if (account.view.settingsOpen) return true;
   const active = document.activeElement;
   if (active && view.contains(active) && ["INPUT", "SELECT", "TEXTAREA"].includes(active.tagName)) return true;
   return [...view.querySelectorAll(".fa-app input")].some(input => input.value !== input.defaultValue);

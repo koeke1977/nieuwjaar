@@ -35,6 +35,17 @@ export function memberCostTotal(item, person) {
   return html`<strong class="fa-member-total">${cost ? euro(cost.totalCents) : "…"}</strong>`;
 }
 
+// "Wij komen niet": at once, or as a request when the organisation has to decide (see cancel-route.js).
+function cancelBlock(item) {
+  return item.cancelRequestedAt
+    ? html`<p class="fa-cancel fa-cancel-asked">📨 Jullie vraag om af te melden is doorgegeven aan de organisatie.</p>`
+    : html`<div class="fa-cancel">
+        <span>Komen jullie toch niet?</span>
+        <button type="button" class="fa-btn fa-btn-small fa-btn-quiet" data-action="cancel-registration">Wij komen
+          niet</button>
+      </div>`;
+}
+
 export function renderFamily(item, view) {
   const members = item.registration.members || [];
   const readOnly = item.accessRole === "viewer";
@@ -111,6 +122,6 @@ export function renderFamily(item, view) {
             <select name="memberType" aria-label="Categorie">${typeOptions("Volwassene")}</select>
             <button type="submit" class="fa-btn fa-btn-primary">+ Toevoegen</button>
           </div>
-        </form>`
+        </form>${cancelBlock(item)}`
       }`;
 }

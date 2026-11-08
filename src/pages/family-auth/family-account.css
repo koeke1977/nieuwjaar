@@ -1287,3 +1287,87 @@
   color: var(--fa-due);
   font-weight: 700;
 }
+
+/* Mijn account */
+.fa-top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.fa-settings {
+  display: grid;
+  gap: 14px;
+  justify-items: stretch;
+}
+.fa-settings > .fa-btn {
+  justify-self: start;
+}
+.fa-settings-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--fa-line);
+  border-radius: 14px;
+  background: var(--fa-card);
+}
+.fa-settings-card h3,
+.fa-settings-card h4 {
+  margin: 0;
+}
+.fa-settings-form {
+  display: grid;
+  gap: 10px;
+}
+.fa-settings-form .fa-btn {
+  justify-self: start;
+}
+.fa-settings-form input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 0 12px;
+  border: 1px solid var(--fa-line);
+  border-radius: 10px;
+  background: var(--fa-card);
+  color: var(--fa-ink);
+  font: inherit;
+}
+.fa-access {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fa-access-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.fa-access-row span {
+  display: grid;
+  min-width: 0;
+}
+.fa-access-row small {
+  overflow-wrap: anywhere;
+  color: var(--fa-muted);
+}
+/* Wij komen niet */
+.fa-cancel {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--fa-line);
+  color: var(--fa-muted);
+}
+.fa-cancel-asked {
+  color: var(--fa-due);
+  font-weight: 700;
+}
