@@ -5,6 +5,7 @@ import { isMemberType, EVENING } from "../../../src/utils/member-types.js";
 import { ordersClosed } from "../../../src/utils/time.js";
 import { familyAccountCookie, familyAccountSession } from "./session.js";
 import { logActivity, logRegistrationChange } from "../activity.js";
+import { guestListFor } from "./guest-list.js";
 
 const closedMessage = deadline =>
   "Bestellen is afgesloten" +
@@ -115,6 +116,7 @@ export async function portalData({ request, env, json, cookieValue, sha256 }) {
       orderDeadline: typeof config.orderDeadline === "string" ? config.orderDeadline : null,
       ordersClosed: ordersClosed(config.orderDeadline),
       contact: typeof config.contact === "string" ? config.contact : "",
+      guestList: await guestListFor(env, row.edition_id, row.registration_id, config),
       cancelRequestedAt: Number(config.cancelRequests?.[row.registration_id]?.at) || null,
       event: row.event_name || "Evenement",
       accessRole: row.membership_role || "viewer",

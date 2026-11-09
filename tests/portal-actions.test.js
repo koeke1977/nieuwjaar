@@ -243,3 +243,39 @@ test("portal: the Gezin tab shows no zero amounts, and logging out is under Mijn
   account.view.settingsOpen = false;
   item.finance = null;
 });
+
+test("portal: wie komt er nog shows the question, the list and the way to change your mind", () => {
+  const item = account.items[0];
+  account.view = { tab: "overview", editingMemberId: null, openPeople: null };
+  item.accessRole = "owner";
+  item.guestList = { answer: null, families: [], others: 4 };
+  render();
+  let page = String(target.innerHTML);
+  assert.match(page, /Mogen de andere gezinnen zien dat jullie komen/);
+  assert.match(page, /data-action="guest-list"[^>]*data-visible="true"/);
+  assert.match(page, /4 gezinnen ingeschreven/);
+
+  item.guestList = {
+    answer: true,
+    families: [
+      { name: "Jan <x>", people: 3, own: true },
+      { name: "Peeters", people: 1, own: false }
+    ],
+    others: 2
+  };
+  render();
+  page = String(target.innerHTML);
+  assert.ok(!page.includes("Mogen de andere"), "answered: no more question");
+  assert.match(page, /Jan &lt;x&gt;/);
+  assert.match(page, /\(jullie\)/);
+  assert.match(page, /1 persoon/);
+  assert.match(page, /\+ 2 gezinnen/);
+  assert.match(page, /Toch liever niet/);
+
+  item.accessRole = "viewer";
+  render();
+  page = String(target.innerHTML);
+  assert.ok(!page.includes('data-action="guest-list"'), "a viewer only reads");
+  assert.match(page, /Peeters/);
+  item.accessRole = "owner";
+});

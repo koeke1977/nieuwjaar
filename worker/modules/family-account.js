@@ -4,6 +4,7 @@ import * as portal from "./family/portal-routes.js";
 import * as cost from "./family/cost-routes.js";
 import * as account from "./family/account-routes.js";
 import { cancelRegistration } from "./family/cancel-route.js";
+import { setGuestListAnswer } from "./family/guest-list.js";
 
 // "METHOD path below /api/family-account/" → handler
 const ROUTES = {
@@ -25,7 +26,8 @@ const ROUTES = {
   "POST confirm-email": account.confirmEmail,
   "POST family-invite": account.inviteFamilyAccount,
   "DELETE family-invite": account.removeFamilyAccount,
-  "POST cancel-registration": cancelRegistration
+  "POST cancel-registration": cancelRegistration,
+  "POST guest-list": setGuestListAnswer
 };
 
 export async function handleFamilyAccountApi(request, env, url, dependencies) {

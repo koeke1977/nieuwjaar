@@ -29,6 +29,19 @@ export const clicks = {
 
 // Only for owners and editors (not viewers): (control, item, members) of the active registration.
 export const editorClicks = {
+  "guest-list": async (control, item) => {
+    try {
+      await request("/api/family-account/guest-list", {
+        edition: item.edition,
+        registrationId: item.registration.id,
+        visible: control.dataset.visible === "true"
+      });
+      account.signature = null;
+      await refreshAccount();
+    } catch (error) {
+      feedback(error.message);
+    }
+  },
   "cancel-registration": async (control, item) => {
     if (item.dirty || item.saving) {
       feedback("Even geduld: jullie laatste wijziging wordt nog bewaard.");

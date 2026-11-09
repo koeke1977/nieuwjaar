@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createD1 } from "./helpers/d1.js";
 import { handleFamilyAccountApi } from "../worker/modules/family-account.js";
 import { handleAdminFamilyUsers } from "../worker/modules/admin-family-users.js";
-import { handleAdminEditionState, loadEditionState } from "../worker/modules/admin-edition-state.js";
+import { handleAdminEditionState, loadEditionState, saveEditionState } from "../worker/modules/admin-edition-state.js";
 import { listActivity, pruneActivity } from "../worker/modules/activity.js";
 
 const encoder = new TextEncoder();
@@ -737,4 +737,99 @@ test("mail: the Microsoft token is reused for many mails and fetched again when 
     globalThis.fetch = original;
     forgetGraphToken();
   }
+});
+
+test("wie komt er nog: only with permission, only name and number, only for this edition's families", async () => {
+  const { DB, device } = await activated();
+  seedRegistration(DB, {}, [
+    {
+      id: "jan",
+      name: "Jan",
+      type: "Volwassene",
+      orders: { steak: 2 },
+      diet: ["Glutenvrij"],
+      notes: "Geheim",
+      barCents: 500
+    }
+  ]);
+  const db = DB.raw;
+  for (const [family, reg, name] of [
+    ["fb", "rb", "Gezin Peeters"],
+    ["fc", "rc", "Gezin Maes"],
+    ["fd", "rd", "Afgemeld gezin"]
+  ]) {
+    db.prepare("INSERT INTO families (id, display_name, created_at, updated_at) VALUES (?, ?, 1, 1)").run(family, name);
+    db.prepare(
+      "INSERT INTO event_registrations (id, edition_id, family_id, status, data_json, created_at, updated_at) VALUES (?, 'ed', ?, ?, ?, 1, 5)"
+    ).run(
+      reg,
+      family,
+      reg === "rd" ? "cancelled" : "active",
+      JSON.stringify({
+        name,
+        members: [
+          { id: reg + "1", name: "Geheime naam", type: "Volwassene", orders: {} },
+          { id: reg + "2", name: "Ander kind", type: "Kind", orders: {} }
+        ]
+      })
+    );
+  }
+  const list = async () => (await device.call("session")).body.registrations[0].guestList;
+  const answer = visible => device.call("guest-list", { ...cancelBody, visible });
+
+  let seen = await list();
+  assert.equal(seen.answer, null, "nobody has answered yet");
+  assert.deepEqual(seen.families, []);
+  assert.equal(seen.others, 3, "counted without names; the cancelled family does not count");
+
+  // Another family says yes through the same field the route writes.
+  const config = JSON.parse(db.prepare("SELECT config_json FROM event_editions WHERE id = 'ed'").get().config_json);
+  config.guestList = { rb: true, rc: false, rd: true };
+  db.prepare("UPDATE event_editions SET config_json = ? WHERE id = 'ed'").run(JSON.stringify(config));
+  seen = await list();
+  assert.deepEqual(seen.families, [{ name: "Gezin Peeters", people: 2, own: false }]);
+  assert.equal(seen.others, 2, "those who said no or nothing stay anonymous");
+
+  assert.equal((await answer("ja")).status, 400);
+  const revision = (await loadEditionState({ DB }, "ed")).configRevision;
+  assert.equal((await answer(true)).status, 200);
+  seen = await list();
+  assert.equal(seen.answer, true);
+  assert.deepEqual(
+    seen.families.map(family => [family.name, family.own]),
+    [
+      ["Gezin Jan", true],
+      ["Gezin Peeters", false]
+    ]
+  );
+  assert.equal((await loadEditionState({ DB }, "ed")).configRevision, revision, "no save conflicts for the admin");
+
+  const shared = JSON.stringify(seen);
+  for (const secret of ["Geheime naam", "Ander kind", "Glutenvrij", "Geheim", "Afgemeld gezin", "barCents", "orders"])
+    assert.ok(!shared.includes(secret), secret + " is not shared");
+
+  assert.equal((await answer(false)).status, 200);
+  seen = await list();
+  assert.equal(seen.answer, false);
+  assert.ok(!seen.families.some(family => family.own), "changing your mind works at once");
+
+  // The answers survive an admin save.
+  const state = await loadEditionState({ DB }, "ed");
+  const edited = { ...state, editionLabel: "2027 bis" };
+  assert.equal(
+    (await saveEditionState({ DB }, "ed", { base: state, data: edited }, Math.floor(Date.now() / 1000))).status,
+    200
+  );
+  assert.equal((await list()).answer, false);
+});
+
+test("wie komt er nog: a viewer sees the list but cannot answer; others cannot answer for a family", async () => {
+  const { DB, device } = await activated();
+  seedRegistration(DB);
+  DB.raw.prepare("UPDATE family_memberships SET role = 'viewer' WHERE user_id = 'a1'").run();
+  assert.ok((await device.call("session")).body.registrations[0].guestList);
+  assert.equal((await device.call("guest-list", { ...cancelBody, visible: true })).status, 403);
+  DB.raw.prepare("DELETE FROM family_memberships WHERE user_id = 'a1'").run();
+  assert.equal((await device.call("guest-list", { ...cancelBody, visible: true })).status, 403);
+  assert.equal((await client(DB).call("guest-list", { ...cancelBody, visible: true })).status, 401);
 });

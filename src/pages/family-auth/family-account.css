@@ -1369,3 +1369,45 @@
   color: inherit;
   font-weight: 700;
 }
+
+/* Wie komt er nog? */
+.fa-guests {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--fa-line);
+  border-radius: 14px;
+  background: var(--fa-card);
+}
+.fa-guests h3,
+.fa-guests p {
+  margin: 0;
+}
+.fa-guest-question {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--fa-gold-soft);
+}
+.fa-guest-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fa-guest-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.fa-guest-list small,
+.fa-guest-choice {
+  color: var(--fa-muted);
+}
+.fa-guest-choice {
+  font-size: 13px;
+}
