@@ -69,6 +69,7 @@ worker/
                                    auth-routes, portal-routes, cost-routes, account-routes, cancel-route, invite)
   modules/receipts.js              privé-opslag van kastickets
   modules/backup.js                nachtelijke back-up naar R2
+  modules/nightly.js               de nachtelijke taken; mislukt er een, dan volgt een waarschuwingsmail
 migrations/                 databaseschema (Cloudflare D1)
 tests/                      automatische tests (node --test, met een echte SQLite-database)
 scripts/                    hulpscripts (admin-wachtwoord, back-up terugzetten)
@@ -100,6 +101,8 @@ groene controles door naar `main`, en publiceer vanaf daar.
 ## Back-ups
 
 - Elke nacht (02:30 UTC) schrijft de Worker een volledige kopie van de database naar R2 (laatste 35 dagen).
+- Mislukt dat, dan gaat er een waarschuwing naar `registratie@datuur.be` (of `ORGANIZER_EMAIL`), en het beheer toont een
+  melding zodra de laatste back-up 2 dagen of ouder is.
 - In **Beheer → Instellingen → Back-ups**: overzicht, downloaden en _Nu back-up maken_.
 - Terugzetten:
   ```powershell

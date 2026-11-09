@@ -2,10 +2,10 @@ import { handleFamilyAccountApi } from "./modules/family-account.js";
 import { handleAdminFamilyUsers } from "./modules/admin-family-users.js";
 import { handleAdminEvents } from "./modules/admin-events.js";
 import { handleAdminEditionState } from "./modules/admin-edition-state.js";
-import { pruneActivity } from "./modules/activity.js";
+import { runNightlyJobs } from "./modules/nightly.js";
 import { graphAccessToken, forgetGraphToken } from "./modules/graph-token.js";
-import { backupDatabase, handleAdminBackups } from "./modules/backup.js";
-import { streamReceipt, pruneOrphanReceipts } from "./modules/receipts.js";
+import { handleAdminBackups } from "./modules/backup.js";
+import { streamReceipt } from "./modules/receipts.js";
 const SESSION_COOKIE = "ny_admin";
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
 const encoder = new TextEncoder();
@@ -263,17 +263,7 @@ async function handleAdminApi(request, env, url) {
 export default {
   // Daily backup (cron in wrangler.jsonc).
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(
-      backupDatabase(env)
-        .then(result => console.log("Backup written:", result))
-        .catch(error => console.error("Backup failed:", error))
-    );
-    ctx.waitUntil(
-      pruneOrphanReceipts(env)
-        .then(removed => console.log("Orphan receipts removed:", removed))
-        .catch(error => console.error("Receipt cleanup failed:", error))
-    );
-    ctx.waitUntil(pruneActivity(env).catch(error => console.error("Activity cleanup failed:", error)));
+    ctx.waitUntil(runNightlyJobs(env, sendGraphMail));
   },
 
   async fetch(request, env) {

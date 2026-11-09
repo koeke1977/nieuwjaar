@@ -1,5 +1,6 @@
 // Instellingen: e-mail, back-ups en info over de app.
 import { state } from "../../../data/admin-store.js";
+import { todayLocal } from "../../../utils/time.js";
 import { html, joinHtml, formatDate } from "../../../utils/html.js";
 import { pageHead } from "./shared.js";
 
@@ -22,8 +23,16 @@ function renderMail() {
 }
 
 // ---------------- Instellingen (global) ----------------
+// The newest backup's date is in its file name. Also catches a night on which nothing ran at all,
+// when no warning mail can go out either.
+function backupAgeDays(list, today = todayLocal()) {
+  const date = list?.[0]?.key.match(/d1-(\d{4}-\d{2}-\d{2})/)?.[1];
+  return date ? Math.round((Date.parse(today) - Date.parse(date)) / 86400000) : null;
+}
+
 function renderBackups() {
   const list = state.backups;
+  const age = backupAgeDays(list);
   const rows = joinHtml(
     (list || []).slice(0, 10).map(backup => {
       const file = backup.key.slice("backups/".length);
@@ -44,6 +53,11 @@ function renderBackups() {
         </header>
         <p class="bh-note">Elke nacht wordt automatisch een volledige kopie van de gegevens bewaard (de laatste 35
             dagen), in de beveiligde opslag van de app. Daarnaast houdt Cloudflare zelf 7 dagen herstelpunten bij.</p>${
+              age >= 2
+                ? html`<p class="bh-alert">⚠ De laatste back-up is ${age} dagen oud: de nachtelijke back-up is niet
+                    gelukt. Klik op "Nu back-up maken" en laat dit nakijken.</p>`
+                : ""
+            }${
               list === undefined
                 ? html`<p class="bh-empty">Back-ups laden…</p>`
                 : rows

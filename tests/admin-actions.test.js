@@ -26,6 +26,7 @@ const { state } = await import(root + "data/admin-store.js");
 const { applyEdition } = await import(root + "data/edition-payload.js");
 const core = await import(root + "pages/beheer/admin-core.js");
 const nav = await import(root + "pages/beheer/actions/navigation.js");
+const timeHelpers = await import(root + "utils/time.js");
 const reg = await import(root + "pages/beheer/actions/registrations.js");
 const fin = await import(root + "pages/beheer/actions/finance.js");
 const ed = await import(root + "pages/beheer/actions/edition.js");
@@ -517,4 +518,22 @@ test("Accounts: expired invitations show a label, a filter and one button to sen
   assert.ok(calls.includes("/api/admin/family-users/resend-expired"));
   assert.match(alerts.at(-1), /1 uitnodiging verstuurd/);
   assert.ok(!rendered.includes("is verlopen"), "the notice disappears");
+});
+
+test("Instellingen warns when the newest backup is too old", () => {
+  const { todayLocal } = timeHelpers;
+  const dayFile = daysAgo =>
+    "backups/d1-" + new Date(Date.parse(todayLocal()) - daysAgo * 86400000).toISOString().slice(0, 10) + ".json";
+  Object.assign(state, { activeSection: "settings", backups: [{ key: dayFile(1), size: 2048 }] });
+  core.renderApp();
+  assert.ok(!rendered.includes("de nachtelijke back-up is niet"), "last night's backup is fine");
+  state.backups = [
+    { key: dayFile(3), size: 2048 },
+    { key: dayFile(4), size: 2048 }
+  ];
+  core.renderApp();
+  assert.match(rendered, /De laatste back-up is 3 dagen oud/);
+  state.backups = [];
+  core.renderApp();
+  assert.ok(!rendered.includes("de nachtelijke back-up is niet"), "no backups yet is its own message");
 });
