@@ -1411,3 +1411,57 @@
 .fa-guest-choice {
   font-size: 13px;
 }
+
+/* Hulp, and room for a long name next to the buttons */
+.fa-top > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fa-top h1 {
+  overflow-wrap: anywhere;
+}
+.fa-top-actions {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.fa-top .fa-btn {
+  min-height: 38px;
+  padding: 0 11px;
+  font-size: 13px;
+}
+.fa-help {
+  display: grid;
+  gap: 14px;
+}
+.fa-help > .fa-btn {
+  justify-self: start;
+}
+.fa-help-topic {
+  border-top: 1px solid var(--fa-line);
+}
+.fa-help-topic summary {
+  padding: 12px 0;
+  color: var(--fa-ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+.fa-help-topic > div {
+  padding-bottom: 12px;
+  line-height: 1.5;
+}
+.fa-help-topic p,
+.fa-help-topic ol,
+.fa-help-topic ul {
+  margin: 0 0 8px;
+}
+.fa-help-topic ol,
+.fa-help-topic ul {
+  padding-left: 20px;
+}
+.fa-help-contact {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--fa-line);
+  font-weight: 700;
+}

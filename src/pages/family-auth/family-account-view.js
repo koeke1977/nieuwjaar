@@ -7,6 +7,7 @@ import { renderOrder } from "./screens/order.js";
 import { renderCosts } from "./screens/costs.js";
 import { renderOverview } from "./screens/overview.js";
 import { renderSettings } from "./screens/account.js";
+import { renderHelp } from "./screens/help.js";
 export { TABS } from "./screens/shared.js";
 
 export function renderEvent(item, view) {
@@ -74,8 +75,15 @@ export function renderAccount({ user, items, activeId, view, openEditions = [], 
         <div>
           <h1>${name ? "Hallo, " + name : "Welkom"}</h1>
         </div>
-        <button type="button" class="fa-btn fa-btn-quiet" data-action="open-settings">Mijn account</button>
+        <div class="fa-top-actions">
+          <button type="button" class="fa-btn fa-btn-quiet" data-action="open-help">Hulp</button>
+          <button type="button" class="fa-btn fa-btn-quiet" data-action="open-settings">Mijn account</button>
+        </div>
       </header>`;
+  if (view?.helpOpen) {
+    const current = items.find(item => item.registration.id === activeId) || items[0];
+    return html`${top}${renderHelp(helpLine(current?.contact))}`;
+  }
   if (view?.settingsOpen) return html`${top}${renderSettings(user, settings)}`;
   if (!items.length)
     return html`${top}${

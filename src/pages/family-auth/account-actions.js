@@ -15,7 +15,17 @@ function say(message, kind) {
 }
 
 export const clicks = {
+  "open-help": () => {
+    account.view.helpOpen = true;
+    render();
+    window.scrollTo?.(0, 0);
+  },
+  "close-help": () => {
+    account.view.helpOpen = false;
+    render();
+  },
   "open-settings": async () => {
+    account.view.helpOpen = false;
     account.view.settingsOpen = true;
     account.settings = null;
     render();

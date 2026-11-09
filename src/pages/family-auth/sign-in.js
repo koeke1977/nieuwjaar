@@ -10,6 +10,7 @@ export const clicks = {
       portal.token = "";
       account.items = [];
       account.view.settingsOpen = false;
+      account.view.helpOpen = false;
       account.settings = null;
       show("login");
     } catch (error) {

@@ -279,3 +279,41 @@ test("portal: wie komt er nog shows the question, the list and the way to change
   assert.match(page, /Peeters/);
   item.accessRole = "owner";
 });
+
+test("portal: Hulp opens the manual with the contact, also without a registration, and closes again", async () => {
+  const actions = await import("../src/pages/family-auth/account-actions.js");
+  const item = account.items[0];
+  item.contact = "Koen, 0470 12 34 56";
+  account.view = { tab: "overview", editingMemberId: null, openPeople: null };
+  render();
+  assert.match(String(target.innerHTML), /data-action="open-help"/);
+
+  actions.clicks["open-help"]();
+  let page = String(target.innerHTML);
+  for (const topic of [
+    "Bestelling",
+    "Gezin",
+    "Kosten en betalen",
+    "Wie komt er nog?",
+    "Komen jullie toch niet?",
+    "Mijn account en aanmelden"
+  ])
+    assert.ok(page.includes("<summary>" + topic + "</summary>"), topic);
+  assert.match(page, /href="tel:0470123456"/);
+  assert.ok(!page.includes("fa-tabs"), "the manual replaces the tabs");
+
+  // From the manual straight to Mijn account, and back.
+  await actions.clicks["open-settings"]();
+  assert.match(String(target.innerHTML), /data-account-form="password"/);
+  actions.clicks["close-settings"]();
+  actions.clicks["open-help"]();
+  actions.clicks["close-help"]();
+  assert.ok(!String(target.innerHTML).includes("fa-help"));
+
+  const saved = account.items;
+  account.items = [];
+  actions.clicks["open-help"]();
+  assert.match(String(target.innerHTML), /Neem contact op met de organisatie/);
+  actions.clicks["close-help"]();
+  account.items = saved;
+});
