@@ -481,3 +481,40 @@ test("Laatste activiteit: new lines are marked until seen, lines open the family
   nav.clicks["edition-tab"]({ dataset: { tab: "overview" } });
   assert.match(rendered, /Nog geen activiteit/);
 });
+
+test("Accounts: expired invitations show a label, a filter and one button to send them again", async () => {
+  const accountsActions = await import(root + "pages/beheer/actions/accounts.js");
+  const view = await import(root + "pages/beheer/beheer-view.js");
+  const list = [
+    { id: "a1", email: "verlopen@x.be", status: "invited", inviteExpired: true, families: [] },
+    { id: "a2", email: "geldig@x.be", status: "invited", inviteExpired: false, families: [] }
+  ];
+  view.setBeheerAccounts(list);
+  Object.assign(state, {
+    activeSection: "users",
+    beheerUsersTab: "accounts",
+    beheerUserFamilyId: null,
+    beheerTableSort: {},
+    beheerTableFilter: {}
+  });
+  core.renderApp();
+  assert.match(rendered, /1 uitnodiging is verlopen/);
+  assert.equal(rendered.match(/⌛ Verlopen/g).length, 1);
+  nav.clicks["table-filter"]({ dataset: { table: "accounts", filter: "expired" } });
+  assert.ok(rendered.includes("verlopen@x.be") && !rendered.includes("geldig@x.be"));
+
+  const calls = [];
+  globalThis.fetch = async path => {
+    calls.push(path);
+    const body = path.includes("resend-expired")
+      ? { sent: 1, failed: [], remaining: 0 }
+      : path.endsWith("/family-users")
+        ? { users: [{ ...list[0], inviteExpired: false }, list[1]] }
+        : { families: [] };
+    return { ok: true, json: async () => body };
+  };
+  await accountsActions.clicks["resend-expired-invites"]({ dataset: { count: "1" } });
+  assert.ok(calls.includes("/api/admin/family-users/resend-expired"));
+  assert.match(alerts.at(-1), /1 uitnodiging verstuurd/);
+  assert.ok(!rendered.includes("is verlopen"), "the notice disappears");
+});

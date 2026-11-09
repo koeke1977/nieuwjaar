@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { localToDate, ordersClosed } from "../src/utils/time.js";
+import { localToDate, ordersClosed, todayLocal } from "../src/utils/time.js";
 
 test("Belgian local time is converted correctly in winter and summer", () => {
   assert.equal(localToDate("2026-12-20T23:59").toISOString(), "2026-12-20T22:59:00.000Z");
@@ -17,4 +17,10 @@ test("orders close after the deadline, not before", () => {
   assert.equal(ordersClosed("2026-12-20T23:59", new Date("2026-12-20T22:58:00Z")), false);
   assert.equal(ordersClosed("2026-12-20T23:59", new Date("2026-12-20T23:00:00Z")), true);
   assert.equal(ordersClosed(null), false, "no deadline: ordering stays open");
+});
+
+test("today is the date in Belgium, also just after midnight", () => {
+  assert.equal(todayLocal(Date.UTC(2026, 11, 31, 23, 30)), "2027-01-01", "00:30 on New Year's Day in winter time");
+  assert.equal(todayLocal(Date.UTC(2026, 11, 31, 22, 59)), "2026-12-31");
+  assert.equal(todayLocal(Date.UTC(2026, 6, 1, 22, 30)), "2026-07-02", "summer time");
 });

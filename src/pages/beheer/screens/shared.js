@@ -1,5 +1,6 @@
 // Helpers shared by the admin screens: names, totals, page head, KPI tiles, chips, payment lines.
 import { state } from "../../../data/admin-store.js";
+import { todayLocal } from "../../../utils/time.js";
 import { DIET_OPTIONS, NOTE_MAX, hasDiet } from "../../../utils/diet.js";
 import { countByType } from "../../../utils/member-types.js";
 import { html, joinHtml, euro, formatDate } from "../../../utils/html.js";
@@ -9,7 +10,7 @@ export const portionsOf = person =>
   Object.values(person?.orders || {}).reduce((sum, qty) => sum + Math.max(0, Number(qty) || 0), 0);
 export const familyPortions = registration =>
   (registration.members || []).reduce((sum, person) => sum + portionsOf(person), 0);
-export const today = () => new Date().toISOString().slice(0, 10);
+export const today = () => todayLocal();
 export const eventName = () => state.eventName || "Evenement";
 export const editionName = () => state.activeEvent?.name || "";
 export const eventTitle = () => eventName() + (editionName() ? " " + editionName() : "");

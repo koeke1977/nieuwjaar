@@ -268,7 +268,8 @@ const ACCOUNT_FILTERS = [
   { id: "active", label: "Actief", test: user => user.status === "active" },
   { id: "invited", label: "Uitgenodigd", test: user => user.status === "invited" },
   { id: "disabled", label: "Geblokkeerd", test: user => user.status === "disabled" },
-  { id: "locked", label: "Vergrendeld", test: user => user.loginLocked || user.resetLocked }
+  { id: "locked", label: "Vergrendeld", test: user => user.loginLocked || user.resetLocked },
+  { id: "expired", label: "Uitnodiging verlopen", test: user => user.inviteExpired }
 ];
 
 // Locked by the limits on wrong passwords or reset mails (not the same as blocked by the admin).
@@ -312,6 +313,16 @@ function accountMenu(user) {
       )}</select>`;
 }
 
+function expiredInvitesBar() {
+  const count = accounts.filter(user => user.inviteExpired).length;
+  if (!count) return "";
+  return html`<div class="bh-alert bh-alert-info">
+      <p>⌛ ${count === 1 ? "1 uitnodiging is" : count + " uitnodigingen zijn"} verlopen: die link werkt niet meer.</p>
+      <button type="button" class="bh-btn bh-btn-sm bh-btn-primary" data-action="resend-expired-invites"
+          data-count="${count}">Opnieuw versturen</button>
+    </div>`;
+}
+
 function renderAccounts() {
   const filter = activeFilter("accounts", ACCOUNT_FILTERS);
   const rows = sortRows(accounts.filter(filter.test), "accounts", ACCOUNT_SORT);
@@ -323,7 +334,11 @@ function renderAccounts() {
           <td>
             <span class="bh-chip ${STATUS_CHIP[user.status] || "bh-chip-muted"}">${
               STATUS_LABEL[user.status] || user.status
-            }</span>${lockChips(user)}
+            }</span>${lockChips(user)}${
+              user.inviteExpired
+                ? html` <span class="bh-chip bh-chip-due" title="De activatielink werkt niet meer">⌛ Verlopen</span>`
+                : ""
+            }
           </td>
           <td>${
             joinHtml(
@@ -344,7 +359,7 @@ function renderAccounts() {
         <header class="bh-card-head">
           <h2>Accounts</h2>
           <span class="bh-count">${accounts.length}</span>
-        </header>${filterBar("accounts", ACCOUNT_FILTERS, accounts)}<p class="bh-note">Uitnodigen doe je bij het gezin
+        </header>${filterBar("accounts", ACCOUNT_FILTERS, accounts)}${expiredInvitesBar()}<p class="bh-note">Uitnodigen doe je bij het gezin
           (Gezinnen → gezin → Toegang). Een account hoort bij een gezin, niet bij één editie.</p>${
             rows.length
               ? html`<div class="bh-table-wrap">

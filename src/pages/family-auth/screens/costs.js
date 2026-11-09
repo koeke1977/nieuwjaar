@@ -1,6 +1,7 @@
 // Tab Kosten: afrekening, uitleg per soort kost, eigen kosten met kasticket, betalingen.
 import { html, joinHtml, euro, plural, formatDate } from "../../../utils/html.js";
 import { COST_SHORT, COST_ICON } from "../../../utils/finance.js";
+import { todayLocal } from "../../../utils/time.js";
 import { typeLabel, EVENING } from "../../../utils/member-types.js";
 import { UNITS, percentFormat, METHOD_CHOICES, settlementHero } from "./shared.js";
 
@@ -61,7 +62,7 @@ function renderOwnCosts(item, view) {
               value="${expense ? (expense.amountCents / 100).toFixed(2) : ""}" required>
           </label>
           <label class="fa-label">Datum<input name="date" type="date"
-              value="${expense?.date || new Date().toISOString().slice(0, 10)}" required>
+              value="${expense?.date || todayLocal()}" required>
           </label>
         </div>
         <label class="fa-label">Wie betaalt mee?<select name="method">${joinHtml(

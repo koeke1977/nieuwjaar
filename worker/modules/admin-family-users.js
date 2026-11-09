@@ -5,6 +5,7 @@
 //   DELETE /api/admin/families/:familyId/memberships/:userId   unlink account from family
 //   GET    /api/admin/family-users                      all accounts with their families
 //   POST   /api/admin/family-users/:id/resend           new activation mail
+//   POST   /api/admin/family-users/resend-expired       new activation mail for every expired invitation
 //   POST   /api/admin/family-users/:id/sessions         revoke sessions
 //   POST   /api/admin/family-users/:id/unlock           clear the login and password-reset limits
 //   PATCH  /api/admin/family-users/:id                  block / unblock
@@ -15,6 +16,33 @@ import { inviteMail, issueInvite, inviteToFamily } from "./family/invite.js";
 
 function validEmail(value) {
   return typeof value === "string" && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+const MAX_INVITES_PER_CLICK = 30;
+
+// Invited accounts without a link that still works: they would only get an error when activating.
+async function expiredInvites(env, now) {
+  const rows = await env.DB.prepare(
+    "SELECT u.id, u.email, u.display_name FROM family_users u WHERE u.status = 'invited' AND NOT EXISTS (SELECT 1 FROM family_user_invites i WHERE i.user_id = u.id AND i.used_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > ?) ORDER BY u.email"
+  )
+    .bind(now)
+    .all();
+  return rows.results || [];
+}
+
+async function resendInvite(env, user, { now, sha256, base64Url, sendGraphMail }) {
+  const family = await env.DB.prepare(
+    "SELECT f.display_name FROM family_memberships fm JOIN families f ON f.id = fm.family_id WHERE fm.user_id = ? ORDER BY fm.created_at LIMIT 1"
+  )
+    .bind(user.id)
+    .first();
+  const inviteUrl = await issueInvite(env, user.id, now, sha256, base64Url);
+  await sendGraphMail(
+    env,
+    user.email,
+    "Uitnodiging familieportaal – nieuwe link",
+    inviteMail(user.display_name, family?.display_name, inviteUrl)
+  );
 }
 
 export async function handleAdminFamilyUsers(request, env, url, dependencies) {
@@ -103,6 +131,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
         users.get(row.id).families.push({ familyId: row.family_id, familyName: row.family_name, role: row.role });
     }
     const list = [...users.values()];
+    const expired = new Set((await expiredInvites(env, now)).map(person => person.id));
     const locks = await familyAccountLocks(
       env,
       list.map(user => user.email),
@@ -112,6 +141,7 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     for (const user of list) {
       user.loginLocked = locks.get(user.email).login;
       user.resetLocked = locks.get(user.email).reset;
+      user.inviteExpired = expired.has(user.id);
     }
     return json({ users: list });
   }
@@ -194,6 +224,24 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
     return json({ unlinked: true });
   }
 
+  // All invitations whose link has expired get a new link, a limited number per click.
+  if (path === "/api/admin/family-users/resend-expired" && request.method === "POST") {
+    const expired = await expiredInvites(env, now);
+    const batch = expired.slice(0, MAX_INVITES_PER_CLICK);
+    const failed = [];
+    let sent = 0;
+    for (const person of batch) {
+      try {
+        await resendInvite(env, person, { now, sha256, base64Url, sendGraphMail });
+        sent++;
+      } catch (error) {
+        console.error("Family invitation resend failed:", person.email, error?.message);
+        failed.push(person.email);
+      }
+    }
+    return json({ sent, failed, remaining: expired.length - batch.length }, failed.length && !sent ? 502 : 200);
+  }
+
   const match = path.match(/^\/api\/admin\/family-users\/([0-9a-f-]+)(?:\/(resend|sessions|unlock))?$/i);
   if (!match) return json({ error: "Niet gevonden." }, 404);
   const [, userId, action] = match;
@@ -205,19 +253,8 @@ export async function handleAdminFamilyUsers(request, env, url, dependencies) {
   if (action === "resend" && request.method === "POST") {
     if (user.status !== "invited")
       return json({ error: "Alleen openstaande uitnodigingen kunnen opnieuw worden verstuurd." }, 409);
-    const family = await env.DB.prepare(
-      "SELECT f.display_name FROM family_memberships fm JOIN families f ON f.id = fm.family_id WHERE fm.user_id = ? ORDER BY fm.created_at LIMIT 1"
-    )
-      .bind(userId)
-      .first();
     try {
-      const inviteUrl = await issueInvite(env, userId, now, sha256, base64Url);
-      await sendGraphMail(
-        env,
-        user.email,
-        "Uitnodiging familieportaal – nieuwe link",
-        inviteMail(user.display_name, family?.display_name, inviteUrl)
-      );
+      await resendInvite(env, user, { now, sha256, base64Url, sendGraphMail });
     } catch (error) {
       console.error("Family invitation resend failed:", error);
       return json({ error: "De uitnodigingsmail kon niet worden verzonden." }, 502);

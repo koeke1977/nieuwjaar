@@ -47,3 +47,9 @@ export function ordersClosed(orderDeadline, now = new Date()) {
   const deadline = orderDeadline ? localToDate(orderDeadline) : null;
   return Boolean(deadline && now.getTime() > deadline.getTime());
 }
+
+// Today's date in Belgium ("2026-12-31"), also in the first hours after midnight, when UTC is still yesterday.
+export const todayLocal = (now = Date.now(), timeZone = TIME_ZONE) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    new Date(now)
+  );

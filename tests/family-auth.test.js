@@ -671,3 +671,70 @@ test("activity: when logging fails, the family's save still succeeds", async () 
     console.error = original;
   }
 });
+
+test("expired invitations are marked and can be sent again together; the new link works", async () => {
+  const { DB, token } = await setup();
+  const admin = adminClient(DB);
+  const mails = [];
+  const account = async () => (await admin("family-users")).body.users.find(user => user.email === "jan@x.be");
+  assert.equal((await account()).inviteExpired, false, "a fresh invitation is fine");
+
+  DB.raw.prepare("UPDATE family_user_invites SET expires_at = 1000 WHERE user_id = 'a1'").run();
+  assert.equal((await account()).inviteExpired, true);
+  assert.equal((await client(DB).call("activate", { token, password: PASSWORD, displayName: "Jan" })).status, 400);
+
+  // An active account and an invitation that still works are left alone.
+  const db = DB.raw;
+  db.prepare(
+    "INSERT INTO family_users (id, email, display_name, status, created_at, updated_at) VALUES ('c3', 'actief@x.be', 'A', 'active', 1, 1), ('c4', 'nog-geldig@x.be', 'N', 'invited', 1, 1)"
+  ).run();
+  db.prepare(
+    "INSERT INTO family_user_invites (id, user_id, token_hash, created_at, expires_at) VALUES ('i4', 'c4', 'h4', 1, ?)"
+  ).run(Math.floor(Date.now() / 1000) + 3600);
+
+  const url = new URL("https://nieuwjaar.datuur.be/api/admin/family-users/resend-expired");
+  const response = await handleAdminFamilyUsers(new Request(url, { method: "POST" }), { DB }, url, {
+    json: (data, status = 200) => Response.json(data, { status }),
+    sameOrigin: () => true,
+    adminSession: async () => true,
+    sha256,
+    base64Url,
+    sendGraphMail: async (env, to, subject, html) => mails.push({ to, subject, html })
+  });
+  assert.deepEqual(await response.json(), { sent: 1, failed: [], remaining: 0 });
+  assert.deepEqual(
+    mails.map(mail => mail.to),
+    ["jan@x.be"]
+  );
+  assert.match(mails[0].html, /Gezin Jan/);
+  assert.equal((await account()).inviteExpired, false);
+
+  const newToken = mails[0].html.match(/activeren\/([A-Za-z0-9_-]+)/)[1];
+  assert.equal(
+    (await client(DB).call("activate", { token: newToken, password: PASSWORD, displayName: "Jan" })).status,
+    200
+  );
+});
+
+test("mail: the Microsoft token is reused for many mails and fetched again when it runs out", async () => {
+  const { graphAccessToken, forgetGraphToken } = await import("../worker/modules/graph-token.js");
+  const env = { O365_TENANT_ID: "t", O365_CLIENT_ID: "c", O365_CLIENT_SECRET: "s" };
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return { ok: true, json: async () => ({ access_token: "token" + calls, expires_in: 3600 }) };
+  };
+  try {
+    forgetGraphToken();
+    const start = 1_000_000;
+    for (let i = 0; i < 30; i++) assert.equal(await graphAccessToken(env, start), "token1");
+    assert.equal(calls, 1, "thirty mails, one token");
+    assert.equal(await graphAccessToken(env, start + 3500 * 1000), "token2", "close to expiry: a new one");
+    forgetGraphToken();
+    assert.equal(await graphAccessToken(env, start), "token3", "after a refusal: a new one");
+  } finally {
+    globalThis.fetch = original;
+    forgetGraphToken();
+  }
+});

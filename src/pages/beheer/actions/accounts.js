@@ -26,6 +26,34 @@ const accountCall = (action, path, body, method, message) => {
 };
 
 export const clicks = {
+  "resend-expired-invites": async action => {
+    const count = Number(action.dataset.count);
+    if (
+      !window.confirm(
+        count === 1
+          ? "De verlopen uitnodiging opnieuw versturen?"
+          : "De " + count + " verlopen uitnodigingen opnieuw versturen?"
+      )
+    )
+      return;
+    action.disabled = true;
+    try {
+      const result = await adminApi("/api/admin/family-users/resend-expired", {});
+      await loadFamiliesAndAccounts();
+      renderApp();
+      window.alert(
+        result.sent +
+          " " +
+          (result.sent === 1 ? "uitnodiging" : "uitnodigingen") +
+          " verstuurd." +
+          (result.remaining ? " Er zijn er nog " + result.remaining + ": klik nog eens om verder te gaan." : "") +
+          (result.failed?.length ? " Niet gelukt voor: " + result.failed.join(", ") : "")
+      );
+    } catch (error) {
+      window.alert(error.message);
+      action.disabled = false;
+    }
+  },
   "resend-account-invite": action => {
     accountCall(
       action,

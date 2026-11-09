@@ -3,6 +3,7 @@ import { handleAdminFamilyUsers } from "./modules/admin-family-users.js";
 import { handleAdminEvents } from "./modules/admin-events.js";
 import { handleAdminEditionState } from "./modules/admin-edition-state.js";
 import { pruneActivity } from "./modules/activity.js";
+import { graphAccessToken, forgetGraphToken } from "./modules/graph-token.js";
 import { backupDatabase, handleAdminBackups } from "./modules/backup.js";
 import { streamReceipt, pruneOrphanReceipts } from "./modules/receipts.js";
 const SESSION_COOKIE = "ny_admin";
@@ -34,47 +35,10 @@ async function sendGraphMail(env, recipient, subject, html) {
   if (typeof html !== "string" || html.length > 100000) {
     throw new Error("Ongeldige e-mailinhoud.");
   }
-  const tokenResponse = await fetch(
-    `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        scope: "https://graph.microsoft.com/.default",
-        grant_type: "client_credentials"
-      })
-    }
-  );
-  if (!tokenResponse.ok) {
-    let authError = null;
-    try {
-      authError = await tokenResponse.json();
-    } catch {
-      /* Microsoft-response was geen JSON. */
-    }
-    const errorCode = typeof authError?.error === "string" ? authError.error : "unknown_error";
-    const description =
-      typeof authError?.error_description === "string"
-        ? authError.error_description.replace(/[\\r\\n]+/g, " ").slice(0, 700)
-        : "Microsoft gaf geen foutomschrijving terug.";
-    const correlationId = typeof authError?.correlation_id === "string" ? authError.correlation_id : "";
-    const traceId = typeof authError?.trace_id === "string" ? authError.trace_id : "";
-    console.error("Microsoft OAuth token request failed:", {
-      status: tokenResponse.status,
-      error: errorCode,
-      description,
-      correlationId,
-      traceId
-    });
-    throw new Error(`Microsoft 365-aanmelding mislukt (HTTP ${tokenResponse.status}, ${errorCode}): ${description}`);
-  }
-  const tokenData = await tokenResponse.json();
-  if (!tokenData.access_token) throw new Error("Microsoft 365 gaf geen toegangstoken terug.");
+  const accessToken = await graphAccessToken(env);
   const sendResponse = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${tokenData.access_token}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       message: {
         subject,
@@ -84,6 +48,7 @@ async function sendGraphMail(env, recipient, subject, html) {
       saveToSentItems: true
     })
   });
+  if (sendResponse.status === 401) forgetGraphToken();
   if (!sendResponse.ok)
     throw new Error(
       `Microsoft Graph heeft de e-mail geweigerd (HTTP ${sendResponse.status}). Controleer de mailboxmachtiging.`
