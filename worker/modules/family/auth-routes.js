@@ -10,6 +10,7 @@ import {
   familyResetLimit,
   unlockFamilyEmail
 } from "./session.js";
+import { logAccountActivity } from "../activity.js";
 
 export async function login({ request, env, now, json, sameOrigin, sha256, base64Url, fromBase64Url }) {
   if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
@@ -22,7 +23,9 @@ export async function login({ request, env, now, json, sameOrigin, sha256, base6
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   const limiter = await familyLoginLimit(env, email, ip, sha256, now);
   if (limiter.blocked) return json({ error: "Te veel aanmeldpogingen. Probeer over 15 minuten opnieuw." }, 429);
-  const user = await env.DB.prepare("SELECT id, password_hash, status FROM family_users WHERE email = ?")
+  const user = await env.DB.prepare(
+    "SELECT id, password_hash, status, display_name, last_login_at FROM family_users WHERE email = ?"
+  )
     .bind(email)
     .first();
   const valid =
@@ -35,6 +38,14 @@ export async function login({ request, env, now, json, sameOrigin, sha256, base6
   }
   await limiter.clearEmail();
   const token = await createFamilyAccountSession(env, user.id, now, sha256, base64Url);
+  if (!user.last_login_at)
+    await logAccountActivity(env, {
+      userId: user.id,
+      actor: user.display_name || "",
+      type: "first-login",
+      summary: "Voor het eerst aangemeld",
+      now
+    });
   await env.DB.prepare("UPDATE family_users SET last_login_at = ?, updated_at = ? WHERE id = ?")
     .bind(now, now, user.id)
     .run();
@@ -77,11 +88,18 @@ export async function activate({ request, env, now, json, sameOrigin, sha256, ba
     .first();
   if (!updated) return json({ error: "Deze activatielink is al gebruikt of verlopen." }, 400);
   await env.DB.prepare(
-    "UPDATE family_users SET password_hash = ?, display_name = ?, status = 'active', updated_at = ? WHERE id = ? AND status = 'invited'"
+    "UPDATE family_users SET password_hash = ?, display_name = ?, status = 'active', last_login_at = ?, updated_at = ? WHERE id = ? AND status = 'invited'"
   )
-    .bind(passwordHash, displayName, now, invite.user_id)
+    .bind(passwordHash, displayName, now, now, invite.user_id)
     .run();
   const sessionToken = await createFamilyAccountSession(env, invite.user_id, now, sha256, base64Url);
+  await logAccountActivity(env, {
+    userId: invite.user_id,
+    actor: displayName,
+    type: "activated",
+    summary: "Account geactiveerd",
+    now
+  });
   return json({ activated: true }, 200, {
     "Set-Cookie": familyAccountCookie(sessionToken, FAMILY_ACCOUNT_TTL_SECONDS)
   });

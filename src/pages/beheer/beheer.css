@@ -1562,3 +1562,78 @@ button.bh-kpi:hover {
 .bh-row-link .bh-chip {
   margin-top: 4px;
 }
+
+/* Laatste activiteit */
+.bh-activity-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bh-activity-day {
+  padding: 10px 0 4px;
+  color: var(--bh-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+.bh-activity-day::first-letter {
+  text-transform: uppercase;
+}
+.bh-activity-row {
+  border-top: 1px solid var(--bh-line);
+}
+.bh-activity-row > button,
+.bh-activity-row > div {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  padding: 8px 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.bh-activity-row > button {
+  cursor: pointer;
+}
+.bh-activity-row > button:hover {
+  background: var(--bh-soft);
+}
+.bh-activity-row.is-new {
+  border-left: 3px solid var(--bh-gold);
+  background: var(--bh-gold-soft);
+}
+.bh-activity-time {
+  color: var(--bh-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.bh-activity-text {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.bh-activity-text small {
+  color: var(--bh-muted);
+}
+.bh-activity-more summary {
+  margin-top: 10px;
+  color: var(--bh-navy);
+  font-weight: 800;
+  cursor: pointer;
+}
+.bh-tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bh-gold);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}

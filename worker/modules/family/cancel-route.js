@@ -5,6 +5,7 @@ import { esc } from "../../../src/utils/html.js";
 import { ordersClosed } from "../../../src/utils/time.js";
 import { setCancelRequest } from "../edition/cancel-requests.js";
 import { familyAccountSession } from "./session.js";
+import { logActivity } from "../activity.js";
 
 const parse = (text, fallback) => {
   try {
@@ -58,7 +59,7 @@ export async function cancelRegistration({ request, env, now, json, sameOrigin, 
   const editionId = typeof body?.edition === "string" ? body.edition : "";
   const registrationId = typeof body?.registrationId === "string" ? body.registrationId : "";
   const row = await env.DB.prepare(
-    "SELECT er.data_json, er.updated_at, d.label, d.status AS edition_status, d.config_json, e.name AS event_name, fm.role FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id JOIN family_memberships fm ON fm.family_id = er.family_id WHERE er.id = ? AND er.edition_id = ? AND er.status = 'active' AND fm.user_id = ?"
+    "SELECT er.family_id, er.data_json, er.updated_at, d.label, d.status AS edition_status, d.config_json, e.name AS event_name, fm.role FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN events e ON e.id = d.event_id JOIN family_memberships fm ON fm.family_id = er.family_id WHERE er.id = ? AND er.edition_id = ? AND er.status = 'active' AND fm.user_id = ?"
   )
     .bind(registrationId, editionId, session.user_id)
     .first();
@@ -77,10 +78,20 @@ export async function cancelRegistration({ request, env, now, json, sameOrigin, 
   const eventTitle = row.event_name + " " + row.label;
   const summary = members.length + " personen, " + portionsOf(members) + " porties.";
   const reasons = reasonsToAsk({ config, snapshot, registrationId, members });
+  const activity = {
+    now,
+    editionId,
+    familyId: row.family_id,
+    registrationId,
+    familyName: family,
+    actorId: session.user_id,
+    actor: session.display_name || ""
+  };
 
   if (reasons.length) {
     if (!config.cancelRequests?.[registrationId]) {
       await setCancelRequest(env, editionId, registrationId, now);
+      await logActivity(env, { ...activity, type: "cancel-request", summary: "Vraagt om zich af te melden" });
       await tellOrganizer(env, sendGraphMail, family + " wil zich afmelden voor " + eventTitle, [
         "Aangevraagd door " + (session.display_name || session.email) + ". " + summary,
         "Je beslist zelf, omdat " + reasons.join(", ") + ". Je vindt de aanvraag bij het gezin onder Inschrijvingen."
@@ -97,6 +108,7 @@ export async function cancelRegistration({ request, env, now, json, sameOrigin, 
   if (!Number(result?.meta?.changes ?? 0))
     return json({ error: "Jullie inschrijving is net aangepast. Probeer het opnieuw." }, 409);
   if (config.cancelRequests?.[registrationId]) await setCancelRequest(env, editionId, registrationId, null);
+  await logActivity(env, { ...activity, type: "cancelled", summary: "Afgemeld" });
   await tellOrganizer(env, sendGraphMail, family + " heeft zich afgemeld voor " + eventTitle, [
     "Afgemeld door " + (session.display_name || session.email) + ". Het ging om " + summary,
     "Het gezin staat niet meer bij de inschrijvingen en kan zich zelf opnieuw inschrijven."

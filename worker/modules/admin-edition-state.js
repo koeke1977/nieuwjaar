@@ -1,6 +1,7 @@
 // Admin API for one event edition: routes only. The work is in ./edition/.
 import { handleSettlementMail } from "./settlement-mail.js";
 import { setCancelRequest } from "./edition/cancel-requests.js";
+import { listActivity } from "./activity.js";
 import { loadEditionState, editionVersion, startNextEdition } from "./edition/load.js";
 import { saveEditionState } from "./edition/save.js";
 import { validName } from "./edition/clean.js";
@@ -14,7 +15,7 @@ export async function handleAdminEditionState(request, env, url, { json, sameOri
   if (!(await adminSession(request, env))) return json({ error: "Niet aangemeld." }, 401);
   if (request.method !== "GET" && !sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
   const match = url.pathname.match(
-    /^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next|message|butcher|settlement|cancel-request)$/
+    /^\/api\/admin\/editions\/([A-Za-z0-9_-]+)\/(state|version|next|message|butcher|settlement|cancel-request|activity)$/
   );
   if (!match) return null;
   const [, editionId, action] = match;
@@ -78,6 +79,7 @@ export async function handleAdminEditionState(request, env, url, { json, sameOri
     await setCancelRequest(env, editionId, body.registrationId, null);
     return json({ removed: true });
   }
+  if (action === "activity" && request.method === "GET") return json({ entries: await listActivity(env, editionId) });
   if (action === "settlement" && request.method === "POST")
     return handleSettlementMail(request, env, editionId, { json, sendGraphMail, now });
   if (action === "butcher" && request.method === "POST") {

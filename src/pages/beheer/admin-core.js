@@ -3,6 +3,7 @@
 import { state } from "../../data/admin-store.js";
 import { renderBeheer, normalizeSection, setBeheerAccounts, setBeheerFamilies } from "./beheer-view.js";
 import { esc } from "../../utils/html.js";
+import { editionTab } from "./screens/shared.js";
 import { loadAdminState, loadEdition, saveAdminState, refreshAdminStateIfChanged } from "../../services/admin-state.js";
 
 export const markCostsProvisional = () => {
@@ -136,10 +137,15 @@ function renderWhenIdle() {
   renderApp();
   window.scrollTo(0, scroll);
 }
+const ACTIVITY_EVERY_POLLS = 3;
+let pollsSinceActivity = 0;
 async function pollAdminState() {
   if (!session.authenticated || !statePersistenceReady || document.hidden || persistenceInFlight) return;
   try {
-    if (await refreshAdminStateIfChanged()) liveRenderPending = true;
+    const changed = await refreshAdminStateIfChanged();
+    if (changed) liveRenderPending = true;
+    // Not everything changes the edition (an account being activated), so this also runs on its own.
+    if (changed || ++pollsSinceActivity >= ACTIVITY_EVERY_POLLS) await loadActivity();
   } catch (error) {
     console.warn("Live refresh failed:", error);
   }
@@ -185,17 +191,52 @@ export async function loadBackups() {
   liveRenderPending = true;
   renderWhenIdle();
 }
+// ---------------- Laatste activiteit ----------------
+const ACTIVITY_SEEN_KEY = "beheer.activitySeen";
+export function readActivitySeen() {
+  try {
+    state.activitySeenAt = Number(localStorage.getItem(ACTIVITY_SEEN_KEY)) || 0;
+  } catch {
+    state.activitySeenAt = state.activitySeenAt || 0; // private mode: only for this visit
+  }
+}
+export function markActivitySeen() {
+  const latest = (state.activity || [])[0]?.at || 0;
+  if (latest <= (state.activitySeenAt || 0)) return;
+  state.activitySeenAt = latest;
+  try {
+    localStorage.setItem(ACTIVITY_SEEN_KEY, String(latest));
+  } catch {
+    /* private mode */
+  }
+}
+async function loadActivity() {
+  pollsSinceActivity = 0;
+  if (!state.activeEditionId) return;
+  const { entries } = await adminApi(
+    "/api/admin/editions/" + encodeURIComponent(state.activeEditionId) + "/activity",
+    undefined,
+    "GET"
+  );
+  if (JSON.stringify(entries) === JSON.stringify(state.activity || [])) return;
+  state.activity = entries;
+  liveRenderPending = true;
+}
+
 export async function loadEverything() {
   const editionId = await loadAdminState(remembered());
   rememberEdition(editionId);
   statePersistenceReady = true;
-  await loadFamiliesAndAccounts();
+  readActivitySeen();
+  await Promise.all([loadFamiliesAndAccounts(), loadActivity().catch(() => {})]);
 }
 export async function switchEdition(editionId, tab = "overview") {
   if (editionId && editionId !== state.activeEditionId) {
     await flushAdminState();
     await loadEdition(editionId);
     rememberEdition(editionId);
+    state.activity = [];
+    await loadActivity().catch(() => {});
   }
   state.activeSection = "events";
   state.beheerEventView = "edition";
@@ -213,6 +254,7 @@ export const recount = registration => {
 function renderAdminLogin() {
   return `<main class="admin-login-shell"><section class="admin-login-card"><p class="eyebrow">EVENEMENTEN · BEHEER</p><h1>Admin aanmelden</h1><p>Deze omgeving is uitsluitend toegankelijk voor de organisator.</p><form id="admin-login-form"><label for="admin-password">Adminwachtwoord</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required>${session.loginError ? `<p class="admin-login-error" role="alert">${esc(session.loginError)}</p>` : ""}<button class="button button-dark full" type="submit">Aanmelden</button></form></section></main>`;
 }
+let wasOnOverview = false;
 export function renderApp() {
   if (!session.authenticated) {
     document.querySelector("#app").innerHTML = renderAdminLogin();
@@ -229,6 +271,11 @@ export function renderApp() {
           " Wijzigingen worden niet bewaard. Herlaad de pagina om de nieuwste gegevens op te halen."
         : "";
   state.activeSection = normalizeSection(state.activeSection);
+  // New activity counts as seen once the admin leaves the overview.
+  const onOverview =
+    state.activeSection === "events" && state.beheerEventView === "edition" && editionTab() === "overview";
+  if (wasOnOverview && !onOverview) markActivitySeen();
+  wasOnOverview = onOverview;
   document.querySelector("#app").innerHTML = renderBeheer({ section: state.activeSection, notice });
   scheduleAdminStateSave();
 }

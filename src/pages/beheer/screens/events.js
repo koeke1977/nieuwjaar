@@ -8,6 +8,7 @@ import { renderFinance } from "./finance.js";
 import { renderProducts, renderEventSettings } from "./edition.js";
 import { renderBar } from "./bar.js";
 import { renderCash } from "./cash.js";
+import { newActivityCount } from "./activity.js";
 import { renderOverview } from "./overview.js";
 
 // ---------------- Evenementen ----------------
@@ -118,7 +119,11 @@ export function renderEdition() {
         EDITION_TABS.map(
           entry =>
             html`<button type="button" data-action="edition-tab" data-tab="${entry.id}"
-                aria-current="${entry.id === tab}">${entry.label}</button>`
+                aria-current="${entry.id === tab}">${entry.label}${
+                  entry.id === "overview" && newActivityCount()
+                    ? html` <b class="bh-tab-badge">${newActivityCount()}</b>`
+                    : ""
+                }</button>`
         ),
         ""
       )}</nav>${body}`;

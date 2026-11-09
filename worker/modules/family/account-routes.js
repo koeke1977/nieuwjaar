@@ -9,6 +9,7 @@ import {
   unlockFamilyEmail
 } from "./session.js";
 import { inviteToFamily } from "./invite.js";
+import { logActivity } from "../activity.js";
 
 const encoder = new TextEncoder();
 const EXPIRED = "Je sessie is verlopen. Meld je opnieuw aan.";
@@ -271,6 +272,15 @@ export async function inviteFamilyAccount(context) {
       console.error("Family access notice failed:", error?.message);
     }
   }
+  await logActivity(env, {
+    now,
+    familyId,
+    familyName: family.display_name,
+    actorId: session.user_id,
+    actor: session.display_name || "",
+    type: "invite",
+    summary: displayName + " uitgenodigd"
+  });
   return json({ invited: true }, 201);
 }
 

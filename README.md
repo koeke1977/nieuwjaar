@@ -62,6 +62,7 @@ worker/
   index.js                  Cloudflare Worker: routes, admin-login, e-mail, foto's, nachtelijke taken
   modules/admin-edition-state.js   routes van één editie; het werk zit in modules/edition/ (load, clean, save, mail)
   modules/settlement-mail.js       afrekening per gezin per e-mail
+  modules/activity.js              wat gezinnen doen, voor "Laatste activiteit" (mag een actie nooit doen mislukken)
   modules/admin-events.js          evenementen en edities aanmaken
   modules/admin-family-users.js    gezinnen, accounts en uitnodigingen
   modules/family-account.js        routes van het familieportaal; het werk zit in modules/family/ (session,

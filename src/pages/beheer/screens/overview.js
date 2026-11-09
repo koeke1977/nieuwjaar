@@ -3,6 +3,7 @@ import { state } from "../../../data/admin-store.js";
 import { html, joinHtml, euro, plural } from "../../../utils/html.js";
 import { COST_ICON, COST_METHODS } from "../../../utils/finance.js";
 import { eventTotals, familyPortions, accountsForFamily, pageHead, statusChip, kpi } from "./shared.js";
+import { renderActivityCard } from "./activity.js";
 
 // ---------------- Dashboard ----------------
 export function renderOverview() {
@@ -69,7 +70,7 @@ export function renderOverview() {
         t.received && t.outstanding ? progress + "% van het verschuldigde" : "",
         "finance"
       )}${kpi(euro(t.outstanding), "nog te ontvangen", t.toRefund ? euro(t.toRefund) + " terug te geven" : "", "finance")}</section>
-      <div class="bh-grid-2">
+      ${renderActivityCard()}<div class="bh-grid-2">
         <section class="bh-card">
           <header class="bh-card-head">
             <h2>Aandachtspunten</h2>

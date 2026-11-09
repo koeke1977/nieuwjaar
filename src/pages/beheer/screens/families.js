@@ -21,6 +21,7 @@ import {
   eventTitle
 } from "./shared.js";
 import { dash, shortDate, activeFilter, sortRows, sortHeader, filterBar } from "./table.js";
+import { renderFamilyHistory } from "./activity.js";
 
 // ---------------- Gezinnen ----------------
 function registerExistingFamily() {
@@ -420,7 +421,7 @@ function renderFamilyDetail(registration) {
             <button type="button" class="bh-btn" data-action="open-user-family" data-id="${registration.familyId}">Gezin
                 openen in Gebruikers ›</button>
           </section>
-          <section class="bh-card">
+          ${renderFamilyHistory(registration.familyId)}<section class="bh-card">
             <header class="bh-card-head">
               <h2>Uitschrijven</h2>
             </header>

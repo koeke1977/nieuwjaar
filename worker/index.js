@@ -2,6 +2,7 @@ import { handleFamilyAccountApi } from "./modules/family-account.js";
 import { handleAdminFamilyUsers } from "./modules/admin-family-users.js";
 import { handleAdminEvents } from "./modules/admin-events.js";
 import { handleAdminEditionState } from "./modules/admin-edition-state.js";
+import { pruneActivity } from "./modules/activity.js";
 import { backupDatabase, handleAdminBackups } from "./modules/backup.js";
 import { streamReceipt, pruneOrphanReceipts } from "./modules/receipts.js";
 const SESSION_COOKIE = "ny_admin";
@@ -307,6 +308,7 @@ export default {
         .then(removed => console.log("Orphan receipts removed:", removed))
         .catch(error => console.error("Receipt cleanup failed:", error))
     );
+    ctx.waitUntil(pruneActivity(env).catch(error => console.error("Activity cleanup failed:", error)));
   },
 
   async fetch(request, env) {

@@ -3,11 +3,13 @@
 import { getExpenseShares } from "../../../src/utils/finance.js";
 import { storeReceipt, receiptExists, deleteReceipt, streamReceipt, parseReceiptKey } from "../receipts.js";
 import { familyAccountSession } from "./session.js";
+import { euro } from "../../../src/utils/html.js";
+import { logActivity } from "../activity.js";
 
 // The registration of the signed-in user, if their family owns it.
 async function ownRegistration(env, userId, registrationId, editionId) {
   return env.DB.prepare(
-    "SELECT er.id, d.status AS edition_status, fm.role FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN family_memberships fm ON fm.family_id = er.family_id WHERE er.id = ? AND er.edition_id = ? AND er.status = 'active' AND fm.user_id = ?"
+    "SELECT er.id, er.family_id, f.display_name AS family_name, d.status AS edition_status, fm.role FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN families f ON f.id = er.family_id JOIN family_memberships fm ON fm.family_id = er.family_id WHERE er.id = ? AND er.edition_id = ? AND er.status = 'active' AND fm.user_id = ?"
   )
     .bind(registrationId, editionId, userId)
     .first();
@@ -117,8 +119,10 @@ export async function saveOrDeleteExpense({ request, env, now, json, sameOrigin,
       return json({ error: "Deze kost werd door de organisatie ingevoerd. Vraag hen om hem aan te passen." }, 403);
     }
     let obsoleteReceipt = null;
+    let activity = "";
     if (request.method === "DELETE") {
       obsoleteReceipt = expenses[index].receipt || null;
+      activity = "Kost verwijderd: " + expenses[index].description + " " + euro(expenses[index].amountCents);
       expenses.splice(index, 1);
     } else {
       const receipt = input.receipt || (index >= 0 ? expenses[index].receipt : null);
@@ -167,6 +171,12 @@ export async function saveOrDeleteExpense({ request, env, now, json, sameOrigin,
       } catch (error) {
         return json({ error: error.message || "Deze kost kan nog niet verdeeld worden." }, 400);
       }
+      activity =
+        (index >= 0 ? "Kost gewijzigd: " : "Kost toegevoegd: ") +
+        expense.description +
+        " " +
+        euro(expense.amountCents) +
+        " (met kasticket)";
       if (index >= 0) expenses[index] = expense;
       else expenses.push(expense);
     }
@@ -176,6 +186,17 @@ export async function saveOrDeleteExpense({ request, env, now, json, sameOrigin,
       .bind(JSON.stringify(expenses), Math.max(now, Number(snapshot.updated_at) + 1), editionId, snapshot.updated_at)
       .run();
     if (Number(result?.meta?.changes ?? 0)) {
+      await logActivity(env, {
+        now,
+        editionId,
+        familyId: own.family_id,
+        registrationId,
+        familyName: own.family_name,
+        actorId: session.user_id,
+        actor: session.display_name || "",
+        type: "cost",
+        summary: activity
+      });
       if (obsoleteReceipt) await deleteReceipt(env, obsoleteReceipt);
       return json({ saved: true });
     }

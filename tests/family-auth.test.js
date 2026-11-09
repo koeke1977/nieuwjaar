@@ -6,6 +6,7 @@ import { createD1 } from "./helpers/d1.js";
 import { handleFamilyAccountApi } from "../worker/modules/family-account.js";
 import { handleAdminFamilyUsers } from "../worker/modules/admin-family-users.js";
 import { handleAdminEditionState, loadEditionState } from "../worker/modules/admin-edition-state.js";
+import { listActivity, pruneActivity } from "../worker/modules/activity.js";
 
 const encoder = new TextEncoder();
 const base64Url = bytes =>
@@ -49,7 +50,12 @@ function client(DB) {
     const headers = { Cookie: cookie, "CF-Connecting-IP": "1.2.3.4" };
     if (origin) headers.Origin = origin;
     const request = new Request(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-    const response = await handleFamilyAccountApi(request, { DB }, url, dependencies);
+    const response = await handleFamilyAccountApi(
+      request,
+      { DB, PHOTOS: { delete: async () => {} } },
+      url,
+      dependencies
+    );
     const setCookie = response.headers.get("Set-Cookie");
     if (setCookie) cookie = setCookie.split(";")[0];
     return { status: response.status, body: await response.json(), setCookie };
@@ -496,4 +502,172 @@ test("no event name in the password reset mail", async () => {
   await device.call("forgot-password", { email: "jan@x.be" });
   const mail = device.mails.at(-1);
   assert.ok(!/Nieuwjaar/.test(mail.subject + mail.html));
+});
+
+const feed = async DB => (await listActivity({ DB }, "ed")).map(entry => entry.summary);
+const saveMembers = (device, members, revision) =>
+  device.call("registration", { edition: "ed", registrationId: "ra", revision, members }, { method: "PUT" });
+
+test("activity: an order change reads as one line, quick edits merge and undoing leaves nothing", async () => {
+  const { DB, device } = await activated();
+  seedRegistration(DB);
+  const jan = steak => ({ id: "jan", name: "Jan", type: "Volwassene", orders: { steak } });
+  const summaries = () => feed(DB).then(lines => lines.filter(line => !line.startsWith("Account")));
+
+  let saved = await saveMembers(device, [jan(3)], 5);
+  assert.deepEqual(await summaries(), ["Jan: Steak 2 → 3"]);
+  saved = await saveMembers(device, [jan(4)], saved.body.revision);
+  saved = await saveMembers(device, [jan(5)], saved.body.revision);
+  assert.deepEqual(await summaries(), ["Jan: Steak 2 → 5"], "one line, not three");
+  const entry = (await listActivity({ DB }, "ed")).find(item => item.type === "registration");
+  assert.equal(entry.familyName, "Gezin Jan");
+  assert.equal(entry.actor, "Jan");
+  assert.equal(entry.registrationId, "ra");
+  assert.equal(entry.familyId, "fa");
+
+  saved = await saveMembers(device, [jan(2)], saved.body.revision);
+  assert.deepEqual(await summaries(), [], "back to where it started: nothing to report");
+
+  // After the merge window a new line starts.
+  saved = await saveMembers(device, [jan(3)], saved.body.revision);
+  DB.raw.prepare("UPDATE family_activity SET at = at - 3600 WHERE type = 'registration'").run();
+  await saveMembers(device, [jan(4)], saved.body.revision);
+  assert.deepEqual(await summaries(), ["Jan: Steak 3 → 4", "Jan: Steak 2 → 3"]);
+});
+
+test("activity: people are described, and allergies and notes never appear", async () => {
+  const { DB, device } = await activated();
+  seedRegistration(DB);
+  const jan = { id: "jan", name: "Jan", type: "Volwassene", orders: { steak: 2 } };
+  let saved = await saveMembers(device, [jan, { id: "tom", name: "Tom", type: "Avondgast", orders: {} }], 5);
+  saved = await saveMembers(
+    device,
+    [
+      { ...jan, diet: ["Glutenvrij"], notes: "Geheime opmerking" },
+      { id: "tom", name: "Tom", type: "Avondgast", orders: {} }
+    ],
+    saved.body.revision
+  );
+  const line = (await feed(DB)).find(text => text.includes("Tom"));
+  assert.match(line, /Tom toegevoegd als Avondgast/);
+  assert.match(line, /Jan: allergie of opmerking gewijzigd/);
+  const stored = JSON.stringify(DB.raw.prepare("SELECT * FROM family_activity").all());
+  assert.ok(!/Glutenvrij|Geheime opmerking/.test(stored), "not in the feed, not in the database");
+  assert.ok(!stored.includes("jan@x.be"), "no e-mail addresses");
+
+  DB.raw.prepare("UPDATE family_activity SET at = at - 3600 WHERE type = 'registration'").run();
+  await saveMembers(device, [{ ...jan, name: "Jan P", type: "Kind" }], saved.body.revision);
+  const latest = (await feed(DB))[0];
+  assert.match(latest, /Jan P: was Jan, nu Kind/);
+  assert.match(latest, /allergie of opmerking gewijzigd/);
+  assert.match(latest, /Tom verwijderd/);
+});
+
+test("activity: accounts, registering, costs, invites and cancelling are all in the feed", async () => {
+  const { DB, device } = await activated();
+  seedRegistration(DB);
+  assert.ok((await feed(DB)).includes("Account geactiveerd"));
+  assert.ok(DB.raw.prepare("SELECT last_login_at FROM family_users WHERE id = 'a1'").get().last_login_at);
+
+  // Someone who was already active logs in for the first time; only that first time is logged.
+  DB.raw.prepare("UPDATE family_users SET last_login_at = NULL WHERE id = 'a1'").run();
+  await device.call("logout", {});
+  await device.call("login", { email: "jan@x.be", password: PASSWORD });
+  await device.call("logout", {});
+  await device.call("login", { email: "jan@x.be", password: PASSWORD });
+  assert.equal((await feed(DB)).filter(line => line === "Voor het eerst aangemeld").length, 1);
+
+  await device.call("family-invite", { familyId: "fa", displayName: "Els", email: "els@x.be" });
+  assert.ok((await feed(DB)).includes("Els uitgenodigd"));
+
+  const key = "receipts/ed/ra/11111111-1111-1111-1111-111111111111.jpg";
+  DB.raw.prepare("UPDATE edition_finance_snapshots SET expenses_json = ? WHERE edition_id = 'ed'").run(
+    JSON.stringify([
+      {
+        id: "k1",
+        description: "Cava",
+        amountCents: 4500,
+        date: "2026-12-01",
+        method: "general",
+        advancedBy: "ra",
+        enteredBy: "family",
+        receipt: key
+      }
+    ])
+  );
+  const changed = await device.call("expenses", {
+    edition: "ed",
+    registrationId: "ra",
+    expense: { id: "k1", description: "Cava brut", amountCents: 5000, date: "2026-12-01", method: "general" }
+  });
+  assert.equal(changed.status, 200);
+  assert.match((await feed(DB))[0], /^Kost gewijzigd: Cava brut €\s?50,00 \(met kasticket\)$/u);
+  const removed = await device.call(
+    "expenses",
+    { edition: "ed", registrationId: "ra", expenseId: "k1" },
+    { method: "DELETE" }
+  );
+  assert.equal(removed.status, 200);
+  assert.match((await feed(DB))[0], /^Kost verwijderd: Cava brut €\s?50,00$/u);
+
+  assert.equal((await device.call("cancel-registration", cancelBody)).body.cancelled, true);
+  assert.equal((await feed(DB))[0], "Afgemeld");
+  assert.equal((await device.call("register", { edition: "ed", familyId: "fa" })).status, 201);
+  assert.equal((await feed(DB))[0], "Ingeschreven");
+});
+
+test("activity: the admin route lists it; another edition's lines stay out; old lines are cleaned up", async () => {
+  const { DB } = await activated();
+  seedRegistration(DB);
+  const insert = DB.raw.prepare(
+    "INSERT INTO family_activity (id, at, edition_id, family_name, type, summary) VALUES (?, ?, ?, 'G', 't', ?)"
+  );
+  insert.run("x1", 1000, "ander", "Andere editie");
+  insert.run("x2", 1000, null, "Oud accountbericht");
+  const url = new URL("https://nieuwjaar.datuur.be/api/admin/editions/ed/activity");
+  const response = await handleAdminEditionState(new Request(url), { DB }, url, {
+    json: (data, status = 200) => Response.json(data, { status }),
+    sameOrigin: () => true,
+    adminSession: async () => true
+  });
+  const { entries } = await response.json();
+  const lines = entries.map(entry => entry.summary);
+  assert.ok(lines.includes("Account geactiveerd"));
+  assert.ok(lines.includes("Oud accountbericht"));
+  assert.ok(!lines.includes("Andere editie"));
+
+  // Archived more than a year ago: gone. An open edition's lines stay, however old.
+  DB.raw
+    .prepare(
+      "INSERT INTO event_editions (id, event_id, label, status, config_json, created_at, updated_at) VALUES ('oud', 'ev', '2020', 'archived', '{}', 1, 1000)"
+    )
+    .run();
+  insert.run("x3", 1000, "oud", "Oude editie");
+  insert.run("x4", 1000, "ed", "Open editie");
+  const now = 1000 + 2 * 365 * 24 * 60 * 60;
+  await pruneActivity({ DB }, now);
+  const left = DB.raw
+    .prepare("SELECT summary FROM family_activity")
+    .all()
+    .map(row => row.summary);
+  assert.ok(!left.includes("Oude editie"));
+  assert.ok(!left.includes("Oud accountbericht"));
+  assert.ok(left.includes("Open editie"));
+});
+
+test("activity: when logging fails, the family's save still succeeds", async () => {
+  const { DB, device } = await activated();
+  seedRegistration(DB);
+  DB.raw.exec("DROP TABLE family_activity");
+  const original = console.error;
+  console.error = () => {};
+  try {
+    const saved = await saveMembers(device, [{ id: "jan", name: "Jan", type: "Volwassene", orders: { steak: 9 } }], 5);
+    assert.equal(saved.status, 200);
+    const data = DB.raw.prepare("SELECT data_json FROM event_registrations WHERE id = 'ra'").get().data_json;
+    assert.equal(JSON.parse(data).members[0].orders.steak, 9);
+    assert.equal((await device.call("cancel-registration", cancelBody)).body.cancelled, true);
+  } finally {
+    console.error = original;
+  }
 });

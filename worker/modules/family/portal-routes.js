@@ -4,6 +4,7 @@ import { withDiet } from "../../../src/utils/diet.js";
 import { isMemberType, EVENING } from "../../../src/utils/member-types.js";
 import { ordersClosed } from "../../../src/utils/time.js";
 import { familyAccountCookie, familyAccountSession } from "./session.js";
+import { logActivity, logRegistrationChange } from "../activity.js";
 
 const closedMessage = deadline =>
   "Bestellen is afgesloten" +
@@ -194,6 +195,17 @@ export async function selfRegister({ request, env, now, json, sameOrigin, cookie
     .run();
   if (!Number(result?.meta?.changes ?? 0))
     return json({ error: "Jullie gezin is al ingeschreven voor deze editie." }, 409);
+  await logActivity(env, {
+    now,
+    editionId,
+    familyId,
+    registrationId,
+    familyName: target.display_name,
+    actorId: session.user_id,
+    actor: session.display_name || "",
+    type: "registered",
+    summary: "Ingeschreven"
+  });
   return json({ registered: true }, 201);
 }
 
@@ -215,7 +227,7 @@ export async function saveRegistration({ request, env, now, json, sameOrigin, co
     return json({ error: "Ongeldige inschrijvingsgegevens." }, 400);
   }
   const row = await env.DB.prepare(
-    "SELECT er.id, er.data_json, er.updated_at, d.config_json, d.status AS edition_status, fm.role FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN family_memberships fm ON fm.family_id = er.family_id WHERE er.id = ? AND er.edition_id = ? AND er.status = 'active' AND fm.user_id = ?"
+    "SELECT er.id, er.family_id, er.data_json, er.updated_at, d.config_json, d.status AS edition_status, fm.role FROM event_registrations er JOIN event_editions d ON d.id = er.edition_id JOIN family_memberships fm ON fm.family_id = er.family_id WHERE er.id = ? AND er.edition_id = ? AND er.status = 'active' AND fm.user_id = ?"
   )
     .bind(registrationId, editionId, session.user_id)
     .first();
@@ -335,5 +347,18 @@ export async function saveRegistration({ request, env, now, json, sameOrigin, co
       },
       409
     );
+  await logRegistrationChange(env, {
+    editionId,
+    familyId: row.family_id,
+    registrationId,
+    familyName: registration.name || "",
+    actorId: session.user_id,
+    actor: session.display_name || "",
+    before: registration.members,
+    after: members,
+    catalog: config.catalog,
+    now,
+    sha256
+  });
   return json({ saved: true, revision: nextRevision, registration: { id: registrationId, ...updatedRegistration } });
 }

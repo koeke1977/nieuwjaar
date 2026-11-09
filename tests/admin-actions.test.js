@@ -410,3 +410,74 @@ test("Accounts: the dropdown lists what fits the account and runs it after confi
   await choose("account-delete");
   assert.equal(calls.length, before, "deleting still needs the exact e-mail address");
 });
+
+test("Laatste activiteit: new lines are marked until seen, lines open the family, the family page has its history", () => {
+  const now = Math.floor(Date.now() / 1000);
+  state.registrations = [{ id: "ra", familyId: "fa", name: "Jan", revision: 1, members: [] }];
+  Object.assign(state, {
+    expenses: [],
+    payments: [],
+    cancelRequests: {},
+    activeSection: "events",
+    beheerEventView: "edition",
+    beheerEditionTab: "overview",
+    beheerFamilyId: null,
+    activitySeenAt: now - 100,
+    activity: [
+      {
+        id: "1",
+        at: now,
+        familyId: "fa",
+        registrationId: "ra",
+        familyName: "Jan <x>",
+        actor: "Els",
+        summary: "Jan: Steak 2 → 3"
+      },
+      {
+        id: "2",
+        at: now - 200,
+        familyId: "fz",
+        registrationId: null,
+        familyName: "Anna",
+        actor: "Anna",
+        summary: "Account geactiveerd"
+      }
+    ]
+  });
+  core.renderApp();
+  assert.match(rendered, /Laatste activiteit/);
+  assert.match(rendered, /Vandaag/);
+  assert.match(rendered, /1 nieuw/);
+  assert.match(rendered, /bh-tab-badge">1</);
+  assert.equal(rendered.match(/bh-activity-row is-new/g).length, 1);
+  assert.match(rendered, /Jan &lt;x&gt;/);
+  assert.match(rendered, /door Els/);
+  assert.match(rendered, /data-action="open-family" data-id="ra"/);
+  assert.match(
+    rendered,
+    /data-action="open-user-family" data-id="fz"/,
+    "a family not in this edition opens under Gebruikers"
+  );
+
+  nav.clicks["activity-seen"]();
+  assert.equal(state.activitySeenAt, now);
+  assert.ok(!rendered.includes("is-new"));
+  assert.ok(!rendered.includes("bh-tab-badge"));
+
+  // New activity arrives; leaving the overview marks it as seen.
+  state.activity = [
+    { id: "3", at: now + 50, familyId: "fa", registrationId: "ra", familyName: "Jan", actor: "", summary: "Afgemeld" },
+    ...state.activity
+  ];
+  core.renderApp();
+  assert.match(rendered, /1 nieuw/);
+  nav.clicks["open-family"]({ dataset: { id: "ra" } });
+  assert.equal(state.activitySeenAt, now + 50);
+  assert.match(rendered, /Geschiedenis/);
+  assert.match(rendered, /Steak 2 → 3/);
+  assert.ok(!rendered.includes("Account geactiveerd"), "only this family's lines");
+
+  state.activity = [];
+  nav.clicks["edition-tab"]({ dataset: { tab: "overview" } });
+  assert.match(rendered, /Nog geen activiteit/);
+});

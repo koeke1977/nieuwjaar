@@ -1,6 +1,6 @@
 // Moving around in /beheer: sections, edition tabs, opening a family.
 import { state } from "../../../data/admin-store.js";
-import { go, renderApp, switchEdition } from "../admin-core.js";
+import { go, renderApp, switchEdition, markActivitySeen } from "../admin-core.js";
 
 export const clicks = {
   "open-edition": action => {
@@ -45,6 +45,10 @@ export const clicks = {
   "users-tab": action => {
     go({ beheerUsersTab: action.dataset.tab, beheerUserFamilyId: null });
     return;
+  },
+  "activity-seen": () => {
+    markActivitySeen();
+    renderApp();
   },
   // Sortable tables (screens/table.js): same column again reverses; data-first="desc" columns start high.
   "table-sort": action => {
