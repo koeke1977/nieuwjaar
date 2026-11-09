@@ -317,3 +317,28 @@ test("portal: Hulp opens the manual with the contact, also without a registratio
   actions.clicks["close-help"]();
   account.items = saved;
 });
+
+test("portal: the name can be changed under Mijn account and shows at once", async () => {
+  const actions = await import("../src/pages/family-auth/account-actions.js");
+  account.user = { email: "koen@datuur.be", displayName: "Koen@datuur.be" };
+  account.view = { tab: "overview", settingsOpen: true, editingMemberId: null, openPeople: null };
+  account.settings = { families: [] };
+  render();
+  assert.match(String(target.innerHTML), /name="displayName"[^>]*value="Koen@datuur.be"/);
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ changed: true, displayName: "Koen" }) });
+  try {
+    const form = {
+      dataset: { accountForm: "name" },
+      elements: { displayName: { value: " Koen " } },
+      querySelector: () => ({}),
+      closest: () => form
+    };
+    await actions.handleAccountSubmit({ target: form, preventDefault() {} });
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.match(String(target.innerHTML), /Hallo, Koen</);
+  assert.equal(feedbackNode.textContent, "Je naam is bewaard.");
+  account.view.settingsOpen = false;
+});

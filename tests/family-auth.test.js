@@ -833,3 +833,34 @@ test("wie komt er nog: a viewer sees the list but cannot answer; others cannot a
   assert.equal((await device.call("guest-list", { ...cancelBody, visible: true })).status, 403);
   assert.equal((await client(DB).call("guest-list", { ...cancelBody, visible: true })).status, 401);
 });
+
+test("activation: the name from the invitation is offered, only for a valid link", async () => {
+  const { DB, token } = await setup();
+  const { call } = client(DB);
+  const info = await call("invite-info", { token });
+  assert.equal(info.status, 200);
+  assert.deepEqual(info.body, { displayName: "Jan" }, "only the name, nothing else");
+  assert.equal((await call("invite-info", { token: "b".repeat(43) })).status, 400);
+  assert.equal((await call("invite-info", { token: "onzin" })).status, 400);
+  assert.equal((await call("invite-info", {})).status, 400);
+
+  DB.raw.prepare("UPDATE family_user_invites SET expires_at = 1000").run();
+  assert.equal((await call("invite-info", { token })).status, 400, "expired");
+  DB.raw.prepare("UPDATE family_user_invites SET expires_at = ?").run(Math.floor(Date.now() / 1000) + 3600);
+  assert.equal((await call("activate", { token, password: PASSWORD, displayName: "Jan Peeters" })).status, 200);
+  assert.equal((await call("invite-info", { token })).status, 400, "used");
+  assert.equal((await call("session")).body.user.displayName, "Jan Peeters", "they can still correct it");
+});
+
+test("change name: signed in only, not empty, and it shows everywhere", async () => {
+  const { DB, device } = await activated();
+  const change = displayName => device.call("change-name", { displayName });
+  assert.equal((await change("   ")).status, 400);
+  assert.equal((await change("x".repeat(101))).status, 400);
+  const changed = await change("  Koen Thomaes ");
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.displayName, "Koen Thomaes");
+  assert.equal((await device.call("session")).body.user.displayName, "Koen Thomaes");
+  assert.equal((await device.call("account")).body.families[0].people[0].name, "Koen Thomaes");
+  assert.equal((await client(DB).call("change-name", { displayName: "Iemand" })).status, 401);
+});

@@ -72,6 +72,19 @@ export async function accountInfo({ request, env, json, cookieValue, sha256 }) {
   return json({ families });
 }
 
+export async function changeName({ request, env, now, json, sameOrigin, cookieValue, sha256 }) {
+  if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+  const session = await familyAccountSession(request, env, cookieValue, sha256);
+  if (!session) return json({ error: EXPIRED }, 401);
+  const body = await request.json().catch(() => null);
+  const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
+  if (!displayName || displayName.length > 100) return json({ error: "Vul een naam in van maximaal 100 tekens." }, 400);
+  await env.DB.prepare("UPDATE family_users SET display_name = ?, updated_at = ? WHERE id = ?")
+    .bind(displayName, now, session.user_id)
+    .run();
+  return json({ changed: true, displayName });
+}
+
 export async function changePassword(context) {
   const { request, env, now, json, sameOrigin, cookieValue, sha256, base64Url, sendGraphMail } = context;
   if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);

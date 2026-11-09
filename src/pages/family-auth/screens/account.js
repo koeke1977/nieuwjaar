@@ -50,6 +50,15 @@ export function renderSettings(user, settings) {
       <button type="button" class="fa-btn fa-btn-quiet" data-action="close-settings">‹ Terug</button>
       <p class="fa-muted">Aangemeld als ${user?.email || ""}</p>
       <section class="fa-settings-card">
+        <h3>Jouw naam</h3>
+        <form class="fa-settings-form" data-account-form="name">
+          <label class="fa-label">Naam<input name="displayName" maxlength="100" autocomplete="name"
+              value="${user?.displayName || ""}" required>
+          </label>
+          <button type="submit" class="fa-btn fa-btn-primary">Naam bewaren</button>
+        </form>
+      </section>
+      <section class="fa-settings-card">
         <h3>Wachtwoord wijzigen</h3>
         <form class="fa-settings-form" data-account-form="password">
           <label class="fa-label">Huidig wachtwoord<input name="currentPassword" type="password"

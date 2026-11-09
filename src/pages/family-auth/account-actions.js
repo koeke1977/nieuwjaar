@@ -56,6 +56,12 @@ export const clicks = {
 };
 
 const FORMS = {
+  name: async form => {
+    const { displayName } = await request(API + "change-name", { displayName: form.elements.displayName.value.trim() });
+    account.user = { ...account.user, displayName };
+    render();
+    say("Je naam is bewaard.", "success");
+  },
   password: async form => {
     const { currentPassword, newPassword, confirmPassword } = form.elements;
     if (newPassword.value !== confirmPassword.value) throw new Error("De nieuwe wachtwoorden komen niet overeen.");

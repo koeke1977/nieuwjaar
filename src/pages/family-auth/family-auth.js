@@ -78,5 +78,6 @@ export async function startFamilyAuth() {
     }
   } else {
     show(portal.panel);
+    if (activation) await signIn.prefillActivation();
   }
 }

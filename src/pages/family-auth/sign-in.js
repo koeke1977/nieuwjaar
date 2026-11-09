@@ -42,6 +42,17 @@ const updatePasswordHints = form => {
   }
 };
 
+// Activation link: fill in the name the organisation entered, and say so at once if the link no longer works.
+export async function prefillActivation() {
+  try {
+    const { displayName } = await request("/api/family-account/invite-info", { token: portal.token });
+    const field = portal.view.querySelector('form[data-form="activate"]')?.elements.displayName;
+    if (field && displayName && !field.value) field.value = displayName;
+  } catch (error) {
+    feedback(error.message);
+  }
+}
+
 export function handlePasswordInput(event) {
   const form = event.target.closest('form[data-form="activate"], form[data-form="reset"]');
   if (form) updatePasswordHints(form);

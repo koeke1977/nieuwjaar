@@ -51,7 +51,7 @@ const TOPICS = [
     title: "Mijn account en aanmelden",
     body: html`<p>Via <em>Mijn account</em> kan je:</p>
       <ul>
-        <li>je wachtwoord wijzigen;</li>
+        <li>je naam of wachtwoord wijzigen;</li>
         <li>je e-mailadres wijzigen (je bevestigt het via een mail naar het nieuwe adres);</li>
         <li>zien wie toegang heeft tot jullie gezin;</li>
         <li>iemand uitnodigen, bijvoorbeeld je partner (alleen de beheerder van het gezin);</li>

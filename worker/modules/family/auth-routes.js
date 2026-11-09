@@ -62,6 +62,23 @@ export async function logout({ request, env, now, json, sameOrigin, cookieValue,
   return json({ authenticated: false }, 200, { "Set-Cookie": familyAccountCookie("", 0) });
 }
 
+// The activation page asks who this link is for, so the name the organisation entered is already filled in.
+export async function inviteInfo({ request, env, now, json, sameOrigin, sha256 }) {
+  if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
+  const body = await request.json().catch(() => null);
+  const token = typeof body?.token === "string" ? body.token : "";
+  const invite = /^[A-Za-z0-9_-]{40,60}$/.test(token)
+    ? await env.DB.prepare(
+        "SELECT u.display_name FROM family_user_invites i JOIN family_users u ON u.id = i.user_id WHERE i.token_hash = ? AND i.used_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > ? AND u.status = 'invited'"
+      )
+        .bind(await sha256(token), now)
+        .first()
+    : null;
+  if (!invite)
+    return json({ error: "Deze activatielink is ongeldig of verlopen. Vraag de organisatie om een nieuwe." }, 400);
+  return json({ displayName: invite.display_name || "" });
+}
+
 export async function activate({ request, env, now, json, sameOrigin, sha256, base64Url }) {
   if (!sameOrigin(request)) return json({ error: "Ongeldige aanvraag." }, 403);
   const body = await request.json().catch(() => null);
