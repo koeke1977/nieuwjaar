@@ -178,3 +178,68 @@ test("portal: wij komen niet, or that the request was passed on; not for viewers
   assert.ok(!String(target.innerHTML).includes('data-action="cancel-registration"'));
   item.accessRole = "owner";
 });
+
+test("portal: the order screen has photos at the controls, no cards that look tappable, and the first to order opens", async () => {
+  const { helpLine } = await import("../src/pages/family-auth/family-account-view.js");
+  const item = account.items[0];
+  item.accessRole = "owner";
+  item.ordersClosed = false;
+  item.orderDeadline = null;
+  item.catalog = [
+    { id: "steak", name: "Steak", image: "/media/steak.jpg" },
+    { id: "kip", name: "Kip", image: null }
+  ];
+  item.registration.members = [
+    { id: "a", name: "An", type: "Volwassene", orders: { steak: 2 } },
+    { id: "b", name: "Bo", type: "Kind", orders: {} },
+    { id: "c", name: "Cas", type: "Volwassene", orders: {} }
+  ];
+  account.view = { tab: "order", editingMemberId: null, openPeople: null };
+  render();
+  let page = String(target.innerHTML);
+  assert.ok(!page.includes('fa-product"'), "no product cards");
+  assert.match(page, /fa-stepper-product"><img src="\/media\/steak.jpg"/);
+  assert.match(page, /✓ Steak 2/);
+  assert.ok(/data-order-person="b" open/.test(page), "the first person without an order is open");
+  assert.ok(!/data-order-person="a" open/.test(page));
+  assert.ok(!/data-order-person="c" open/.test(page));
+
+  // Ordering for Bo does not close Bo's panel, although Cas is now the first without an order.
+  family.editorClicks.quantity(
+    { dataset: { person: "b", product: "steak", delta: "1" } },
+    item,
+    item.registration.members
+  );
+  page = String(target.innerHTML);
+  assert.ok(/data-order-person="b" open/.test(page));
+  assert.ok(!/data-order-person="c" open/.test(page));
+
+  assert.equal(String(helpLine("")), "Hulp nodig? Neem contact op met de organisatie.");
+  assert.equal(String(helpLine("Koen <x>")), "Hulp nodig? Koen &lt;x&gt;");
+  assert.equal(String(helpLine("Koen, 0470 12 34 56")), 'Hulp nodig? Koen, <a href="tel:0470123456">0470 12 34 56</a>');
+});
+
+test("portal: the Gezin tab shows no zero amounts, and logging out is under Mijn account", () => {
+  const item = account.items[0];
+  item.finance = {
+    expenses: [{ id: "e" }],
+    finalized: false,
+    totals: { shareCents: 3000 },
+    categories: [{ method: "general" }, { method: "bar" }],
+    members: [{ id: "a", totalCents: 3000, byMethod: { general: 3000, bar: 0 } }]
+  };
+  account.view = { tab: "family", editingMemberId: null, openPeople: null };
+  item.registration.members = [{ id: "a", name: "An", type: "Volwassene", orders: {} }];
+  render();
+  let page = String(target.innerHTML);
+  assert.match(page, /Hoe is dit berekend/);
+  assert.match(page, /Algemeen/);
+  assert.ok(!/Bar <b>/.test(page), "no Bar 0,00");
+  assert.ok(!page.includes('data-action="logout"'));
+  account.view.settingsOpen = true;
+  account.settings = { families: [] };
+  render();
+  assert.match(String(target.innerHTML), /data-action="logout"/);
+  account.view.settingsOpen = false;
+  item.finance = null;
+});

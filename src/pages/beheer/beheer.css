@@ -1485,12 +1485,12 @@ button.bh-kpi:hover {
   padding-top: 16px;
   border-top: 1px solid var(--bh-line);
 }
-.bh-settlement summary {
+.bh-fold summary {
   color: var(--bh-navy);
   font-weight: 800;
   cursor: pointer;
 }
-.bh-settlement[open] summary {
+.bh-fold[open] summary {
   margin-bottom: 12px;
 }
 
@@ -1636,4 +1636,72 @@ button.bh-kpi:hover {
   font-size: 11px;
   line-height: 18px;
   text-align: center;
+}
+
+/* Lists on a phone: one card per row with its labels; column titles stay as a row of sort buttons */
+@media (max-width: 640px) {
+  .bh-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .bh-filter {
+    flex: 0 0 auto;
+  }
+  .bh-table.bh-table-list,
+  .bh-table.bh-table-list thead,
+  .bh-table.bh-table-list tbody {
+    display: block;
+  }
+  .bh-table.bh-table-list thead tr {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+  .bh-table.bh-table-list thead th {
+    position: static;
+    flex: 0 0 auto;
+    padding: 4px 0;
+    border: 0;
+    background: none;
+  }
+  .bh-table.bh-table-list thead th:not([aria-sort]) {
+    display: none;
+  }
+  .bh-table.bh-table-list tbody tr {
+    display: block;
+    padding: 12px 0;
+    border-top: 1px solid var(--bh-line);
+  }
+  .bh-table.bh-table-list tbody th {
+    position: static;
+    display: block;
+    padding: 0 0 6px;
+    border: 0;
+    background: none;
+    white-space: normal;
+  }
+  .bh-table.bh-table-list tbody td {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 3px 0;
+    border: 0;
+    background: none;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .bh-table.bh-table-list tbody td::before {
+    content: attr(data-label);
+    color: var(--bh-muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
 }

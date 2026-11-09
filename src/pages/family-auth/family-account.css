@@ -474,53 +474,6 @@
 }
 
 /* Order */
-.fa-products {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-.fa-product {
-  display: grid;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--fa-line);
-  border-radius: 14px;
-  background: var(--fa-card);
-}
-.fa-product-active {
-  border-color: #e3cf9f;
-}
-.fa-product-image {
-  display: grid;
-  place-items: center;
-  height: 92px;
-  overflow: hidden;
-  background: var(--fa-soft);
-  font-size: 28px;
-}
-.fa-product-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.fa-product > div:last-child {
-  display: grid;
-  gap: 2px;
-  padding: 9px 10px;
-}
-.fa-product strong {
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
-.fa-product small {
-  color: var(--fa-muted);
-  font-size: 12px;
-}
-.fa-product-active small {
-  color: #80622a;
-  font-weight: 700;
-}
 .fa-order-person {
   border: 1px solid var(--fa-line);
   border-radius: 14px;
@@ -791,8 +744,9 @@
 .family-auth-card:has([data-panel="account"]:not([hidden])) .family-auth-feedback {
   position: fixed;
   left: 50%;
-  bottom: max(16px, env(safe-area-inset-bottom));
+  top: max(10px, env(safe-area-inset-top)); /* over nothing you need to tap */
   z-index: 20;
+  pointer-events: none;
   width: min(calc(100% - 32px), 420px);
   margin: 0;
   transform: translateX(-50%);
@@ -801,9 +755,6 @@
 }
 
 @media (max-width: 700px) {
-  .fa-products {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .fa-member-costs {
     grid-template-columns: 1fr;
   }
@@ -901,37 +852,6 @@
   --fa-green-soft: #ebf6f0;
   --fa-green-line: #9fd3b5;
 }
-.fa-product {
-  position: relative;
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s,
-    background-color 0.2s;
-}
-.fa-product-active {
-  border-color: var(--fa-green-line);
-  background: var(--fa-green-soft);
-  box-shadow: 0 0 0 2px rgba(31, 122, 77, 0.14);
-}
-.fa-product-active small {
-  color: var(--fa-green);
-  font-weight: 800;
-}
-.fa-product-image {
-  position: relative;
-}
-.fa-product-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--fa-green);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-}
 .fa-stepper-row {
   transition:
     border-color 0.2s,
@@ -949,7 +869,6 @@
   color: var(--fa-green);
 }
 @media (prefers-reduced-motion: reduce) {
-  .fa-product,
   .fa-stepper-row {
     transition: none;
   }
@@ -1369,5 +1288,84 @@
 }
 .fa-cancel-asked {
   color: var(--fa-due);
+  font-weight: 700;
+}
+
+/* A compact start: the content is what counts */
+.family-auth-shell:has([data-panel="account"]:not([hidden])) .family-auth-brand {
+  display: none;
+}
+.fa-top {
+  padding: 12px 16px;
+  border-radius: 16px;
+}
+.fa-top h1 {
+  font-size: 20px;
+}
+.fa-settings > .fa-muted {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.fa-settings > .fa-btn:last-child {
+  justify-self: start;
+}
+.fa-order-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0 0 12px;
+}
+.fa-order-total span {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--fa-ok-bg);
+  color: var(--fa-ok);
+  font-size: 13px;
+  font-weight: 700;
+}
+.fa-stepper-row > .fa-stepper-product {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.fa-stepper-product img,
+.fa-stepper-product i {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--fa-card);
+  font-style: normal;
+  object-fit: cover;
+}
+.fa-member.fa-member-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.fa-member-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.fa-member-head .fa-member-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fa-cost-more summary {
+  color: var(--fa-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.fa-cost-more .fa-cost-parts {
+  margin-top: 6px;
+}
+.family-auth-footnote a {
+  color: inherit;
   font-weight: 700;
 }

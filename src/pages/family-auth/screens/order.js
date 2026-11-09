@@ -23,23 +23,15 @@ export function renderOrder(item, view) {
     return html`<p class="fa-empty">Voeg eerst jullie gezinsleden toe via <button type="button" class="fa-inline-link"
         data-tab-target="family">Gezin</button>.</p>`;
   const familyTotal = members.reduce((sum, person) => sum + portionsOf(person), 0);
-  const productCards = joinHtml(
-    catalog.map(product => {
-      const count = members.reduce((sum, person) => sum + (Number(person.orders?.[product.id]) || 0), 0);
-      return html`<article class="fa-product${count ? " fa-product-active" : ""}">
-            <div class="fa-product-image">${
-              product.image
-                ? html`<img src="${product.image}" alt="" loading="lazy">`
-                : html`<span aria-hidden="true">🍖</span>`
-            }${count ? html`<span class="fa-product-badge" aria-hidden="true">✓ ${count}</span>` : ""}</div>
-            <div>
-              <strong>${product.name}</strong>
-              <small>${count ? "✓ " + count + " besteld" : "Nog niet besteld"}</small>
-            </div>
-          </article>`;
-    }),
-    ""
-  );
+  const ordered = catalog
+    .map(product => ({
+      name: product.name,
+      count: members.reduce((sum, person) => sum + (Number(person.orders?.[product.id]) || 0), 0)
+    }))
+    .filter(product => product.count);
+  // Opens by itself: the first person who still has to order, or else the first at dinner.
+  const dinner = members.filter(person => person.type !== EVENING);
+  const firstOpen = (dinner.find(person => !portionsOf(person)) || dinner[0])?.id;
   const people = joinHtml(
     members.map(person => {
       if (person.type === EVENING) {
@@ -55,7 +47,11 @@ export function renderOrder(item, view) {
         catalog.map(product => {
           const quantity = Number(person.orders?.[product.id]) || 0;
           return html`<div class="fa-stepper-row${quantity ? " fa-stepper-row-active" : ""}">
-                <span>${product.name}</span>${
+                <span class="fa-stepper-product">${
+                  product.image
+                    ? html`<img src="${product.image}" alt="" loading="lazy">`
+                    : html`<i aria-hidden="true">🍖</i>`
+                }${product.name}</span>${
                   readOnly
                     ? html`<b>${quantity}</b>`
                     : html`<div class="fa-stepper">
@@ -71,7 +67,7 @@ export function renderOrder(item, view) {
         ""
       );
       const portions = portionsOf(person);
-      const open = view.openPeople ? view.openPeople.has(person.id) : members.length <= 2;
+      const open = view.openPeople ? view.openPeople.has(person.id) : members.length <= 2 || person.id === firstOpen;
       return html`<details class="fa-order-person${portions ? "" : " fa-order-person-empty"}"
               data-order-person="${person.id}"${open ? " open" : ""}>
             <summary>
@@ -93,13 +89,11 @@ export function renderOrder(item, view) {
   );
   return html`${banner}<div class="fa-section-head">
         <h3>Jullie vleesbestelling</h3>
-        <p>Totaal voor het gezin: <strong>${plural(familyTotal, UNITS.meat)}</strong>. Het vlees wordt verrekend volgens
-            het aantal porties.</p>
+        <p>Tik op een naam en kies met − en +. Alles wordt meteen bewaard.</p>
       </div>
-      <div class="fa-products">${productCards}</div>
-      <div class="fa-section-head">
-        <h3>Per gezinslid</h3>
-        <p>Tik op een naam om de bestelling te openen. Wijzigingen worden meteen bewaard.</p>
-      </div>
+      <p class="fa-order-total">Samen <strong>${plural(familyTotal, UNITS.meat)}</strong>${joinHtml(
+        ordered.map(product => html`<span>✓ ${product.name} ${product.count}</span>`),
+        ""
+      )}</p>
       <div class="fa-list">${people}</div>`;
 }

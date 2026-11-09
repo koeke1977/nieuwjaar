@@ -47,6 +47,7 @@ export async function saveEditionState(env, editionId, body, now) {
       : isLocalDateTime(data.orderDeadline)
         ? data.orderDeadline
         : undefined;
+  const contact = typeof data.contact === "string" ? data.contact.trim().slice(0, 120) : "";
   if (orderDeadline === undefined) return { status: 400, error: "Controleer de datum waarop het bestellen sluit." };
   const catalog = cleanCatalog(data.catalog);
   if (
@@ -104,7 +105,8 @@ export async function saveEditionState(env, editionId, body, now) {
     !same(base.editionLabel, editionLabel) ||
     !same(base.catalog, catalog) ||
     !same(base.startsAt ?? null, startsAt) ||
-    !same(base.orderDeadline ?? null, orderDeadline)
+    !same(base.orderDeadline ?? null, orderDeadline) ||
+    !same(base.contact || "", contact)
   ) {
     statements.push(
       guard(
@@ -118,6 +120,8 @@ export async function saveEditionState(env, editionId, body, now) {
     config.catalog = catalog;
     if (orderDeadline) config.orderDeadline = orderDeadline;
     else delete config.orderDeadline;
+    if (contact) config.contact = contact;
+    else delete config.contact;
     statements.push(
       env.DB.prepare(
         "UPDATE event_editions SET label = ?, config_json = ?, starts_at = ?, updated_at = ? WHERE id = ?"

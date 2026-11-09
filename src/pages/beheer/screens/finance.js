@@ -68,7 +68,7 @@ function settlementCard() {
   const sentAt = state.settlementSentAt
     ? new Date(state.settlementSentAt * 1000).toLocaleString("nl-BE", { dateStyle: "medium", timeStyle: "short" })
     : "";
-  return html`<details class="bh-card bh-settlement">
+  return html`<details class="bh-card bh-fold">
       <summary>✉ Afrekening mailen naar de gezinnen${
         sentAt
           ? html` <small class="bh-muted">· laatst verstuurd op

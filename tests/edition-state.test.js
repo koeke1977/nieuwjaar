@@ -507,3 +507,14 @@ test("a cash payment from the Kassa keeps its moment of entry", async () => {
   assert.equal(state.payments.find(p => p.id === "p1").at, 1798758000);
   assert.equal(state.payments.find(p => p.id === "p2").at, undefined, "invalid values are dropped");
 });
+
+test("the contact for families is saved per edition, carried to the next, and shown in nothing else", async () => {
+  const DB = setup();
+  const base = payload(await loadEditionState({ DB }, "ed1"));
+  const data = { ...clone(base), contact: "  Koen, 0470 12 34 56  " };
+  assert.equal((await saveEditionState({ DB }, "ed1", { base, data }, NOW)).status, 200);
+  const state = await loadEditionState({ DB }, "ed1");
+  assert.equal(state.contact, "Koen, 0470 12 34 56");
+  const created = await startNextEdition({ DB }, "ed1", { label: "2027–2028" }, NOW + 1);
+  assert.equal((await loadEditionState({ DB }, created.editionId)).contact, "Koen, 0470 12 34 56");
+});

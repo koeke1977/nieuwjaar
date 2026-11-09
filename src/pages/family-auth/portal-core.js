@@ -1,9 +1,11 @@
 // Familieportaal core: shared state, server calls, saving (optimistic, debounced, serialized per
 // registration), refreshing the account, feedback messages and the live/countdown timers.
-import { renderAccount } from "./family-account-view.js";
+import { renderAccount, helpLine } from "./family-account-view.js";
 import { countdownState } from "./countdown.js";
 
 const SAVE_DELAY_MS = 450;
+const FEEDBACK_MS = 6000;
+let feedbackTimer = null;
 const LIVE_REFRESH_MS = 20000;
 
 export const request = async (path, body, method = "POST") => {
@@ -45,6 +47,11 @@ export const feedback = (message, kind = "error") => {
   node.textContent = message;
   node.hidden = !message;
   node.dataset.kind = kind;
+  clearTimeout(feedbackTimer);
+  if (message && kind === "success" && !message.endsWith("…"))
+    feedbackTimer = setTimeout(() => {
+      node.hidden = true;
+    }, FEEDBACK_MS);
 };
 export const submit = async (form, callback, successMessage) => {
   const button = form.querySelector('button[type="submit"]');
@@ -63,6 +70,8 @@ export function render() {
   const target = portal.view.querySelector("[data-account-registrations]");
   if (!target) return;
   target.innerHTML = renderAccount(account);
+  const help = portal.view.querySelector("[data-help]");
+  if (help) help.innerHTML = helpLine(activeItem()?.contact);
 }
 
 // ---- Saving: optimistic UI, debounced and serialized per registration ----

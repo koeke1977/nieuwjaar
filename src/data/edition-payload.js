@@ -38,6 +38,7 @@ export function payloadFrom(source) {
     editionLabel: source.editionLabel,
     startsAt: source.startsAt || null,
     orderDeadline: source.orderDeadline || null,
+    contact: source.contact || "",
     catalog: (source.catalog || []).map(productPayload),
     registrations: (source.registrations || []).map(registrationPayload),
     expenses: clone(source.expenses || []),
@@ -57,6 +58,7 @@ export function currentPayload() {
     editionLabel: state.activeEvent?.name,
     startsAt: state.startsAt,
     orderDeadline: state.orderDeadline,
+    contact: state.contact || "",
     catalog: state.catalog,
     registrations: state.registrations,
     expenses: state.expenses,
@@ -91,6 +93,7 @@ export function applyEdition(edition, { keepUi = true } = {}) {
   if (edition.financeStrategy) state.financeStrategy = edition.financeStrategy;
   state.startsAt = edition.startsAt || null;
   state.orderDeadline = edition.orderDeadline || null;
+  state.contact = edition.contact || "";
   state.butcherEmail = edition.butcherEmail || "";
   state.butcherSentAt = edition.butcherSentAt || null;
   state.settlementSentAt = edition.settlementSentAt || null;

@@ -100,11 +100,11 @@ function renderFamilyList() {
               }
             </button>
           </th>
-          <td>${row.people || dash}</td>
-          <td>${row.portions || (row.dinner ? html`<span class="bh-chip bh-chip-warn">Nog niets</span>` : dash)}</td>
-          <td>${row.share ? euro(row.share) : dash}</td>
-          <td>${familyBalanceChip(row.summary)}</td>
-          <td>${accessChip(row.reg.familyId)}</td>
+          <td data-label="Personen">${row.people || dash}</td>
+          <td data-label="Porties">${row.portions || (row.dinner ? html`<span class="bh-chip bh-chip-warn">Nog niets</span>` : dash)}</td>
+          <td data-label="Aandeel">${row.share ? euro(row.share) : dash}</td>
+          <td data-label="Saldo">${familyBalanceChip(row.summary)}</td>
+          <td data-label="Account">${accessChip(row.reg.familyId)}</td>
         </tr>`
     ),
     ""

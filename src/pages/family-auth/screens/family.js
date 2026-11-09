@@ -18,15 +18,19 @@ function memberCostDetail(item, person) {
   const parts = joinHtml(
     item.finance.categories
       .map(category => {
-        if (category.method === "adults" && person.type !== "Volwassene") return "";
-        if (person.type === EVENING && category.method !== "bar") return "";
+        if (!cost.byMethod[category.method]) return "";
         return html`<span>${COST_SHORT[category.method]} <b>${euro(cost.byMethod[category.method])}</b>
         </span>`;
       })
       .filter(Boolean),
     ""
   );
-  return parts ? html`<div class="fa-cost-parts">${parts}</div>` : "";
+  return parts
+    ? html`<details class="fa-cost-more">
+        <summary>Hoe is dit berekend?</summary>
+        <div class="fa-cost-parts">${parts}</div>
+      </details>`
+    : "";
 }
 
 export function memberCostTotal(item, person) {
@@ -74,19 +78,22 @@ export function renderFamily(item, view) {
               </div>
             </form>`;
       }
-      return html`<div class="fa-member">
-            <span class="fa-avatar">${(person.name || "?").charAt(0).toUpperCase()}</span>
-            <div class="fa-member-name">
-              <strong>${person.name}</strong>
-              <small>${typeLabel(person.type)} · ${plural(portionsOf(person), UNITS.meat)}</small>${dietChips(person)}${memberCostDetail(item, person)}</div>${memberCostTotal(item, person)}${
+      return html`<div class="fa-member fa-member-card">
+            <div class="fa-member-head">
+              <span class="fa-avatar">${(person.name || "?").charAt(0).toUpperCase()}</span>
+              <div class="fa-member-name">
+                <strong>${person.name}</strong>
+                <small>${typeLabel(person.type)}${
+                  person.type === EVENING ? "" : " · " + plural(portionsOf(person), UNITS.meat)
+                }</small>
+              </div>${memberCostTotal(item, person)}</div>${dietChips(person)}${memberCostDetail(item, person)}${
                 readOnly
                   ? ""
                   : html`<div class="fa-row-actions">
               <button type="button" class="fa-btn fa-btn-small" data-action="edit-member"
                   data-person="${person.id}">Wijzigen</button>${
                     Number(person.barCents) > 0
-                      ? html`<small class="fa-muted">Heeft een barrekening: verwijderen kan alleen via de
-                          organisatie.</small>`
+                      ? html`<small class="fa-muted">Heeft een barrekening: verwijderen via de organisatie.</small>`
                       : members.length > 1
                         ? html`<button type="button" class="fa-btn fa-btn-small fa-btn-quiet" data-action="remove-member"
                         data-index="${index}" aria-label="${person.name} verwijderen">Verwijderen</button>`
@@ -104,9 +111,7 @@ export function renderFamily(item, view) {
     : "";
   return html`<div class="fa-section-head">
         <h3>Wie komt er?</h3>
-        <p>Per persoon zie je wat die kost: vlees volgens de eigen bestelling, algemene kosten voor iedereen en
-            18+-kosten alleen voor volwassenen. Komt iemand pas na het eten? Kies dan <strong>Avondgast</strong>: die
-            betaalt alleen zijn eigen barrekening.</p>
+        <p>Komt iemand pas na het eten? Kies dan <strong>Avondgast</strong>: die betaalt alleen de eigen barrekening.</p>
       </div>
       <div class="fa-list">${
         rows ||

@@ -66,6 +66,12 @@ export const editorClicks = {
     const person = members.find(entry => entry.id === control.dataset.person);
     const product = control.dataset.product;
     if (!person || person.type === "Avondgast" || !item.catalog.some(entry => entry.id === product)) return;
+    if (!account.view.openPeople) {
+      account.view.openPeople = new Set(
+        [...portal.view.querySelectorAll("[data-order-person][open]")].map(node => node.dataset.orderPerson)
+      );
+    }
+    account.view.openPeople.add(person.id);
     person.orders = person.orders || {};
     person.orders[product] = Math.max(
       0,

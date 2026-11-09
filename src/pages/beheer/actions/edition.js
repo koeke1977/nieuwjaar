@@ -57,6 +57,7 @@ export const forms = {
     state.activeEvent = { ...state.activeEvent, name: editionName };
     state.startsAt = (form.elements.startsAt?.value || "").slice(0, 16) || null;
     state.orderDeadline = (form.elements.orderDeadline?.value || "").slice(0, 16) || null;
+    state.contact = (form.elements.contact?.value || "").trim().slice(0, 120);
     renderApp();
     flushAdminState()
       .then(loadEvents)

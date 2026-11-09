@@ -48,6 +48,7 @@ function familyCard(family) {
 export function renderSettings(user, settings) {
   return html`<div class="fa-settings">
       <button type="button" class="fa-btn fa-btn-quiet" data-action="close-settings">‹ Terug</button>
+      <p class="fa-muted">Aangemeld als ${user?.email || ""}</p>
       <section class="fa-settings-card">
         <h3>Wachtwoord wijzigen</h3>
         <form class="fa-settings-form" data-account-form="password">
@@ -78,5 +79,6 @@ export function renderSettings(user, settings) {
         </form>
       </section>${
         settings ? joinHtml(settings.families.map(familyCard), "") : html`<p class="fa-muted">Toegang laden…</p>`
-      }</div>`;
+      }<button type="button" class="fa-btn" data-action="logout">Afmelden</button>
+    </div>`;
 }

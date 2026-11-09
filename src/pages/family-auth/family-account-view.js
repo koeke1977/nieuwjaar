@@ -58,16 +58,23 @@ function renderOpenEditions(openEditions = []) {
   );
 }
 
+// The help line at the bottom of the page; a phone number in the contact can be tapped.
+export function helpLine(contact) {
+  const text = String(contact || "").trim();
+  if (!text) return html`Hulp nodig? Neem contact op met de organisatie.`;
+  const phone = text.match(/\+?\d[\d\s./-]{6,}\d/)?.[0];
+  if (!phone) return html`Hulp nodig? ${text}`;
+  const [before, after] = text.split(phone);
+  return html`Hulp nodig? ${before}<a href="tel:${phone.replace(/[^\d+]/g, "")}">${phone}</a>${after}`;
+}
+
 export function renderAccount({ user, items, activeId, view, openEditions = [], settings = null }) {
   const name = user?.displayName || "";
   const top = html`<header class="fa-top">
         <div>
-          <p class="fa-eyebrow">Familieportaal</p>
-          <h1>${name ? "Hallo, " + name : "Welkom"}</h1>${user?.email ? html`<small>${user.email}</small>` : ""}</div>
-        <div class="fa-top-actions">
-          <button type="button" class="fa-btn fa-btn-quiet" data-action="open-settings">Mijn account</button>
-          <button type="button" class="fa-btn fa-btn-quiet" data-action="logout">Afmelden</button>
+          <h1>${name ? "Hallo, " + name : "Welkom"}</h1>
         </div>
+        <button type="button" class="fa-btn fa-btn-quiet" data-action="open-settings">Mijn account</button>
       </header>`;
   if (view?.settingsOpen) return html`${top}${renderSettings(user, settings)}`;
   if (!items.length)
@@ -91,5 +98,5 @@ export function renderAccount({ user, items, activeId, view, openEditions = [], 
           ""
         )}</nav>`
       : "";
-  return html`${top}${renderOpenEditions(openEditions)}${switcher}${renderEvent(active, view)}`;
+  return html`${top}${switcher}${renderEvent(active, view)}${renderOpenEditions(openEditions)}`;
 }

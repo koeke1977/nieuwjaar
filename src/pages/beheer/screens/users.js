@@ -215,18 +215,19 @@ function renderUserFamilies() {
               <small>${row.members.length ? countsText(row.members) : "Leden nog niet ingevuld"}</small>
             </button>
           </th>
-          <td>${row.people || dash}</td>
-          <td>${row.registered ? html`<span class="bh-chip bh-chip-info">Ingeschreven</span>` : dash}</td>
-          <td>${row.registered ? row.portions || dash : dash}</td>
-          <td>
+          <td data-label="Personen">${row.people || dash}</td>
+          <td data-label="Ingeschreven">${row.registered ? html`<span class="bh-chip bh-chip-info">Ingeschreven</span>` : dash}</td>
+          <td data-label="Porties">${row.registered ? row.portions || dash : dash}</td>
+          <td data-label="Account">
             <span class="bh-chip ${ACCESS_CHIP[row.access]}">${ACCESS_LABEL[row.access]}</span>
           </td>
-          <td>${shortDate(row.login) || dash}</td>
+          <td data-label="Laatst aangemeld">${shortDate(row.login) || dash}</td>
         </tr>`
     ),
     ""
   );
-  return html`<section class="bh-card">
+  return html`<details class="bh-card bh-fold">
+        <summary>+ Nieuw gezin</summary>
         <form id="add-registration-form" data-context="users" class="bh-inline-form">
           <label for="bh-new-user-family">Nieuw gezin</label>
           <div>
@@ -240,7 +241,7 @@ function renderUserFamilies() {
               : "Een nieuw gezin wordt meteen ingeschreven voor " + eventTitle() + "."
           }</small>
         </form>
-      </section>
+      </details>
       <section class="bh-card">
         <header class="bh-card-head">
           <h2>Gezinnen</h2>
@@ -330,8 +331,8 @@ function renderAccounts() {
     rows.map(
       user => html`<tr>
           <th scope="row">${user.displayName || dash}</th>
-          <td>${user.email}</td>
-          <td>
+          <td data-label="E-mail">${user.email}</td>
+          <td data-label="Status">
             <span class="bh-chip ${STATUS_CHIP[user.status] || "bh-chip-muted"}">${
               STATUS_LABEL[user.status] || user.status
             }</span>${lockChips(user)}${
@@ -340,7 +341,7 @@ function renderAccounts() {
                 : ""
             }
           </td>
-          <td>${
+          <td data-label="Gezin">${
             joinHtml(
               (user.families || []).map(
                 link => html`<button type="button" class="bh-chip bh-chip-info" data-action="open-user-family"
@@ -349,8 +350,8 @@ function renderAccounts() {
               ""
             ) || html`<span class="bh-chip bh-chip-muted">Geen gezin</span>`
           }</td>
-          <td>${shortDate(user.lastLoginAt) || dash}</td>
-          <td>${accountMenu(user)}</td>
+          <td data-label="Laatst aangemeld">${shortDate(user.lastLoginAt) || dash}</td>
+          <td data-label="Actie">${accountMenu(user)}</td>
         </tr>`
     ),
     ""

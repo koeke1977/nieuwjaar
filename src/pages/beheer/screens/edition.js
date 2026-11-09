@@ -172,6 +172,9 @@ export function renderEventSettings() {
           <label>Deze editie<input name="editionName" maxlength="80" value="${editionName()}" placeholder="Bijvoorbeeld:
               2026–2027" required>
           </label>
+          <label class="bh-span-2">Contact voor gezinnen (naam en gsm)<input name="contact" maxlength="120"
+              value="${state.contact || ""}" placeholder="Bijvoorbeeld: Koen, 0470 12 34 56">
+          </label>
           <label class="bh-span-2">Bestellen kan tot<input name="orderDeadline" type="datetime-local" value="${
             state.orderDeadline
               ? state.orderDeadline.length === 10

@@ -1,19 +1,16 @@
 // Tab Overzicht: wat staat er nog open, aftelling, kerncijfers.
 import { html, euro } from "../../../utils/html.js";
-import { countByType } from "../../../utils/member-types.js";
 import { portionsOf, settlementHero, countdownCard } from "./shared.js";
 
 export function renderOverview(item) {
   const members = item.registration.members || [];
   const finance = item.finance;
   const portions = members.reduce((sum, person) => sum + portionsOf(person), 0);
-  const kinds = countByType(members);
   return html`${settlementHero(finance)}${countdownCard(item)}<div class="fa-stats">
         <button type="button" class="fa-stat" data-tab-target="family" aria-label="Gezin bekijken">
           <span class="fa-stat-icon" aria-hidden="true">👨‍👩‍👧</span>
           <strong>${members.length}</strong>
-          <small>${members.length === 1 ? "deelnemer" : "deelnemers"} · ${kinds.adults} volw.
-              · ${kinds.children} kind.${kinds.evening ? " · " + kinds.evening + " avondg." : ""}</small>
+          <small>${members.length === 1 ? "deelnemer" : "deelnemers"}</small>
           <em>Gezin <i aria-hidden="true">›</i>
           </em>
         </button>
