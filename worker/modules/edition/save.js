@@ -62,6 +62,7 @@ export async function saveEditionState(env, editionId, body, now) {
   }
   const registrations = [];
   const seen = new Set();
+  const memberIds = new Map();
   for (const raw of data.registrations) {
     const name = validName(raw?.name, 160);
     const members = cleanMembers(raw?.members);
@@ -76,6 +77,7 @@ export async function saveEditionState(env, editionId, body, now) {
       return { status: 400, error: "Controleer de namen en gezinsleden van alle inschrijvingen." };
     }
     seen.add(raw.id);
+    memberIds.set(raw.id, new Set(members.map(member => member.id)));
     registrations.push({
       id: raw.id,
       familyId: raw.familyId || null,
@@ -84,7 +86,7 @@ export async function saveEditionState(env, editionId, body, now) {
       revision: Number(raw.revision) || 0
     });
   }
-  const finance = cleanFinance(data, seen);
+  const finance = cleanFinance(data, seen, memberIds);
   if (!finance)
     return {
       status: 400,

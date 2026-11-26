@@ -6,6 +6,8 @@ import { familyAccountSession } from "./session.js";
 import { euro } from "../../../src/utils/html.js";
 import { logActivity } from "../activity.js";
 
+const ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
+
 // The registration of the signed-in user, if their family owns it.
 async function ownRegistration(env, userId, registrationId, editionId) {
   return env.DB.prepare(
@@ -75,6 +77,9 @@ export async function saveOrDeleteExpense({ request, env, now, json, sameOrigin,
       amountCents,
       date: raw.date.slice(0, 10),
       method: raw.method,
+      // Who in the family paid it (checked against the members below); empty = the family.
+      advancedByMember:
+        typeof raw.advancedByMember === "string" && ID_PATTERN.test(raw.advancedByMember) ? raw.advancedByMember : null,
       receipt: null
     };
     if (raw.receipt) {
@@ -166,6 +171,12 @@ export async function saveOrDeleteExpense({ request, env, now, json, sameOrigin,
           children: data.children
         };
       });
+      if (input.advancedByMember) {
+        const own = registrations.find(item => item.id === registrationId);
+        if (!own?.members.some(member => member.id === input.advancedByMember))
+          return json({ error: "Kies wie van het gezin deze kost betaalde." }, 400);
+        expense.advancedByMember = input.advancedByMember;
+      }
       try {
         if (expense.method !== "bar") getExpenseShares(expense, registrations, { strict: true });
       } catch (error) {

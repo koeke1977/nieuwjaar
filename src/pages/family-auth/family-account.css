@@ -694,6 +694,15 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+.fa-member-cost li.fa-member-sub {
+  border-top-style: solid;
+}
+.fa-member-cost li.fa-member-net {
+  font-weight: 700;
+}
+.fa-member-cost li.fa-member-net-credit b {
+  color: #1f7a4d;
+}
 .fa-settlement {
   overflow: hidden;
   border: 1px solid var(--fa-line);

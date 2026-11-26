@@ -1,7 +1,7 @@
 // Costs, payments, refunds and closing the accounts.
 import { state } from "../../../data/admin-store.js";
 import { euro } from "../../../utils/html.js";
-import { getExpenseShares, getFinancialSummary, SHARED_FUND } from "../../../utils/finance.js";
+import { getExpenseShares, getFinancialSummary, SHARED_FUND, PAYER_SEPARATOR } from "../../../utils/finance.js";
 import { today } from "../screens/shared.js";
 import { barBalance } from "../beheer-view.js";
 import { go, renderApp, makeId, markCostsProvisional, adminApi, flushAdminState } from "../admin-core.js";
@@ -183,7 +183,7 @@ export const forms = {
       amountCents = Math.round(amount * 100);
     const date = form.elements.date.value,
       method = form.elements.method.value,
-      advancedBy = form.elements.advancedBy.value;
+      [advancedBy, advancedByMember = null] = form.elements.advancedBy.value.split(PAYER_SEPARATOR);
     if (
       !description ||
       !Number.isFinite(amount) ||
@@ -192,7 +192,9 @@ export const forms = {
       !date ||
       !advancedBy ||
       !["general", "adults", "meat", "bar"].includes(method) ||
-      !(advancedBy === SHARED_FUND || state.registrations.some(item => item.id === advancedBy))
+      !(advancedBy === SHARED_FUND || state.registrations.some(item => item.id === advancedBy)) ||
+      (advancedByMember &&
+        !state.registrations.find(item => item.id === advancedBy)?.members?.some(m => m.id === advancedByMember))
     ) {
       window.alert("Controleer de omschrijving, het bedrag, de datum, de verdeelsleutel en wie voorschoot.");
       return;
@@ -209,8 +211,11 @@ export const forms = {
         return;
       }
     }
-    if (existing) Object.assign(existing, expense);
-    else state.expenses.push(expense);
+    if (advancedByMember) expense.advancedByMember = advancedByMember;
+    if (existing) {
+      delete existing.advancedByMember;
+      Object.assign(existing, expense);
+    } else state.expenses.push(expense);
     state.editingExpenseId = null;
     markCostsProvisional();
     renderApp();

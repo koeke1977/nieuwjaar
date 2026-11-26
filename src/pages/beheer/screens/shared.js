@@ -51,8 +51,13 @@ export const dietFields = person =>
       )}</fieldset>
     <input name="notes" class="bh-span-2" maxlength="${NOTE_MAX}" value="${person.notes || ""}" placeholder="Opmerking
         (optioneel)" aria-label="Opmerking">`;
-export const payerName = (id, regs = state.registrations || []) =>
-  id === SHARED_FUND ? "de gemeenschappelijke kas" : regs.find(reg => reg.id === id)?.name || "Onbekend";
+export function payerName(id, regs = state.registrations || [], memberId = null) {
+  if (id === SHARED_FUND) return "de gemeenschappelijke kas";
+  const reg = regs.find(item => item.id === id);
+  if (!reg) return "Onbekend";
+  const member = memberId ? (reg.members || []).find(item => item.id === memberId) : null;
+  return member ? member.name + " (" + reg.name + ")" : reg.name;
+}
 export function paymentLine(payment, withFamily) {
   const refund = payment.kind === "refund";
   const label =

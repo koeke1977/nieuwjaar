@@ -1,7 +1,7 @@
 // Editie → Financiën: kosten, betalingen en afrekening per gezin.
 import { state } from "../../../data/admin-store.js";
 import { html, joinHtml, euro, plural, formatDate } from "../../../utils/html.js";
-import { SHARED_FUND, COST_ICON, getExpenseShares, COST_METHODS } from "../../../utils/finance.js";
+import { SHARED_FUND, COST_ICON, getExpenseShares, COST_METHODS, PAYER_SEPARATOR } from "../../../utils/finance.js";
 import {
   today,
   METHOD_HINT,
@@ -41,11 +41,22 @@ function renderExpenseForm(expense = null) {
             <option value="">Wie betaalde deze kost?</option>
             <option value="${SHARED_FUND}"${expense?.advancedBy === SHARED_FUND ? " selected" : ""}>Gemeenschappelijke
                 kas / organisatie</option>${joinHtml(
-                  (state.registrations || []).map(
-                    reg =>
-                      html`<option
-                      value="${reg.id}"${expense?.advancedBy === reg.id ? " selected" : ""}>${reg.name}</option>`
-                  ),
+                  (state.registrations || []).map(reg => {
+                    const familyChosen = expense?.advancedBy === reg.id && !expense?.advancedByMember;
+                    return html`<optgroup label="${reg.name}">
+                      <option value="${reg.id}"${familyChosen ? " selected" : ""}>${reg.name} (gezin, geen
+                          persoon)</option>${joinHtml(
+                            (reg.members || []).map(
+                              member =>
+                                html`<option value="${reg.id}${PAYER_SEPARATOR}${member.id}"${
+                                  expense?.advancedBy === reg.id && expense?.advancedByMember === member.id
+                                    ? " selected"
+                                    : ""
+                                }>${member.name}</option>`
+                            ),
+                            ""
+                          )}</optgroup>`;
+                  }),
                   ""
                 )}</select>
         </label>
@@ -104,7 +115,7 @@ function settlementCard() {
 export function renderFinance() {
   const t = eventTotals();
   const regs = state.registrations || [];
-  const nameOf = id => payerName(id, regs);
+  const nameOf = (id, memberId) => payerName(id, regs, memberId);
   const groups = joinHtml(
     Object.keys(COST_METHODS).map(method => {
       const list = (state.expenses || []).filter(expense => expense.method === method);
@@ -119,7 +130,7 @@ export function renderFinance() {
                 <div class="bh-expense">
                   <span>
                     <strong>${expense.description}</strong>
-                    <small>${formatDate(expense.date)} · voorgeschoten door ${nameOf(expense.advancedBy)}${
+                    <small>${formatDate(expense.date)} · voorgeschoten door ${nameOf(expense.advancedBy, expense.advancedByMember)}${
                       expense.enteredBy === "family"
                         ? html` · <span class="bh-chip bh-chip-info">ingevoerd door gezin</span>`
                         : ""

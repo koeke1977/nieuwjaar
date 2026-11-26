@@ -193,6 +193,8 @@ export function getMemberCostSummary(registration, registrations = [], expenses 
 
 // The shared kitty / organisation as payer of a cost: nobody gets an advance credit for it.
 export const SHARED_FUND = "kas";
+// Admin payer choice "registrationId~memberId": a person in a family advanced the cost ("~" is never in an id).
+export const PAYER_SEPARATOR = "~";
 export const COST_SHORT = { general: "Algemeen", adults: "18+", meat: "Vlees", bar: "Bar" };
 export const COST_ICON = { general: "👥", adults: "🥂", meat: "🍖", bar: "🍺" };
 
@@ -207,6 +209,12 @@ export const COST_METHODS = {
   // Purchases for the bar are not split: the personal bar bills cover them.
   bar: { label: "Bar", appliesTo: "Persoonlijke barrekening per persoon", unit: ["persoon", "personen"] }
 };
+
+// The family member who advanced an expense, when it names one that is still in the family.
+export function advancedByMemberOf(expense, members = []) {
+  const id = expense?.advancedByMember;
+  return id ? members.find(member => member.id === id) || null : null;
+}
 
 // Volledige, uitlegbare afrekening van één inschrijving. Bevat alleen gegevens van
 // deze inschrijving plus totalen van het evenement; nooit namen of bedragen van andere gezinnen.
@@ -234,17 +242,28 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
         portions: memberPortions(member),
         barCents: memberBarCents(member),
         totalCents: memberBarCents(member),
-        byMethod: { general: 0, adults: 0, meat: 0, bar: memberBarCents(member) }
+        byMethod: { general: 0, adults: 0, meat: 0, bar: memberBarCents(member) },
+        // What this person paid out of their own pocket for the event (expenses advanced by them).
+        advancedCents: 0,
+        netCents: 0
       }
     ])
   );
+  // Advanced by the family, but not linked to one person (older costs, or the person was removed).
+  let unassignedAdvancedCents = 0;
   const categories = new Map();
   const expenseRows = [];
   let advancedCents = 0;
   for (const expense of Array.isArray(expenses) ? expenses : []) {
     if (!expense || !COST_METHODS[expense.method]) continue;
     const amountCents = Number(expense.amountCents) || 0;
-    if (expense.advancedBy === registration.id) advancedCents += amountCents;
+    const ownAdvance = expense.advancedBy === registration.id;
+    const advancer = ownAdvance ? advancedByMemberOf(expense, members) : null;
+    if (ownAdvance) {
+      advancedCents += amountCents;
+      if (advancer) memberRows.get(advancer.id).advancedCents += amountCents;
+      else unassignedAdvancedCents += amountCents;
+    }
     // A bar purchase is not a shared cost; only the family that advanced it sees it (in its own costs).
     if (expense.method === "bar") {
       if (expense.advancedBy === registration.id)
@@ -258,6 +277,8 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
           familyUnits: 0,
           totalUnits: 0,
           advancedByUs: true,
+          advancedByMember: advancer?.id || null,
+          advancedByName: advancer?.name || null,
           enteredByFamily: expense.enteredBy === "family",
           receipt: expense.receipt || null,
           members: [],
@@ -285,7 +306,9 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
       familyCents,
       familyUnits,
       totalUnits,
-      advancedByUs: expense.advancedBy === registration.id,
+      advancedByUs: ownAdvance,
+      advancedByMember: advancer?.id || null,
+      advancedByName: advancer?.name || null,
       enteredByFamily: expense.enteredBy === "family",
       // Only the family's own receipts are passed on (privacy).
       receipt: expense.advancedBy === registration.id && expense.receipt ? expense.receipt : null,
@@ -354,7 +377,8 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
     counts: { family: ownCounts, event: eventCounts },
     categories: [...categories.values()],
     expenses: expenseRows,
-    members: [...memberRows.values()],
+    members: [...memberRows.values()].map(row => ({ ...row, netCents: row.totalCents - row.advancedCents })),
+    unassignedAdvancedCents,
     payments: paymentRows
   };
 }

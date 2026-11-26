@@ -84,7 +84,8 @@ export async function handleExpenseSubmit(event) {
         description: expenseForm.elements.description.value.trim(),
         amountCents,
         date: expenseForm.elements.date.value,
-        method: expenseForm.elements.method.value
+        method: expenseForm.elements.method.value,
+        advancedByMember: expenseForm.elements.advancedByMember?.value || null
       }
     });
     account.view.editingExpenseId = null;

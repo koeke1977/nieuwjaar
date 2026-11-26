@@ -65,6 +65,17 @@ function renderOwnCosts(item, view) {
               value="${expense?.date || todayLocal()}" required>
           </label>
         </div>
+        <label class="fa-label">Wie van jullie betaalde?<select name="advancedByMember">
+            <option value="">Het gezin (geen persoon)</option>${joinHtml(
+              (item.registration.members || []).map(
+                member =>
+                  html`<option
+                      value="${member.id}"${expense?.advancedByMember === member.id ? " selected" : ""}>${member.name}</option>`
+              ),
+              ""
+            )}</select>
+          <small>Wat die persoon voorschoot, gaat af van diens eigen kosten.</small>
+        </label>
         <label class="fa-label">Wie betaalt mee?<select name="method">${joinHtml(
           METHOD_CHOICES.map(
             ([value, label]) =>
@@ -99,7 +110,9 @@ function renderOwnCosts(item, view) {
         : html`<li>
             <span>
               <strong>${expense.description}</strong>
-              <small>${formatDate(expense.date)} · ${COST_SHORT[expense.method] || ""}${expense.enteredByFamily ? "" : " · ingevoerd door de organisatie"}</small>${
+              <small>${formatDate(expense.date)} · ${COST_SHORT[expense.method] || ""}${
+                expense.advancedByName ? " · betaald door " + expense.advancedByName : ""
+              }${expense.enteredByFamily ? "" : " · ingevoerd door de organisatie"}</small>${
                 expense.receipt
                   ? html`<a class="fa-inline-link" href="${receiptUrl(expense.receipt)}" target="_blank"
                       rel="noopener">📎 Kasticket</a>`
@@ -163,7 +176,7 @@ export function renderCosts(item, view = {}) {
                     <span>${expense.description}${expense.date ? html` <small>${formatDate(expense.date)}</small>` : ""}${
                       expense.advancedByUs
                         ? html` <em
-                        class="fa-tag">voorgeschoten door jullie</em>`
+                        class="fa-tag">voorgeschoten door ${expense.advancedByName || "jullie"}</em>`
                         : ""
                     }</span>
                     <span class="fa-amounts">
@@ -226,6 +239,21 @@ export function renderCosts(item, view = {}) {
         }),
         ""
       );
+      // Who advanced a cost sees it taken off their own share: the net amount is their real cost.
+      const advanced = member.advancedCents
+        ? html`<li class="fa-member-sub">
+                <span>Eigen aandeel</span>
+                <b>${euro(member.totalCents)}</b>
+              </li>
+              <li>
+                <span>Min: zelf voorgeschoten</span>
+                <b>− ${euro(member.advancedCents)}</b>
+              </li>
+              <li class="fa-member-net${member.netCents < 0 ? " fa-member-net-credit" : ""}">
+                <span>${member.netCents < 0 ? "Krijgt terug" : "Netto kost"}</span>
+                <b>${euro(Math.abs(member.netCents))}</b>
+              </li>`
+        : "";
       return html`<article class="fa-member-cost">
             <header>
               <span class="fa-avatar">${(member.name || "?").charAt(0).toUpperCase()}</span>
@@ -233,9 +261,9 @@ export function renderCosts(item, view = {}) {
                 <strong>${member.name}</strong>
                 <small>${typeLabel(member.type)}</small>
               </div>
-              <strong>${euro(member.totalCents)}</strong>
+              <strong>${member.advancedCents ? (member.netCents < 0 ? "+ " : "") + euro(Math.abs(member.netCents)) : euro(member.totalCents)}</strong>
             </header>
-            <ul>${parts}</ul>
+            <ul>${parts}${advanced}</ul>
           </article>`;
     }),
     ""
@@ -297,7 +325,15 @@ export function renderCosts(item, view = {}) {
         <p>Per soort kost: het totaal en het deel dat jullie gezin draagt.</p>
       </div>${categories}<div class="fa-section-head">
         <h3>2. Per gezinslid</h3>
-        <p>Opgeteld vormen deze bedragen exact jullie gezinsaandeel.</p>
+        <p>${
+          finance.members.some(member => member.advancedCents)
+            ? "Wie zelf iets voorschoot, ziet dat afgetrokken van het eigen aandeel. Samen vormen de aandelen exact jullie gezinsaandeel."
+            : "Opgeteld vormen deze bedragen exact jullie gezinsaandeel."
+        }${
+          finance.unassignedAdvancedCents
+            ? " " + euro(finance.unassignedAdvancedCents) + " werd voorgeschoten door het gezin, zonder persoon."
+            : ""
+        }</p>
       </div>
       <div class="fa-member-costs">${members}</div>
       <div class="fa-section-head">

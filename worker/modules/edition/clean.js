@@ -62,7 +62,8 @@ export function cleanCatalog(catalog) {
   return out;
 }
 
-export function cleanFinance(data, registrationIds) {
+// memberIds: registration id -> Set of its member ids, to check who in a family advanced a cost.
+export function cleanFinance(data, registrationIds, memberIds = new Map()) {
   if (
     !Array.isArray(data.expenses) ||
     data.expenses.length > 2000 ||
@@ -92,6 +93,11 @@ export function cleanFinance(data, registrationIds) {
     expenseIds.add(item.id);
     if (item.enteredBy != null && item.enteredBy !== "family") return null;
     if (item.receipt != null && !parseReceiptKey(item.receipt)) return null;
+    // A person who is no longer in the family is dropped quietly: the cost stays with the family.
+    const advancedByMember =
+      typeof item.advancedByMember === "string" && memberIds.get(item.advancedBy)?.has(item.advancedByMember)
+        ? item.advancedByMember
+        : null;
     expenses.push({
       id: item.id,
       description,
@@ -99,6 +105,7 @@ export function cleanFinance(data, registrationIds) {
       date: item.date,
       method: item.method,
       advancedBy: item.advancedBy,
+      ...(advancedByMember ? { advancedByMember } : {}),
       ...(item.enteredBy === "family" ? { enteredBy: "family" } : {}),
       ...(item.receipt ? { receipt: item.receipt } : {})
     });

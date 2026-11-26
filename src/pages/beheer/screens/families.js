@@ -331,7 +331,12 @@ function renderFamilyDetail(registration) {
         }</ul>
       <div class="bh-member-costs">${joinHtml(
         finance.members.map(
-          member => html`<span>${member.name} <b>${euro(member.totalCents)}</b>
+          member => html`<span>${member.name} <b>${euro(member.totalCents)}</b>${
+            member.advancedCents
+              ? html` <small>− ${euro(member.advancedCents)} voorgeschoten =
+                  ${member.netCents < 0 ? "krijgt " + euro(-member.netCents) + " terug" : euro(member.netCents)}</small>`
+              : ""
+          }
           </span>`
         ),
         ""

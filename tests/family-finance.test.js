@@ -283,3 +283,40 @@ test("evening guests share in no cost at all; they only pay their own bar bill",
     [1500, 0]
   );
 });
+
+test("a cost advanced by one person comes off that person's own share", () => {
+  const byEls = expenses.map(expense => (expense.id === "e2" ? { ...expense, advancedByMember: "a2" } : expense));
+  const finance = getFamilyFinanceBreakdown(familyA, registrations, byEls, payments);
+  const els = finance.members.find(member => member.id === "a2");
+  const jan = finance.members.find(member => member.id === "a1");
+  assert.equal(els.advancedCents, 10000);
+  assert.equal(els.netCents, els.totalCents - 10000);
+  assert.equal(jan.advancedCents, 0);
+  assert.equal(jan.netCents, jan.totalCents);
+  assert.equal(finance.unassignedAdvancedCents, 0);
+  assert.equal(finance.expenses.find(expense => expense.id === "e2").advancedByName, "Els");
+  // The family settlement does not change: only who in the family carries it.
+  const before = getFamilyFinanceBreakdown(familyA, registrations, expenses, payments);
+  assert.deepEqual(finance.totals, before.totals);
+  assert.equal(
+    finance.members.reduce((sum, member) => sum + member.netCents, 0),
+    finance.totals.shareCents - finance.totals.advancedCents
+  );
+  // Without a person, the advance stays with the family.
+  assert.equal(before.unassignedAdvancedCents, 10000);
+  assert.ok(before.members.every(member => member.advancedCents === 0));
+});
+
+test("another family never sees who in a family advanced a cost", () => {
+  const byEls = expenses.map(expense => (expense.id === "e2" ? { ...expense, advancedByMember: "a2" } : expense));
+  const finance = getFamilyFinanceBreakdown(familyB, registrations, byEls, payments);
+  assert.ok(!JSON.stringify(finance).includes("Els"));
+  assert.equal(finance.expenses.find(expense => expense.id === "e2").advancedByMember, null);
+});
+
+test("a person who left the family no longer carries the advance", () => {
+  const ghost = expenses.map(expense => (expense.id === "e2" ? { ...expense, advancedByMember: "gone" } : expense));
+  const finance = getFamilyFinanceBreakdown(familyA, registrations, ghost, payments);
+  assert.equal(finance.unassignedAdvancedCents, 10000);
+  assert.ok(finance.members.every(member => member.advancedCents === 0));
+});
