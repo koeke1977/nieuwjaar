@@ -36,6 +36,16 @@ function memberBarCents(member) {
 const registrationBarCents = registration =>
   (registration?.members || []).reduce((sum, person) => sum + memberBarCents(person), 0);
 
+// Barbuffer: a fixed amount per person (everyone, also children and evening guests), agreed in the
+// group to cover the bar consumptions nobody marked. It sits on the personal bar bill; what is left
+// after paying the bar goes to next year. Set per edition (options.barBufferCents).
+export function barBufferCents(options = {}) {
+  const cents = Math.floor(Number(options?.barBufferCents) || 0);
+  return cents > 0 ? cents : 0;
+}
+const registrationBufferCents = (registration, options) =>
+  (registration?.members || []).length * barBufferCents(options);
+
 // Largest-remainder verdeling: som van shares is altijd exact amountCents.
 export function splitCents(amountCents, weightedRows, { strict = false } = {}) {
   const amount = Number(amountCents);
@@ -82,7 +92,7 @@ export function getExpenseShares(expense, registrations, { strict = false } = {}
   return splitCents(expense.amountCents, weightedRows, { strict });
 }
 
-export function getFinancialSummary(registrations, expenses, payments = []) {
+export function getFinancialSummary(registrations, expenses, payments = [], options = {}) {
   const rows = registrations.map(registration => ({
     id: registration.id,
     name: registration.name,
@@ -104,7 +114,8 @@ export function getFinancialSummary(registrations, expenses, payments = []) {
     const row = byId.get(registration.id);
     if (row) {
       row.barCents = registrationBarCents(registration);
-      row.shareCents += row.barCents;
+      row.bufferCents = registrationBufferCents(registration, options);
+      row.shareCents += row.barCents + row.bufferCents;
     }
   }
   // A payment is money a family paid in; kind "refund" is money paid back to a family.
@@ -218,8 +229,15 @@ export function advancedByMemberOf(expense, members = []) {
 
 // Volledige, uitlegbare afrekening van één inschrijving. Bevat alleen gegevens van
 // deze inschrijving plus totalen van het evenement; nooit namen of bedragen van andere gezinnen.
-export function getFamilyFinanceBreakdown(registration, registrations = [], expenses = [], payments = []) {
+export function getFamilyFinanceBreakdown(
+  registration,
+  registrations = [],
+  expenses = [],
+  payments = [],
+  options = {}
+) {
   if (!registration) return null;
+  const buffer = barBufferCents(options);
   const members = Array.isArray(registration.members) ? registration.members : [];
   const ownCounts = getRegistrationCounts(registration);
   const eventCounts = registrations.reduce(
@@ -241,8 +259,9 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
         type: member.type,
         portions: memberPortions(member),
         barCents: memberBarCents(member),
-        totalCents: memberBarCents(member),
-        byMethod: { general: 0, adults: 0, meat: 0, bar: memberBarCents(member) },
+        bufferCents: buffer,
+        totalCents: memberBarCents(member) + buffer,
+        byMethod: { general: 0, adults: 0, meat: 0, bar: memberBarCents(member) + buffer },
         // What this person paid out of their own pocket for the event (expenses advanced by them).
         advancedCents: 0,
         netCents: 0
@@ -326,7 +345,7 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
     category.familyCents += familyCents;
     categories.set(expense.method, category);
   }
-  const familyBar = registrationBarCents(registration);
+  const familyBar = registrationBarCents(registration) + registrationBufferCents(registration, options);
   if (familyBar > 0) {
     categories.set("bar", {
       method: "bar",
@@ -336,9 +355,15 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
       familyCents: familyBar,
       familyUnits: 0,
       totalUnits: 0,
+      bufferCents: buffer,
       perMember: members
-        .filter(member => memberBarCents(member) > 0)
-        .map(member => ({ id: member.id, name: member.name, cents: memberBarCents(member) }))
+        .filter(member => memberBarCents(member) + buffer > 0)
+        .map(member => ({
+          id: member.id,
+          name: member.name,
+          cents: memberBarCents(member) + buffer,
+          barCents: memberBarCents(member)
+        }))
     });
   }
   const paymentRows = (Array.isArray(payments) ? payments : [])
@@ -350,7 +375,9 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
       method: payment.method || null,
       kind: payment.kind === "refund" ? "refund" : "payment"
     }));
-  const summary = getFinancialSummary(registrations, expenses, payments).find(row => row.id === registration.id) || {
+  const summary = getFinancialSummary(registrations, expenses, payments, options).find(
+    row => row.id === registration.id
+  ) || {
     shareCents: 0,
     advancedCents,
     paidCents: 0,
@@ -379,6 +406,7 @@ export function getFamilyFinanceBreakdown(registration, registrations = [], expe
     expenses: expenseRows,
     members: [...memberRows.values()].map(row => ({ ...row, netCents: row.totalCents - row.advancedCents })),
     unassignedAdvancedCents,
+    barBufferCents: buffer,
     payments: paymentRows
   };
 }

@@ -48,6 +48,10 @@ export async function saveEditionState(env, editionId, body, now) {
         ? data.orderDeadline
         : undefined;
   const contact = typeof data.contact === "string" ? data.contact.trim().slice(0, 120) : "";
+  // Barbuffer per person in cents (0 = none); at most € 50.
+  const barBuffer = data.barBufferCents == null || data.barBufferCents === "" ? 0 : Number(data.barBufferCents);
+  if (!Number.isSafeInteger(barBuffer) || barBuffer < 0 || barBuffer > 5000)
+    return { status: 400, error: "Controleer de barbuffer per persoon (tussen € 0 en € 50)." };
   if (orderDeadline === undefined) return { status: 400, error: "Controleer de datum waarop het bestellen sluit." };
   const catalog = cleanCatalog(data.catalog);
   if (
@@ -108,7 +112,8 @@ export async function saveEditionState(env, editionId, body, now) {
     !same(base.catalog, catalog) ||
     !same(base.startsAt ?? null, startsAt) ||
     !same(base.orderDeadline ?? null, orderDeadline) ||
-    !same(base.contact || "", contact)
+    !same(base.contact || "", contact) ||
+    !same(Number(base.barBufferCents) || 0, barBuffer)
   ) {
     statements.push(
       guard(
@@ -124,6 +129,8 @@ export async function saveEditionState(env, editionId, body, now) {
     else delete config.orderDeadline;
     if (contact) config.contact = contact;
     else delete config.contact;
+    if (barBuffer) config.barBufferCents = barBuffer;
+    else delete config.barBufferCents;
     statements.push(
       env.DB.prepare(
         "UPDATE event_editions SET label = ?, config_json = ?, starts_at = ?, updated_at = ? WHERE id = ?"

@@ -175,6 +175,13 @@ export function renderEventSettings() {
           <label class="bh-span-2">Contact voor gezinnen (naam en gsm)<input name="contact" maxlength="120"
               value="${state.contact || ""}" placeholder="Bijvoorbeeld: Koen, 0470 12 34 56">
           </label>
+          <label class="bh-span-2">Barbuffer per persoon (€)<input name="barBuffer" type="number" min="0" max="50"
+              step="0.01" inputmode="decimal" value="${state.barBufferCents ? (state.barBufferCents / 100).toFixed(2) : ""}"
+              placeholder="Bijvoorbeeld: 2,00">
+            <small class="bh-muted">Iedereen betaalt dit bedrag bovenop de eigen barrekening, ook kinderen en
+              avondgasten, voor de streepjes die niemand zette. Wat overblijft, gaat naar volgend jaar. Leeg = geen
+              buffer.</small>
+          </label>
           <label class="bh-span-2">Bestellen kan tot<input name="orderDeadline" type="datetime-local" value="${
             state.orderDeadline
               ? state.orderDeadline.length === 10

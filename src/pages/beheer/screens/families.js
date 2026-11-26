@@ -1,5 +1,5 @@
 // Editie → Inschrijvingen: lijst van gezinnen, gezinsdetail, personen bewerken, toegang.
-import { state } from "../../../data/admin-store.js";
+import { state, financeOptions } from "../../../data/admin-store.js";
 import { typeLabel, typeOptions, countsText, EVENING } from "../../../utils/member-types.js";
 import { html, joinHtml, euro, plural } from "../../../utils/html.js";
 import { COST_ICON, getFinancialSummary, getFamilyFinanceBreakdown } from "../../../utils/finance.js";
@@ -266,7 +266,13 @@ export function renderAccess(familyId) {
 }
 
 function renderFamilyDetail(registration) {
-  const finance = getFamilyFinanceBreakdown(registration, state.registrations, state.expenses, state.payments);
+  const finance = getFamilyFinanceBreakdown(
+    registration,
+    state.registrations,
+    state.expenses,
+    state.payments,
+    financeOptions()
+  );
   const t = finance.totals;
   const payments = (state.payments || []).filter(payment => payment.registrationId === registration.id);
 
@@ -381,7 +387,7 @@ function renderFamilyDetail(registration) {
         }<p>${countsText(registration.members)} · ${plural(familyPortions(registration), "portie", "porties")}</p>
         </div>
         <div class="bh-page-actions">${accessChip(registration.familyId)}${familyBalanceChip(
-          getFinancialSummary(state.registrations, state.expenses, state.payments).find(
+          getFinancialSummary(state.registrations, state.expenses, state.payments, financeOptions()).find(
             row => row.id === registration.id
           )
         )}</div>

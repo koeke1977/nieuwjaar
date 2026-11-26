@@ -15,7 +15,7 @@ const closedMessage = deadline =>
 // Family-facing finance for a normalized edition: shares are computed over all active
 // registrations of the edition, but only this registration's figures are returned.
 async function normalizedFamilyFinance(env, editionId, registration) {
-  const [rows, snapshot] = await Promise.all([
+  const [rows, snapshot, edition] = await Promise.all([
     env.DB.prepare("SELECT id, data_json FROM event_registrations WHERE edition_id = ? AND status = 'active'")
       .bind(editionId)
       .all(),
@@ -23,8 +23,15 @@ async function normalizedFamilyFinance(env, editionId, registration) {
       "SELECT expenses_json, payments_json, costs_finalized, costs_finalized_at FROM edition_finance_snapshots WHERE edition_id = ?"
     )
       .bind(editionId)
-      .first()
+      .first(),
+    env.DB.prepare("SELECT config_json FROM event_editions WHERE id = ?").bind(editionId).first()
   ]);
+  let config = {};
+  try {
+    config = JSON.parse(edition?.config_json || "{}") || {};
+  } catch {
+    /* no settings */
+  }
   const registrations = (rows.results || []).map(row => {
     let data = {};
     try {
@@ -52,7 +59,9 @@ async function normalizedFamilyFinance(env, editionId, registration) {
   return {
     finalized: Boolean(snapshot?.costs_finalized),
     finalizedAt: snapshot?.costs_finalized_at || null,
-    ...getFamilyFinanceBreakdown(registration, registrations, expenses, payments)
+    ...getFamilyFinanceBreakdown(registration, registrations, expenses, payments, {
+      barBufferCents: config.barBufferCents
+    })
   };
 }
 

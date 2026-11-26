@@ -1474,3 +1474,8 @@
   border-top: 1px solid var(--fa-line);
   font-weight: 700;
 }
+.fa-buffer-note {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--fa-soft);
+}

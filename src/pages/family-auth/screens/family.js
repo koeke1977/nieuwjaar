@@ -111,7 +111,9 @@ export function renderFamily(item, view) {
     : "";
   return html`<div class="fa-section-head">
         <h3>Wie komt er?</h3>
-        <p>Komt iemand pas na het eten? Kies dan <strong>Avondgast</strong>: die betaalt alleen de eigen barrekening.</p>
+        <p>Komt iemand pas na het eten? Kies dan <strong>Avondgast</strong>: die betaalt alleen de eigen barrekening${
+          item.finance?.barBufferCents ? html` (en de barbuffer van ${euro(item.finance.barBufferCents)})` : ""
+        }.</p>
       </div>
       <div class="fa-list">${
         rows ||

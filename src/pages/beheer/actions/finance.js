@@ -1,5 +1,5 @@
 // Costs, payments, refunds and closing the accounts.
-import { state } from "../../../data/admin-store.js";
+import { state, financeOptions } from "../../../data/admin-store.js";
 import { euro } from "../../../utils/html.js";
 import { getExpenseShares, getFinancialSummary, SHARED_FUND, PAYER_SEPARATOR } from "../../../utils/finance.js";
 import { today } from "../screens/shared.js";
@@ -8,7 +8,7 @@ import { go, renderApp, makeId, markCostsProvisional, adminApi, flushAdminState 
 
 // ---- Kassa (screens/cash.js): cash received or given back on the night itself ----
 const balanceOf = id =>
-  getFinancialSummary(state.registrations, state.expenses, state.payments).find(row => row.id === id);
+  getFinancialSummary(state.registrations, state.expenses, state.payments, financeOptions()).find(row => row.id === id);
 const familyName = id => state.registrations.find(reg => reg.id === id)?.name || "dit gezin";
 function addCash(registrationId, amountCents, refund = false) {
   state.payments.push({
@@ -67,10 +67,11 @@ export const clicks = {
     const bar = barBalance();
     if (
       bar.used &&
-      bar.difference &&
+      bar.off &&
       !window.confirm(
         "Let op: de bar is niet sluitend. De barrekeningen samen (" +
           euro(bar.charged) +
+          (bar.buffer ? ") plus de barbuffer (" + euro(bar.buffer) : "") +
           ") zijn niet gelijk aan de rekening van de drank (" +
           euro(bar.purchases) +
           "). Toch verdergaan?"
@@ -239,7 +240,7 @@ export const forms = {
       window.alert("Controleer het gezin, het bedrag, de datum en de betaalwijze.");
       return;
     }
-    const balance = getFinancialSummary(state.registrations, state.expenses, state.payments).find(
+    const balance = getFinancialSummary(state.registrations, state.expenses, state.payments, financeOptions()).find(
       row => row.id === registrationId
     );
     if (!balance || amountCents > balance.remainingCents) {
@@ -257,7 +258,7 @@ export const forms = {
       amountCents = Math.round(amount * 100);
     const date = form.elements.date.value,
       method = form.elements.method.value;
-    const balance = getFinancialSummary(state.registrations, state.expenses, state.payments).find(
+    const balance = getFinancialSummary(state.registrations, state.expenses, state.payments, financeOptions()).find(
       row => row.id === registrationId
     );
     if (

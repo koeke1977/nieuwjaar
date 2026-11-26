@@ -51,6 +51,7 @@ export async function loadEditionState(env, editionId) {
     catalog: Array.isArray(config.catalog) ? config.catalog : [],
     orderDeadline: typeof config.orderDeadline === "string" ? config.orderDeadline : null,
     contact: typeof config.contact === "string" ? config.contact : "",
+    barBufferCents: Number(config.barBufferCents) || 0,
     butcherEmail: typeof config.butcherEmail === "string" ? config.butcherEmail : "",
     butcherSentAt: Number(config.butcherSentAt) || null,
     settlementSentAt: Number(config.settlementSentAt) || null,
@@ -94,6 +95,8 @@ export async function startNextEdition(env, editionId, body, now) {
   const newConfig = body?.copyCatalog === false ? {} : { catalog: Array.isArray(config.catalog) ? config.catalog : [] };
   if (typeof config.butcherEmail === "string" && config.butcherEmail) newConfig.butcherEmail = config.butcherEmail;
   if (typeof config.contact === "string" && config.contact) newConfig.contact = config.contact;
+  // The group agreed on the barbuffer; it carries over to the next edition.
+  if (Number(config.barBufferCents) > 0) newConfig.barBufferCents = Number(config.barBufferCents);
   const id = "edition-" + crypto.randomUUID();
   await env.DB.batch([
     env.DB.prepare("UPDATE event_editions SET status = 'archived', updated_at = ? WHERE id = ?").bind(now, editionId),

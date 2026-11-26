@@ -1,10 +1,10 @@
 // Helpers shared by the admin screens: names, totals, page head, KPI tiles, chips, payment lines.
-import { state } from "../../../data/admin-store.js";
+import { state, financeOptions } from "../../../data/admin-store.js";
 import { todayLocal } from "../../../utils/time.js";
 import { DIET_OPTIONS, NOTE_MAX, hasDiet } from "../../../utils/diet.js";
 import { countByType } from "../../../utils/member-types.js";
 import { html, joinHtml, euro, formatDate } from "../../../utils/html.js";
-import { SHARED_FUND, getFinancialSummary, getRegistrationCounts } from "../../../utils/finance.js";
+import { SHARED_FUND, getFinancialSummary, getRegistrationCounts, barBufferCents } from "../../../utils/finance.js";
 
 export const portionsOf = person =>
   Object.values(person?.orders || {}).reduce((sum, qty) => sum + Math.max(0, Number(qty) || 0), 0);
@@ -14,22 +14,38 @@ export const today = () => todayLocal();
 export const eventName = () => state.eventName || "Evenement";
 export const editionName = () => state.activeEvent?.name || "";
 export const eventTitle = () => eventName() + (editionName() ? " " + editionName() : "");
+// Bar bills + barbuffer against the bar purchases. Without a buffer the bar must close at exactly € 0.
+// With a buffer a surplus is expected (it goes to next year); only a shortfall is a problem.
 export function barBalance(registrations = state.registrations || [], expenses = state.expenses || []) {
   const charged = registrations.reduce(
     (sum, reg) => sum + (reg.members || []).reduce((s, p) => s + Math.max(0, Number(p.barCents) || 0), 0),
     0
   );
+  const people = registrations.reduce((sum, reg) => sum + (reg.members || []).length, 0);
+  const buffer = people * barBufferCents(financeOptions());
   const purchases = expenses
     .filter(expense => expense.method === "bar")
     .reduce((sum, expense) => sum + (Number(expense.amountCents) || 0), 0);
-  return { charged, purchases, difference: charged - purchases, used: charged > 0 || purchases > 0 };
+  const difference = charged + buffer - purchases;
+  return {
+    charged,
+    buffer,
+    purchases,
+    difference,
+    used: charged > 0 || purchases > 0,
+    // Not closing: a shortfall, or (without a buffer) any difference.
+    off: buffer ? difference < 0 : difference !== 0,
+    leftover: buffer && difference > 0 ? difference : 0
+  };
 }
 export function barCheck(bar) {
   if (!bar.used) return "";
-  if (!bar.difference)
-    return html`<span class="bh-chip bh-chip-ok">✓ Bar sluitend: barrekeningen = rekening (€ 0,00 verschil)</span>`;
+  if (!bar.off)
+    return bar.buffer
+      ? html`<span class="bh-chip bh-chip-ok">✓ Bar gedekt: ${euro(bar.leftover)} buffer over → naar volgend jaar</span>`
+      : html`<span class="bh-chip bh-chip-ok">✓ Bar sluitend: barrekeningen = rekening (€ 0,00 verschil)</span>`;
   return html`<span class="bh-chip bh-chip-due">⚠
-      Bar: ${euro(Math.abs(bar.difference))}${bar.difference > 0 ? " meer aangerekend dan de rekening" : " minder aangerekend dan de rekening"}</span>`;
+      Bar: ${euro(Math.abs(bar.difference))}${bar.difference > 0 ? " meer aangerekend dan de rekening" : " tekort tegenover de rekening"}</span>`;
 }
 export const dietChips = person =>
   hasDiet(person)
@@ -175,7 +191,7 @@ export const editionTab = () => {
 export function eventTotals() {
   const regs = state.registrations || [];
   const counts = regs.map(getRegistrationCounts);
-  const summary = getFinancialSummary(regs, state.expenses, state.payments);
+  const summary = getFinancialSummary(regs, state.expenses, state.payments, financeOptions());
   return {
     families: regs.length,
     people: counts.reduce((sum, c) => sum + c.people, 0),

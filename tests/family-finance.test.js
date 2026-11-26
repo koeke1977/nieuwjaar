@@ -320,3 +320,42 @@ test("a person who left the family no longer carries the advance", () => {
   assert.equal(finance.unassignedAdvancedCents, 10000);
   assert.ok(finance.members.every(member => member.advancedCents === 0));
 });
+
+test("the barbuffer is a fixed amount for everyone, on the personal bar bill", () => {
+  const options = { barBufferCents: 200 };
+  const withBar = {
+    ...familyA,
+    members: familyA.members
+      .map(m => (m.id === "a1" ? { ...m, barCents: 1450 } : m))
+      .concat({
+        id: "a4",
+        name: "Lotte",
+        type: "Avondgast",
+        orders: {}
+      })
+  };
+  const regs = [withBar, familyB];
+  const without = getFamilyFinanceBreakdown(withBar, regs, expenses, payments);
+  const finance = getFamilyFinanceBreakdown(withBar, regs, expenses, payments, options);
+  // Everyone pays it: adults, the child and the evening guest.
+  for (const member of finance.members) {
+    const before = without.members.find(m => m.id === member.id);
+    assert.equal(member.bufferCents, 200);
+    assert.equal(member.totalCents, before.totalCents + 200, member.name);
+    assert.equal(member.byMethod.bar, (before.byMethod.bar || 0) + 200);
+  }
+  assert.equal(finance.totals.shareCents, without.totals.shareCents + 4 * 200);
+  const bar = finance.categories.find(c => c.method === "bar");
+  assert.equal(bar.familyCents, 1450 + 4 * 200);
+  assert.equal(bar.bufferCents, 200);
+  assert.equal(finance.barBufferCents, 200);
+  // Shared costs are not touched by the buffer.
+  assert.deepEqual(
+    finance.categories.filter(c => c.method !== "bar"),
+    without.categories.filter(c => c.method !== "bar")
+  );
+  // The summary for the admin agrees with the family view.
+  const summary = getFinancialSummary(regs, expenses, payments, options).find(row => row.id === "a");
+  assert.equal(summary.bufferCents, 800);
+  assert.equal(summary.shareCents, finance.totals.shareCents);
+});

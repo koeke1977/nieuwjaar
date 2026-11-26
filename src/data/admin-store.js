@@ -25,3 +25,6 @@ export const state = {
   editingAdminMemberIndex: null,
   editingExpenseId: null
 };
+
+// Edition settings the finance calculation needs (see src/utils/finance.js).
+export const financeOptions = () => ({ barBufferCents: state.barBufferCents || 0 });

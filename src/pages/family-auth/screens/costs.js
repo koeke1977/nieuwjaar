@@ -9,7 +9,9 @@ function categoryExplanation(category) {
   const unit = UNITS[category.method] || ["deel", "delen"];
   if (category.personal)
     return (
-      "Persoonlijke barrekening, na het feest berekend door de organisatie: " +
+      "Persoonlijke barrekening, na het feest berekend door de organisatie" +
+      (category.bufferCents ? ", plus " + euro(category.bufferCents) + " barbuffer per persoon" : "") +
+      ": " +
       (category.perMember || []).map(member => member.name + " " + euro(member.cents)).join(" · ") +
       "."
     );
@@ -143,12 +145,22 @@ function renderOwnCosts(item, view) {
       }`;
 }
 
+// Said kindly and up front: a small shared contribution, not a fine.
+function bufferNote(finance) {
+  if (!finance?.barBufferCents) return "";
+  return html`<p class="fa-explain fa-buffer-note">🍻 <strong>Barbuffer: ${euro(finance.barBufferCents)} per
+        persoon.</strong> Op een feest vergeten we allemaal wel eens een streepje te zetten. Daarom betaalt iedereen
+      ${euro(finance.barBufferCents)} extra op de barrekening, ook kinderen en avondgasten. Zo hoeft niemand op het einde
+      bij te leggen. Wat overblijft, gaat naar volgend jaar.</p>`;
+}
+
 const receiptUrl = key => "/api/family-account/receipts?key=" + encodeURIComponent(key);
 
 export function renderCosts(item, view = {}) {
   const finance = item.finance;
   if (!finance) return html`<p class="fa-empty">Voor dit evenement is nog geen kostenoverzicht beschikbaar.</p>`;
-  if (!finance.expenses.length) return html`${settlementHero(finance)}${renderOwnCosts(item, view)}`;
+  if (!finance.expenses.length)
+    return html`${settlementHero(finance)}${bufferNote(finance)}${renderOwnCosts(item, view)}`;
   const t = finance.totals;
   const categories = joinHtml(
     finance.categories.map(category => {
@@ -227,7 +239,12 @@ export function renderCosts(item, view = {}) {
           const label = COST_SHORT[method];
           const notApplicable =
             (member.type === EVENING && method !== "bar") || (method === "adults" && member.type !== "Volwassene");
-          const extra = method === "meat" ? " · " + plural(member.portions, UNITS.meat) : "";
+          const extra =
+            method === "meat"
+              ? " · " + plural(member.portions, UNITS.meat)
+              : method === "bar" && member.bufferCents
+                ? " · incl. " + euro(member.bufferCents) + " buffer"
+                : "";
           return html`<li>
                 <span>${label}${extra}</span>
                 <b>${
@@ -323,7 +340,7 @@ export function renderCosts(item, view = {}) {
   return html`<div class="fa-section-head">
         <h3>1. Kosten van het evenement</h3>
         <p>Per soort kost: het totaal en het deel dat jullie gezin draagt.</p>
-      </div>${categories}<div class="fa-section-head">
+      </div>${bufferNote(finance)}${categories}<div class="fa-section-head">
         <h3>2. Per gezinslid</h3>
         <p>${
           finance.members.some(member => member.advancedCents)

@@ -57,13 +57,16 @@ export async function settlementStatements(env, editionId) {
           .all()
       ).results || []
     : [];
+  const config = parse(edition.config_json, {}) || {};
   return {
-    config: parse(edition.config_json, {}) || {},
+    config,
     eventTitle: edition.name + " " + edition.label,
     finalized: Boolean(snapshot?.costs_finalized),
     families: registrations.map(reg => ({
       registration: reg,
-      finance: getFamilyFinanceBreakdown(reg, registrations, expenses, payments),
+      finance: getFamilyFinanceBreakdown(reg, registrations, expenses, payments, {
+        barBufferCents: config.barBufferCents
+      }),
       recipients: accounts.filter(account => account.family_id === reg.familyId)
     }))
   };
@@ -101,6 +104,9 @@ export function settlementHtml({ displayName, familyName, eventTitle, finance, f
           (category.personal && category.perMember?.length
             ? '<br><small style="color:#6b7688">' +
               category.perMember.map(member => esc(member.name) + " " + esc(euro(member.cents))).join(" · ") +
+              (category.bufferCents
+                ? " (inclusief " + esc(euro(category.bufferCents)) + " barbuffer per persoon)"
+                : "") +
               "</small>"
             : ""),
         esc(euro(category.familyCents))

@@ -34,8 +34,12 @@ const TOPICS = [
         kosten binnen zijn, is dat bedrag voorlopig. Op <em>Kosten</em> zie je per soort kost het totaal, jullie deel en
         hoe dat berekend is.</p>
       <p><strong>Zelf iets voorgeschoten?</strong> Voeg de kost toe op <em>Kosten</em> met omschrijving, bedrag, datum en
-        soort kost. Een foto van het kasticket is verplicht. De kost wordt daarna automatisch verdeeld. Je kan alleen
-        kosten wijzigen of verwijderen die je zelf hebt ingevoerd.</p>`
+        soort kost. Een foto van het kasticket is verplicht. Kies ook wie van jullie betaalde: dat bedrag gaat af van
+        de eigen kosten van die persoon. De kost wordt daarna automatisch verdeeld. Je kan alleen kosten wijzigen of
+        verwijderen die je zelf hebt ingevoerd.</p>
+      <p><strong>Barbuffer:</strong> op een feest vergeten we allemaal wel eens een streepje te zetten. Daarom kan de
+        organisatie een klein vast bedrag per persoon op de barrekening zetten, voor iedereen gelijk. Zo hoeft niemand
+        op het einde bij te leggen, en wat overblijft gaat naar volgend jaar.</p>`
   },
   {
     title: "Wie komt er nog?",

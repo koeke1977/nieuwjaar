@@ -53,11 +53,17 @@ export const forms = {
       window.alert("Vul de naam van het evenement en van de editie in.");
       return;
     }
+    const buffer = Math.round(Number(String(form.elements.barBuffer?.value || "0").replace(",", ".")) * 100);
+    if (!Number.isSafeInteger(buffer) || buffer < 0 || buffer > 5000) {
+      window.alert("De barbuffer per persoon moet tussen € 0 en € 50 liggen.");
+      return;
+    }
     state.eventName = eventName;
     state.activeEvent = { ...state.activeEvent, name: editionName };
     state.startsAt = (form.elements.startsAt?.value || "").slice(0, 16) || null;
     state.orderDeadline = (form.elements.orderDeadline?.value || "").slice(0, 16) || null;
     state.contact = (form.elements.contact?.value || "").trim().slice(0, 120);
+    state.barBufferCents = buffer;
     renderApp();
     flushAdminState()
       .then(loadEvents)

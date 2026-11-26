@@ -1,5 +1,5 @@
 // Gebruikers: gezinnen (over alle edities heen) en accounts.
-import { state } from "../../../data/admin-store.js";
+import { state, financeOptions } from "../../../data/admin-store.js";
 import { typeLabel, typeOptions, countsText } from "../../../utils/member-types.js";
 import { html, joinHtml, euro, plural } from "../../../utils/html.js";
 import { getFinancialSummary } from "../../../utils/finance.js";
@@ -25,7 +25,9 @@ function participationRow(family) {
       const loaded = reg.editionId === state.activeEditionId;
       const live = loaded ? state.registrations.find(item => item.id === reg.id) : null;
       const summary = live
-        ? getFinancialSummary(state.registrations, state.expenses, state.payments).find(item => item.id === reg.id)
+        ? getFinancialSummary(state.registrations, state.expenses, state.payments, financeOptions()).find(
+            item => item.id === reg.id
+          )
         : null;
       return html`<li>
             <span>

@@ -518,3 +518,16 @@ test("the contact for families is saved per edition, carried to the next, and sh
   const created = await startNextEdition({ DB }, "ed1", { label: "2027–2028" }, NOW + 1);
   assert.equal((await loadEditionState({ DB }, created.editionId)).contact, "Koen, 0470 12 34 56");
 });
+
+test("the barbuffer per person is saved, checked, and carried to the next edition", async () => {
+  const DB = setup();
+  const base = payload(await loadEditionState({ DB }, "ed1"));
+  assert.equal((await loadEditionState({ DB }, "ed1")).barBufferCents, 0);
+  const tooMuch = { ...clone(base), barBufferCents: 5001 };
+  assert.equal((await saveEditionState({ DB }, "ed1", { base, data: tooMuch }, NOW)).status, 400);
+  const data = { ...clone(base), barBufferCents: 200 };
+  assert.equal((await saveEditionState({ DB }, "ed1", { base, data }, NOW)).status, 200);
+  assert.equal((await loadEditionState({ DB }, "ed1")).barBufferCents, 200);
+  const created = await startNextEdition({ DB }, "ed1", { label: "2027–2028" }, NOW + 1);
+  assert.equal((await loadEditionState({ DB }, created.editionId)).barBufferCents, 200);
+});
