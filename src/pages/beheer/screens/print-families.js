@@ -1,6 +1,7 @@
-// Paper overview for the organiser: per family the costs without the bar, what the family
-// advanced, and the difference to collect from or pay back to that family.
-import { state } from "../../../data/admin-store.js";
+// Paper overview for the organiser: per family the costs without the bar, the barbuffer, what
+// the family advanced, and the difference to collect from or pay back to that family.
+import { state, financeOptions } from "../../../data/admin-store.js";
+import { barBufferCents } from "../../../utils/finance.js";
 import { html, raw, joinHtml, euro, plural, formatDate } from "../../../utils/html.js";
 import { eventTotals, eventTitle, today } from "./shared.js";
 
@@ -36,8 +37,9 @@ export function familyCostsRows() {
     .map(reg => {
       const row = summary.find(item => item.id === reg.id) || {};
       const costs = Math.max(0, (row.shareCents || 0) - (row.barCents || 0) - (row.bufferCents || 0));
+      const buffer = row.bufferCents || 0;
       const advanced = row.advancedCents || 0;
-      return { name: reg.name, costs, advanced, delta: costs - advanced };
+      return { name: reg.name, costs, buffer, advanced, delta: costs + buffer - advanced };
     });
 }
 
@@ -49,6 +51,7 @@ export function familyCostsDocument() {
       row => html`<tr>
           <td>${row.name}</td>
           <td>${euro(row.costs)}</td>
+          <td>${row.buffer ? euro(row.buffer) : "–"}</td>
           <td>${row.advanced ? euro(row.advanced) : "–"}</td>${deltaCell(row.delta)}</tr>`
     ),
     ""
@@ -63,13 +66,14 @@ export function familyCostsDocument() {
       </head>
       <body>
         <h1>${title}</h1>
-        <p>Kosten zonder bar en barbuffer · ${state.costsFinalized ? "kosten definitief" : "kosten voorlopig"} ·
+        <p>Kosten zonder bar${barBufferCents(financeOptions()) ? " · barbuffer " + euro(barBufferCents(financeOptions())) + " per persoon" : ""} · ${state.costsFinalized ? "kosten definitief" : "kosten voorlopig"} ·
             ${plural(rows.length, "gezin", "gezinnen")} · afgedrukt op ${formatDate(today())}</p>
         <table>
           <thead>
             <tr>
               <th>Gezin</th>
               <th>Kosten</th>
+              <th>Barbuffer</th>
               <th>Voorgeschoten</th>
               <th>Verschil</th>
             </tr>
@@ -79,6 +83,7 @@ export function familyCostsDocument() {
             <tr>
               <td>Totaal</td>
               <td>${euro(sum(row => row.costs))}</td>
+              <td>${euro(sum(row => row.buffer))}</td>
               <td>${euro(sum(row => row.advanced))}</td>
               <td></td>
             </tr>
@@ -86,10 +91,12 @@ export function familyCostsDocument() {
               <td>Te innen bij gezinnen</td>
               <td></td>
               <td></td>
+              <td></td>
               <td>${euro(sum(row => Math.max(0, row.delta)))}</td>
             </tr>
             <tr>
               <td>Terug te geven aan gezinnen</td>
+              <td></td>
               <td></td>
               <td></td>
               <td>${euro(sum(row => Math.max(0, -row.delta)))}</td>
