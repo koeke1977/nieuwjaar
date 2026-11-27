@@ -167,7 +167,9 @@ export function renderFinance() {
   );
 
   const shareTotal = t.summary.reduce((sum, row) => sum + row.shareCents, 0);
-  const splitShares = shareTotal - t.summary.reduce((sum, row) => sum + (row.barCents || 0), 0);
+  // Bar bills and the barbuffer are personal, not split costs: leave them out of this check.
+  const splitShares =
+    shareTotal - t.summary.reduce((sum, row) => sum + (row.barCents || 0) + (row.bufferCents || 0), 0);
   const splitCosts = (state.expenses || [])
     .filter(expense => expense.method !== "bar")
     .reduce((sum, expense) => sum + (Number(expense.amountCents) || 0), 0);

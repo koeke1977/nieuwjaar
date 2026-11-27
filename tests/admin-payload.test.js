@@ -86,3 +86,26 @@ test("with a barbuffer a surplus goes to next year and only a shortfall is a pro
     state.barBufferCents = 0;
   }
 });
+
+test("Financiën stays balanced with a barbuffer: the buffer is not a split cost", async () => {
+  const { renderFinance } = await import("../src/pages/beheer/screens/finance.js");
+  const { state } = await import("../src/data/admin-store.js");
+  const saved = { ...state };
+  Object.assign(state, {
+    barBufferCents: 250,
+    registrations: [
+      { id: "a", name: "Familie A", members: [{ id: "a1", name: "Ben", type: "Volwassene", barCents: 1200 }] },
+      { id: "b", name: "Familie B", members: [{ id: "b1", name: "Tina", type: "Kind" }] }
+    ],
+    expenses: [
+      { id: "e1", description: "Zaal", amountCents: 3401, method: "general", advancedBy: "a", date: "2026-12-01" }
+    ],
+    payments: []
+  });
+  try {
+    const out = String(renderFinance());
+    assert.ok(out.includes("Sluitend: alle kosten zijn verdeeld"), "no 'niet verdeeld' because of the buffer");
+  } finally {
+    Object.assign(state, saved);
+  }
+});
