@@ -1,7 +1,7 @@
 // Editie → Inschrijvingen: lijst van gezinnen, gezinsdetail, personen bewerken, toegang.
 import { state, financeOptions } from "../../../data/admin-store.js";
 import { typeLabel, typeOptions, countsText, EVENING } from "../../../utils/member-types.js";
-import { html, joinHtml, euro, plural } from "../../../utils/html.js";
+import { html, joinHtml, euro, plural, formatDate } from "../../../utils/html.js";
 import { COST_ICON, getFinancialSummary, getFamilyFinanceBreakdown } from "../../../utils/finance.js";
 import {
   allFamilies,
@@ -66,6 +66,70 @@ const REG_SORT = {
   access: row => row.access
 };
 
+// Paper overview (only visible when printing): every registered family with its costs
+// without the bar, so the organisation can tick families off on paper.
+function renderFamilyPrintList(t) {
+  const regs = [...(state.registrations || [])].sort((a, b) => String(a.name).localeCompare(String(b.name), "nl"));
+  const rows = regs.map(reg => {
+    const summary = t.summary.find(item => item.id === reg.id) || {};
+    const costs = Math.max(0, (summary.shareCents || 0) - (summary.barCents || 0) - (summary.bufferCents || 0));
+    return {
+      reg,
+      costs,
+      advanced: summary.advancedCents || 0,
+      paid: Math.max(0, (summary.paidCents || 0) - (summary.refundedCents || 0))
+    };
+  });
+  const sum = key => rows.reduce((total, row) => total + row[key], 0);
+  const members = reg => reg.members || [];
+  const body = joinHtml(
+    rows.map(
+      row => html`<tr>
+          <th scope="row"><strong>${row.reg.name}</strong>
+            <small>${members(row.reg).length ? countsText(members(row.reg)) : "Gezin nog niet ingevuld"}</small>
+          </th>
+          <td>${members(row.reg).length || dash}</td>
+          <td>${familyPortions(row.reg) || dash}</td>
+          <td>${row.costs ? euro(row.costs) : dash}</td>
+          <td>${row.advanced ? euro(row.advanced) : dash}</td>
+          <td>${row.paid ? euro(row.paid) : dash}</td>
+          <td class="bh-print-check"></td>
+        </tr>`
+    ),
+    ""
+  );
+  return html`<section class="bh-print-only bh-print-families">
+        <h2>Ingeschreven gezinnen · ${eventTitle()}</h2>
+        <p>Kosten zonder bar en barbuffer · ${state.costsFinalized ? "kosten definitief" : "kosten voorlopig"} ·
+            afgedrukt op ${formatDate(today())}</p>
+        <table class="bh-table">
+          <thead>
+            <tr>
+              <th>Gezin</th>
+              <th>Personen</th>
+              <th>Porties</th>
+              <th>Kosten zonder bar</th>
+              <th>Voorgeschoten</th>
+              <th>Betaald</th>
+              <th>✓</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+          <tfoot>
+            <tr>
+              <th>Totaal (${plural(rows.length, "gezin", "gezinnen")})</th>
+              <th>${rows.reduce((total, row) => total + members(row.reg).length, 0)}</th>
+              <th>${t.portions}</th>
+              <th>${euro(sum("costs"))}</th>
+              <th>${euro(sum("advanced"))}</th>
+              <th>${euro(sum("paid"))}</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </section>`;
+}
+
 function renderFamilyList() {
   const t = eventTotals();
   const regs = state.registrations || [];
@@ -119,8 +183,9 @@ function renderFamilyList() {
       " volwassenen, " +
       t.children +
       " kinderen)" +
-      (t.evening ? " · " + t.evening + " avondgasten na het eten" : "")
-  )}${registerExistingFamily()}<section class="bh-card">
+      (t.evening ? " · " + t.evening + " avondgasten na het eten" : ""),
+    regs.length ? html`<button type="button" class="bh-btn" data-action="print">Afdrukken</button>` : ""
+  )}<div class="bh-print-hide">${registerExistingFamily()}<section class="bh-card">
         <form id="add-registration-form" class="bh-inline-form">
           <label for="bh-new-family">Nieuw gezin inschrijven</label>
           <div>
@@ -158,7 +223,7 @@ function renderFamilyList() {
               : html`<p class="bh-empty">Geen gezinnen voor deze filter.</p>`
           }</section>`
           : html`<p class="bh-empty">Nog geen inschrijvingen voor deze editie.</p>`
-      }`;
+      }</div>${regs.length ? renderFamilyPrintList(t) : ""}`;
 }
 
 function renderMemberEditor(registration) {

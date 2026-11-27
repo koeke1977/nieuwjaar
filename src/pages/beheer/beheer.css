@@ -1268,7 +1268,57 @@ button.bh-kpi:hover {
 }
 
 /* Print: only the content, no navigation */
+.bh-print-only {
+  display: none;
+}
 @media print {
+  .bh-print-hide {
+    display: none !important;
+  }
+  .bh-print-only {
+    display: block;
+  }
+  .bh-print-families h2 {
+    margin: 0 0 4px;
+  }
+  .bh-print-families p {
+    margin: 0 0 12px;
+    color: #444;
+  }
+  .bh-print-families table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+  .bh-print-families th,
+  .bh-print-families td {
+    padding: 4px 6px;
+    border-bottom: 1px solid #bbb;
+    text-align: right;
+    vertical-align: top;
+  }
+  .bh-print-families th:first-child {
+    text-align: left;
+  }
+  .bh-print-families tbody th small {
+    display: block;
+    font-weight: 400;
+    color: #555;
+  }
+  .bh-print-families tr {
+    break-inside: avoid;
+  }
+  .bh-print-families thead {
+    display: table-header-group;
+  }
+  .bh-print-families tfoot th {
+    border-top: 2px solid #111;
+    border-bottom: 0;
+  }
+  .bh-print-check {
+    width: 14mm;
+  }
+
   .bh-app {
     display: block;
     background: #fff;
