@@ -2,6 +2,7 @@
 import { state } from "../../../data/admin-store.js";
 import { euro } from "../../../utils/html.js";
 import { isMemberType, EVENING } from "../../../utils/member-types.js";
+import { familyCostsDocument } from "../screens/print-families.js";
 import { go, renderApp, makeId, recount, markCostsProvisional, adminApi } from "../admin-core.js";
 
 const closeCancelRequest = async id => {
@@ -11,7 +12,24 @@ const closeCancelRequest = async id => {
   delete state.cancelRequests[id];
 };
 
+// Print the paper overview from a hidden frame, so only that overview ends up on paper.
+function printFamilyCosts() {
+  document.querySelector("#bh-print-frame")?.remove();
+  const frame = document.createElement("iframe");
+  frame.id = "bh-print-frame";
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  frame.srcdoc = familyCostsDocument();
+  frame.onload = () => {
+    frame.contentWindow.addEventListener("afterprint", () => frame.remove());
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+  };
+  document.body.append(frame);
+}
+
 export const clicks = {
+  "print-families": printFamilyCosts,
   "dismiss-cancel-request": async action => {
     if (!window.confirm("Deze aanvraag sluiten? Het gezin blijft ingeschreven.")) return;
     try {
