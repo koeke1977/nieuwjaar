@@ -105,6 +105,10 @@ test("Financiën stays balanced with a barbuffer: the buffer is not a split cost
   try {
     const out = String(renderFinance());
     assert.ok(out.includes("Sluitend: alle kosten zijn verdeeld"), "no 'niet verdeeld' because of the buffer");
+    // The buffer itself is visible: € 2,50 x 2 persons = € 5,00.
+    assert.ok(out.includes("Barbuffer"));
+    assert.ok(/2,50 × 2 personen/.test(out.replace(/\u00a0/g, " ")));
+    assert.ok(out.replace(/\u00a0/g, " ").includes("€ 5,00"));
   } finally {
     Object.assign(state, saved);
   }

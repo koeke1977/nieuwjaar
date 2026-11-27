@@ -1,7 +1,14 @@
 // Editie → Financiën: kosten, betalingen en afrekening per gezin.
-import { state } from "../../../data/admin-store.js";
+import { state, financeOptions } from "../../../data/admin-store.js";
 import { html, joinHtml, euro, plural, formatDate } from "../../../utils/html.js";
-import { SHARED_FUND, COST_ICON, getExpenseShares, COST_METHODS, PAYER_SEPARATOR } from "../../../utils/finance.js";
+import {
+  SHARED_FUND,
+  COST_ICON,
+  getExpenseShares,
+  COST_METHODS,
+  PAYER_SEPARATOR,
+  barBufferCents
+} from "../../../utils/finance.js";
 import {
   today,
   METHOD_HINT,
@@ -166,6 +173,31 @@ export function renderFinance() {
     ""
   );
 
+  // The barbuffer is no invoice, but it is money the families pay: show it with the costs.
+  const perPerson = barBufferCents(financeOptions());
+  const people = regs.reduce((sum, reg) => sum + (reg.members || []).length, 0);
+  const bufferGroup = perPerson
+    ? html`<section class="bh-expense-group">
+          <header>
+            <span>🍻 Barbuffer <small>vast bedrag per persoon op de barrekening, voor de vergeten streepjes</small>
+            </span>
+            <b>${euro(perPerson * people)}</b>
+          </header>
+          <ul>
+            <li>
+              <div class="bh-expense">
+                <span>
+                  <strong>${euro(perPerson)} × ${plural(people, "persoon", "personen")}</strong>
+                  <small>iedereen, ook kinderen en avondgasten · wat overblijft na de rekening van de drank, gaat naar
+                    volgend jaar · <button type="button" class="bh-link" data-action="edition-tab"
+                      data-tab="edition">wijzigen bij Editie</button></small>
+                </span>
+                <b>${euro(perPerson * people)}</b>
+              </div>
+            </li>
+          </ul>
+        </section>`
+    : "";
   const shareTotal = t.summary.reduce((sum, row) => sum + row.shareCents, 0);
   // Bar bills and the barbuffer are personal, not split costs: leave them out of this check.
   const splitShares =
@@ -215,7 +247,7 @@ export function renderFinance() {
           <header class="bh-card-head">
             <h2>Kosten</h2>
             <span class="bh-count">${(state.expenses || []).length}</span>
-          </header>${groups || html`<p class="bh-empty">Nog geen kosten. Voeg hieronder de eerste toe.</p>`}<details
+          </header>${groups || html`<p class="bh-empty">Nog geen kosten. Voeg hieronder de eerste toe.</p>`}${bufferGroup}<details
               class="bh-add"${(state.expenses || []).length ? "" : " open"}>
             <summary>+ Nieuwe kost</summary>${
               state.editingExpenseId
@@ -323,7 +355,12 @@ export function renderFinance() {
               </tr>
             </tfoot>
           </table>
-        </div>`
+        </div>${
+          perPerson
+            ? html`<p class="bh-note">Het aandeel bevat de gedeelde kosten, de barrekeningen en de barbuffer
+                (${euro(perPerson)} per persoon).</p>`
+            : ""
+        }`
               : html`<p class="bh-empty">Nog geen gezinnen.</p>`
           }${
             balanced

@@ -278,7 +278,8 @@ function renderFamilyDetail(registration) {
 
   const categoryShare = category =>
     category.personal
-      ? "persoonlijke barrekening"
+      ? "persoonlijke barrekening" +
+        (category.bufferCents ? " + " + euro(category.bufferCents) + " barbuffer per persoon" : "")
       : category.familyUnits +
         "/" +
         category.totalUnits +
